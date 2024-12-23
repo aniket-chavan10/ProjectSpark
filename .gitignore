@@ -1,0 +1,23 @@
+# Node.js dependencies
+node_modules/
+
+# React build artifacts
+build/
+
+# Tailwind CSS cache
+.tailwind/
+
+# Environment variables
+.env
+
+# macOS system files
+.DS_Store
+
+# Log files
+*.log
+
+# VS Code settings (if applicable)
+.vscode/
+
+# Optional: If you have a dist folder for production builds
+dist/
