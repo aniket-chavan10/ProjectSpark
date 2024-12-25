@@ -34,13 +34,13 @@ const Navbar = () => {
           </div>
           <div className="flex items-center space-x-4">
             <button
-              onClick={() => navigate("/login")}
+              onClick={() => navigate("/sign-in")}
               className="text-gray-300 hover:text-white px-3 py-2 rounded-md text-sm font-medium"
             >
               Log In
             </button>
             <button
-              onClick={() => navigate("/signup")}
+              onClick={() => navigate("/sign-up")}
               className="bg-blue-500 text-white px-3 py-2 rounded-md text-sm font-medium hover:bg-blue-600"
             >
               Sign Up

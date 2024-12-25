@@ -11,7 +11,10 @@ function App() {
   return (
       <Router>
           <Routes>
-              <Route path="/" element={<MasterAdminDashboard />} />
+              <Route path="/" element={<Home />} />
+              <Route path="/sign-in" element={<LoginPage />} />
+              <Route path="/sign-up" element={<SignUpPage />} />
+              <Route path="/master-admin" element={<MasterAdminDashboard />} />
           </Routes>
       </Router>
   );
