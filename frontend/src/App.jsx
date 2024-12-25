@@ -5,18 +5,15 @@ import LoginPage from "./pages/LogInPage";
 import Home from "./pages/HomePage";
 import SignUpPage from "./pages/SignUpPage";
 import AdminDash from "./pages/AdminDash";  // Import the Admin Dashboard component
+import MasterAdminDashboard from "../src/pages/MasterAdminDashboard";
 
 function App() {
   return (
-    <Router>
-      <Navbar />
-      <Routes>
-        <Route path="/" element={<Home />} />
-        <Route path="/login" element={<LoginPage />} />
-        <Route path="/signup" element={<SignUpPage />} />
-        <Route path="/admin-dashboard" element={<AdminDash />} /> {/* Admin Dashboard Route */}
-      </Routes>
-    </Router>
+      <Router>
+          <Routes>
+              <Route path="/" element={<MasterAdminDashboard />} />
+          </Routes>
+      </Router>
   );
 }
 
