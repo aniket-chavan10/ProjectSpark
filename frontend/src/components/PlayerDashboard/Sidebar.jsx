@@ -11,7 +11,7 @@ const Sidebar = ({ activeSection, setActiveSection, isSidebarOpen, toggleSidebar
 
     return (
         <div
-            className={`fixed z-20 top-0 left-0 h-full w-64 bg-gray-800 shadow-lg transition-transform transform ${
+            className={`fixed z-20 top-0 left-0 h-screen w-64 bg-gray-800 shadow-lg transition-transform transform ${
                 isSidebarOpen ? 'translate-x-0' : '-translate-x-64'
             } md:relative md:translate-x-0`}
         >
@@ -23,7 +23,7 @@ const Sidebar = ({ activeSection, setActiveSection, isSidebarOpen, toggleSidebar
                     {sections.map((section) => (
                         <li
                             key={section.id}
-                            className={`block px-4 py-3 rounded-lg text-sm font-medium transition-colors duration-300 ${
+                            className={`block px-4 py-3 rounded-lg text-sm font-medium transition-colors duration-300 cursor-pointer  ${
                                 activeSection === section.id
                                     ? 'bg-blue-600 text-white'
                                     : 'text-gray-300 hover:bg-gray-700 hover:text-white'

@@ -21,7 +21,7 @@ const Sidebar = ({ sections, activeSection, handleSectionClick, toggleSidebar, i
                     {sections.map((section) => (
                         <li
                             key={section.id}
-                            className={`block px-4 py-3 rounded-lg text-sm font-medium transition-colors duration-300 ${
+                            className={`block px-4 py-3 rounded-lg text-sm font-medium transition-colors duration-300 cursor-pointer ${
                                 activeSection === section.id
                                     ? 'bg-blue-600 text-white'
                                     : 'text-gray-300 hover:bg-gray-700 hover:text-white'

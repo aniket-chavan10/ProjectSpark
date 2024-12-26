@@ -1,27 +1,30 @@
 const express = require('express');
 const router = express.Router();
 const verifyAdminToken = require('../middlewares/authMiddleware'); // Middleware to verify admin token
-const { 
-    createPlayer, 
-    listPlayersByTeam, 
-    getPlayer, 
-    editPlayer, 
-    removePlayer 
+const {
+    createPlayer,
+    playerLogin,
+    getAllPlayers,
+    getPlayerById,
+    updatePlayer,
+    deletePlayer
 } = require('../controllers/playersController');
 
 // Route to add a new player (Admin-only)
-router.post('/', verifyAdminToken, createPlayer);
+router.post('/',  createPlayer);
 
-// Route to get all players of a team (Admin-only)
-router.get('/team/:teamId', verifyAdminToken, listPlayersByTeam);
+router.post('/login',  playerLogin);
+
+// Route to get all players (Admin-only)
+router.get('/',  getAllPlayers);
 
 // Route to get a specific player's details (Admin-only)
-router.get('/:playerId', verifyAdminToken, getPlayer);
+router.get('/:id', verifyAdminToken, getPlayerById);
 
 // Route to update a player's details (Admin-only)
-router.put('/:playerId', verifyAdminToken, editPlayer);
+router.put('/:id', verifyAdminToken, updatePlayer);
 
 // Route to delete a player (Admin-only)
-router.delete('/:playerId', verifyAdminToken, removePlayer);
+router.delete('/:id', verifyAdminToken, deletePlayer);
 
 module.exports = router;

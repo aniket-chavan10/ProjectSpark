@@ -1,14 +1,14 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import Sidebar from '../components/TeamManager Dashboard/Sidebar';
-import Dashboard from '../components/TeamManager Dashboard/Dashboard';
-import Profile from '../components/TeamManager Dashboard/Profile';
-import ManagePlayingXI from '../components/TeamManager Dashboard/ManagePlayingXI';
-import AddNewPlayer from '../components/TeamManager Dashboard/AddNewPlayer';
-import Alerts from '../components/TeamManager Dashboard/Alerts';
+import Sidebar from '../components/AdminDashboard/Sidebar';
+import Dashboard from '../components/AdminDashboard/Dashboard';
+import Profile from '../components/AdminDashboard/Profile';
+import ManagePlayingXI from '../components/AdminDashboard/ManagePlayingXI';
+import AddNewPlayer from '../components/AdminDashboard/AddNewPlayer';
+import Alerts from '../components/AdminDashboard/Alerts';
+import ViewPlayers from '../components/AdminDashboard/ViewPlayers';
 
-
-const TeamManagerDashboard = () => {
+const AdminDashboard = () => {
     const [players, setPlayers] = useState([]);
     const [playingXI, setPlayingXI] = useState([]);
     const [activeSection, setActiveSection] = useState('dashboard');
@@ -23,6 +23,7 @@ const TeamManagerDashboard = () => {
         { id: 'profile', name: 'Profile' },
         { id: 'playingXI', name: 'Manage Playing XI' },
         { id: 'addPlayer', name: 'Add New Player' },
+        { id: 'viewPlayers', name: 'View Players' },
         { id: 'alerts', name: 'Alerts' },
         { id: 'logout', name: 'Logout' },
     ];
@@ -69,10 +70,11 @@ const TeamManagerDashboard = () => {
                 {activeSection === 'profile' && <Profile profilePhoto={profilePhoto} setProfilePhoto={setProfilePhoto} />}
                 {activeSection === 'playingXI' && <ManagePlayingXI />}
                 {activeSection === 'addPlayer' && <AddNewPlayer />}
+                {activeSection === 'viewPlayers' && <ViewPlayers />}
                 {activeSection === 'alerts' && <Alerts />}
             </div>
         </div>
     );
 };
 
-export default TeamManagerDashboard;
+export default AdminDashboard;

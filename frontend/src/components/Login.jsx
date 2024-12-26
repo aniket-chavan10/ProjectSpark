@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import adminApi from "../api/adminApi";
 import masterAdminApi from "../api/masterAdminApi";
+import playersApi from "../api/playerApi";
 
 export default function Login() {
   const [isVisible, setIsVisible] = useState(true);
@@ -17,13 +18,6 @@ export default function Login() {
     setIsVisible(false);
   };
 
-  const toggleLoginType = () => {
-    setRole(role === "admin" ? "master-admin" : "admin");
-    setEmail(""); // Clear email when switching to master admin
-    setUsername(""); // Clear username when switching to admin
-    setError(null); // Reset error message
-  };
-
   if (!isVisible) {
     return null;
   }
@@ -33,25 +27,31 @@ export default function Login() {
     setIsSubmitting(true);
     setError(null);
 
-    const loginData = role === "admin" ? { email, password } : { username, password };
+    const loginData =
+      role === "master-admin"
+        ? { username, password }
+        : { email, password };
 
     try {
       if (role === "master-admin") {
-        // Login for master admin
         const response = await masterAdminApi.loginMasterAdmin(loginData);
         console.log("Master Admin Login successful:", response.data);
         alert("Master Admin Login successful!");
         navigate("/master-admin"); // Redirect to master admin dashboard
-      } else {
-        // Login for admin
+      } else if (role === "admin") {
         const response = await adminApi.loginAdmin(loginData);
         console.log("Admin Login successful:", response.data);
         alert("Admin Login successful!");
         navigate("/admin-dashboard"); // Redirect to admin dashboard
+      } else {
+        const response = await playersApi.playerLogin(loginData);
+        console.log("Player Login successful:", response.data);
+        alert("Player Login successful!");
+        navigate("/player-dashboard"); // Redirect to player dashboard
       }
     } catch (error) {
       console.error("Error logging in:", error);
-      setError("Invalid email or password.");
+      setError("Invalid credentials. Please try again.");
     } finally {
       setIsSubmitting(false);
     }
@@ -88,7 +88,7 @@ export default function Login() {
               </div>
             )}
             {/* Conditionally render Email/Username field */}
-            {role === "admin" ? (
+            {(role === "admin" || role === "player") && (
               <div>
                 <label htmlFor="email" className="block text-sm font-medium text-gray-900">
                   Email address
@@ -106,7 +106,8 @@ export default function Login() {
                   />
                 </div>
               </div>
-            ) : (
+            )}
+            {role === "master-admin" && (
               <div>
                 <label htmlFor="username" className="block text-sm font-medium text-gray-900">
                   Username
@@ -163,6 +164,7 @@ export default function Login() {
               >
                 <option value="admin">Admin</option>
                 <option value="master-admin">Master Admin</option>
+                <option value="player">Player</option>
               </select>
             </div>
 
@@ -176,24 +178,6 @@ export default function Login() {
               </button>
             </div>
           </form>
-
-          <p className="mt-10 text-center text-sm text-gray-500">
-            Not a member?{" "}
-            <a href="#" className="font-semibold text-indigo-600 hover:text-indigo-500">
-              Start a 14-day free trial
-            </a>
-          </p>
-
-          {/* Toggle Button */}
-          <div className="mt-4 text-center">
-            <button
-              type="button"
-              onClick={toggleLoginType}
-              className="text-sm text-indigo-600 hover:text-indigo-500"
-            >
-              Switch to {role === "admin" ? "Master Admin" : "Admin"} Login
-            </button>
-          </div>
         </div>
       </div>
     </div>
