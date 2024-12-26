@@ -11,20 +11,15 @@ const AllTeams = () => {
       setLoading(true);
       try {
         const response = await masterAdminApi.getAllVillages();
-        console.log("API Response:", response); // Log the full API response
         if (response.data) {
-          console.log("Data from API:", response.data); // Log data to see if it's valid
           const approvedTeams = response.data.filter(
             (team) => team.status === "approved"
           );
-          console.log("Filtered Approved Teams:", approvedTeams); // Log approved teams
           setTeams(approvedTeams);
-        } else {
-          console.log("No data found in response");
         }
       } catch (err) {
         setError("Failed to fetch teams.");
-        console.error("Error fetching teams:", err); // Log error details
+        console.error("Error fetching teams:", err);
       } finally {
         setLoading(false);
       }
@@ -34,34 +29,43 @@ const AllTeams = () => {
   }, []);
 
   if (loading) {
-    return <p>Loading teams...</p>;
+    return <p className="text-gray-600 text-center">Loading teams...</p>;
   }
 
   if (error) {
-    return <p className="text-red-500">{error}</p>;
+    return <p className="text-red-500 text-center">{error}</p>;
   }
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-      {teams.length === 0 ? (
-        <p className="text-center text-gray-600">No approved teams available.</p>
-      ) : (
-        teams.map((team) => (
-          <div
-            key={team.id}
-            className="bg-white shadow-lg rounded-lg p-6 flex flex-col items-center transition-transform duration-300 transform hover:scale-105 hover:shadow-xl"
-          >
+    <div className="min-h-screen bg-gray-100 p-6">
+      <h1 className="text-3xl font-bold text-gray-800 mb-6 text-center">
+        Approved Teams
+      </h1>
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+        {teams.length === 0 ? (
+          <p className="text-center text-gray-600 col-span-full">
+            No approved teams available.
+          </p>
+        ) : (
+          teams.map((team) => (
             <div
-              className="w-24 h-24 mb-4 rounded-full bg-gray-300 flex items-center justify-center"
-              style={{ backgroundColor: "#4C51BF" }} // You can customize this background color
+              key={team.id}
+              className="bg-white shadow-md rounded-lg p-6 flex flex-col items-center transition-transform duration-300 transform hover:scale-105 hover:shadow-lg"
             >
-              <span className="text-white text-xl font-bold ">{team.team_name[0]}</span> {/* Initials or some fallback */}
+              <div
+                className="w-24 h-24 mb-4 rounded-full flex items-center justify-center text-xl font-bold text-white"
+                style={{ backgroundColor: "#4C51BF" }}
+              >
+                {team.team_name[0].toUpperCase()}
+              </div>
+              <h3 className="text-xl font-semibold text-gray-800 uppercase text-center mb-2">
+                {team.team_name}
+              </h3>
+              <p className="text-gray-500 text-center">{team.village_name}</p>
             </div>
-            <h3 className="text-xl font-semibold text-gray-800 uppercase">{team.team_name}</h3>
-            <p className="text-gray-500">{team.village_name}</p>
-          </div>
-        ))
-      )}
+          ))
+        )}
+      </div>
     </div>
   );
 };
