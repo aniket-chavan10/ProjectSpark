@@ -26,12 +26,18 @@ export const AuthProvider = ({ children }) => {
     console.log("AuthProvider: login called with token", token, "role", role);
   };
 
-  const logout = () => {
-    setAuth({ token: null, role: null });
-    localStorage.removeItem("authToken");
-    localStorage.removeItem("userRole");
-    console.log("AuthProvider: logged out");
-  };
+// In your AuthContext
+
+const logout = () => {
+  // Clear the token and role from localStorage
+  localStorage.removeItem("authToken");
+  localStorage.removeItem("userRole");
+
+  // Clear the context state
+  setAuth(null); // or whatever your state update function is
+};
+
+// Call logout when the user logs out
 
   return (
     <AuthContext.Provider value={{ auth, login, logout }}>

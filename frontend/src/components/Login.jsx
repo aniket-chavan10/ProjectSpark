@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import adminApi from "../api/adminApi";
+import playersApi from "../api/playerApi"; // Import players API
 import { useAuth } from "../contexts/AuthContext";
 
 export default function Login() {
@@ -19,11 +20,22 @@ export default function Login() {
     const loginData = { email, password };
 
     try {
-      let response = await adminApi.loginAdmin(loginData);
+      // Check which login type to use (admin or player)
+      let response;
+      if (email.includes("admin")) {
+        // Admin login
+        response = await adminApi.loginAdmin(loginData);
+      } else {
+        // Player login
+        response = await playersApi.playerLogin(loginData);
+      }
 
-      // Check if the response contains token and role
-      if (response.data?.token && response.data?.role) {
-        const { token, role } = response.data;
+      // Check if the response contains token
+      if (response.data?.token) {
+        const { token } = response.data;
+
+        // If role is not present in response, we assign 'player' as default for players
+        const role = response.data?.role || "player";
 
         // Store both token and role in localStorage
         localStorage.setItem("authToken", token);
@@ -36,9 +48,13 @@ export default function Login() {
         // Update context with the token and role
         login({ token, role });
 
-        console.log("Admin Login successful:", response.data);
-        navigate("/admin-dashboard"); // Redirect to the admin dashboard
-        alert("Admin Login successful!");
+        console.log("Login successful:", response.data);
+        if (role === "admin") {
+          navigate("/admin-dashboard"); // Redirect to the admin dashboard
+        } else {
+          navigate("/player-dashboard"); // Redirect to the player dashboard
+        }
+        alert("Login successful!");
       } else {
         setError("Invalid response from server. Please try again.");
       }

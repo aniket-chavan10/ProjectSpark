@@ -37,9 +37,7 @@ const loginMasterAdmin = (req, res) => {
   const { username, password } = req.body;
 
   if (!username || !password) {
-    return res
-      .status(400)
-      .json({ error: "Username and password are required" });
+    return res.status(400).json({ error: "Username and password are required" });
   }
 
   authenticateMasterAdmin(username, password, (err, admin) => {
@@ -51,20 +49,16 @@ const loginMasterAdmin = (req, res) => {
       return res.status(401).json({ error: "Invalid credentials" });
     }
 
-    // Generate JWT and send response
     const token = jwt.sign(
       { id: admin.id, username: admin.username },
       process.env.JWT_SECRET,
       { expiresIn: "1h" }
     );
-    res.cookie("token", token, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      maxAge: 3600000,
-    });
-    res.status(200).json({ message: "Login successful", token });
+
+    res.status(200).json({ token, role: "master-admin" });
   });
 };
+
 
 // Controller to get all villages
 const getAllVillages = (req, res) => {
