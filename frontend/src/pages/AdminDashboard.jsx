@@ -1,12 +1,12 @@
-import React, { useState } from "react";
-import { useNavigate } from "react-router-dom";
-import Sidebar from "../components/AdminDashboard/Sidebar";
-import Dashboard from "../components/AdminDashboard/Dashboard";
-import Profile from "../components/AdminDashboard/Profile";
-import ManagePlayingXI from "../components/AdminDashboard/ManagePlayingXI";
-import AddNewPlayer from "../components/AdminDashboard/AddNewPlayer";
-import Alerts from "../components/AdminDashboard/Alerts";
-import ViewPlayers from "../components/AdminDashboard/ViewPlayers";
+import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import Sidebar from '../components/AdminDashboard/Sidebar';
+import Dashboard from '../components/AdminDashboard/Dashboard';
+import Profile from '../components/AdminDashboard/Profile';
+import ManagePlayingXI from '../components/AdminDashboard/ManagePlayingXI';
+import AddNewPlayer from '../components/AdminDashboard/AddNewPlayer';
+import Alerts from '../components/AdminDashboard/Alerts';
+import ViewPlayers from '../components/AdminDashboard/ViewPlayers';
 
 const AdminDashboard = () => {
   const [players, setPlayers] = useState([]);
@@ -19,16 +19,16 @@ const AdminDashboard = () => {
 
   const navigate = useNavigate();
 
-  // Sidebar sections
-  const sections = [
-    { id: "dashboard", name: "Dashboard" },
-    { id: "profile", name: "Profile" },
-    { id: "playingXI", name: "Manage Playing XI" },
-    { id: "addPlayer", name: "Add New Player" },
-    { id: "viewPlayers", name: "View Players" },
-    { id: "alerts", name: "Alerts" },
-    { id: "logout", name: "Logout" },
-  ];
+    // Sidebar sections
+    const sections = [
+        { id: 'dashboard', name: 'Dashboard' },
+        { id: 'profile', name: 'Profile' },
+        { id: 'playingXI', name: 'Manage Playing XI' },
+        { id: 'addPlayer', name: 'Add New Player' },
+        { id: 'viewPlayers', name: 'View Players' },
+        { id: 'alerts', name: 'Alerts' },
+        { id: 'logout', name: 'Logout' },
+    ];
 
   const toggleSidebar = () => setIsSidebarOpen(!isSidebarOpen);
 
@@ -67,26 +67,21 @@ const AdminDashboard = () => {
         ☰
       </button>
 
-      {/* Main Content */}
-      <div
-        className={`flex-1 p-6 transition-all duration-300 ${
-          isSidebarOpen ? "ml-64" : "ml-0"
-        }`}
-      >
-        {activeSection === "dashboard" && <Dashboard />}
-        {activeSection === "profile" && (
-          <Profile
-            profilePhoto={profilePhoto}
-            setProfilePhoto={setProfilePhoto}
-          />
-        )}
-        {activeSection === "playingXI" && <ManagePlayingXI />}
-        {activeSection === "addPlayer" && <AddNewPlayer />}
-        {activeSection === "viewPlayers" && <ViewPlayers />}
-        {activeSection === "alerts" && <Alerts />}
-      </div>
-    </div>
-  );
+            {/* Main Content */}
+            <div
+                className={`flex-1 p-6 transition-all duration-300 ${
+                    isSidebarOpen ? 'ml-64' : 'ml-0'
+                }`}
+            >
+                {activeSection === 'dashboard' && <Dashboard />}
+                {activeSection === 'profile' && <Profile profilePhoto={profilePhoto} setProfilePhoto={setProfilePhoto} />}
+                {activeSection === 'playingXI' && <ManagePlayingXI />}
+                {activeSection === 'addPlayer' && <AddNewPlayer />}
+                {activeSection === 'viewPlayers' && <ViewPlayers />}
+                {activeSection === 'alerts' && <Alerts />}
+            </div>
+        </div>
+    );
 };
 
 export default AdminDashboard;
