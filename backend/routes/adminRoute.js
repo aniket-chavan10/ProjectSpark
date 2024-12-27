@@ -1,13 +1,15 @@
 const express = require('express');
 const router = express.Router();
-const { loginAdmin } = require('../controllers/adminController'); 
-const verifyAdminToken =require('../middlewares/authMiddleware')
+const { loginAdmin, getAllAdminsAndTeams,updateTeamLogo} = require('../controllers/adminController');
+const verifyAdminToken = require('../middlewares/authMiddleware');
+const upload=require('../middlewares/uploadMiddleware')
 
 // Admin login route
 router.post('/login', loginAdmin);
 
-router.get('/dashboard', verifyAdminToken, (req, res) => {
-  res.status(200).json({ message: 'This is a protected admin route' });
-});
+// Fetch admin profile, protected route
+router.get('/profile', verifyAdminToken, getAllAdminsAndTeams);
+
+router.put('/teams/logo', verifyAdminToken, upload.single('logo'), updateTeamLogo);
 
 module.exports = router;

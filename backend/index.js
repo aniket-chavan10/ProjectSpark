@@ -17,6 +17,10 @@ app.use(cors({
 
 // Middleware to parse JSON requests
 app.use(express.json());
+// Serve static files from the 'uploads' folder
+app.use('/uploads', express.static('uploads'));
+
+
 
 const villageRoute = require('./routes/villageRoute');
 app.use('/api/village', villageRoute); // Mount the route on the '/api/villages' path

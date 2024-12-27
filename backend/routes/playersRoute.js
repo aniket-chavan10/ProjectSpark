@@ -11,12 +11,12 @@ const {
 } = require('../controllers/playersController');
 
 // Route to add a new player (Admin-only)
-router.post('/',  createPlayer);
+router.post('/', verifyAdminToken, createPlayer);
 
 router.post('/login',  playerLogin);
 
 // Route to get all players (Admin-only)
-router.get('/',  getAllPlayers);
+router.get('/',verifyAdminToken,  getAllPlayers);
 
 // Route to get a specific player's details (Admin-only)
 router.get('/:id', verifyAdminToken, getPlayerById);
