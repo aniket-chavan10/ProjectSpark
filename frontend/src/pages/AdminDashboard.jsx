@@ -7,6 +7,7 @@ import ManagePlayingXI from '../components/AdminDashboard/ManagePlayingXI';
 import AddNewPlayer from '../components/AdminDashboard/AddNewPlayer';
 import Alerts from '../components/AdminDashboard/Alerts';
 import ViewPlayers from '../components/AdminDashboard/ViewPlayers';
+import Organizer from '../components/AdminDashboard/Organizer';  // Import the new Organizer component
 
 const AdminDashboard = () => {
     const [players, setPlayers] = useState([]);
@@ -20,6 +21,7 @@ const AdminDashboard = () => {
     // Sidebar sections
     const sections = [
         { id: 'dashboard', name: 'Dashboard' },
+        { id: 'organizer', name: 'Organizer' },  // Added the Organizer section
         { id: 'profile', name: 'Profile' },
         { id: 'playingXI', name: 'Manage Playing XI' },
         { id: 'addPlayer', name: 'Add New Player' },
@@ -67,6 +69,7 @@ const AdminDashboard = () => {
                 }`}
             >
                 {activeSection === 'dashboard' && <Dashboard />}
+                {activeSection === 'organizer' && <Organizer />} {/* Render the Organizer component */}
                 {activeSection === 'profile' && <Profile profilePhoto={profilePhoto} setProfilePhoto={setProfilePhoto} />}
                 {activeSection === 'playingXI' && <ManagePlayingXI />}
                 {activeSection === 'addPlayer' && <AddNewPlayer />}

@@ -9,6 +9,7 @@ const Sidebar = ({ activeSection, setActiveSection }) => {
         { id: 'all-teams', name: 'Teams' },
         { id: 'teamRequests', name: 'Team Requests' },
         { id: 'rankings', name: 'Rankings' },
+        { id: 'tournamentManager', name: 'Tournaments' }, // Ensure correct ID here
         { id: 'managePlayers', name: 'Manage Players' },
         { id: 'logout', name: 'Logout' },
     ];
@@ -21,7 +22,7 @@ const Sidebar = ({ activeSection, setActiveSection }) => {
     return (
         <div className="w-64 bg-gray-800 min-h-screen flex flex-col">
             <div className="p-6 border-b border-gray-700 text-center">
-                <h1 className="text-white text-2xl font-bold tracking-wide">Admin Dashboard</h1>
+                <h1 className="text-white text-2xl font-bold tracking-wide">Master Admin Dashboard</h1>
             </div>
             <nav className="flex-1 px-4 py-6">
                 <ul className="space-y-3">
@@ -37,7 +38,7 @@ const Sidebar = ({ activeSection, setActiveSection }) => {
                                 if (section.id === 'logout') {
                                     handleLogout();
                                 } else {
-                                    setActiveSection(section.id);
+                                    setActiveSection(section.id); // Set the correct section id
                                 }
                             }}
                         >
