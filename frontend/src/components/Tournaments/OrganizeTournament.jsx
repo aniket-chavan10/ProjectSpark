@@ -4,14 +4,15 @@ import Select from "react-select"; // Import react-select
 const OrganizeTournament = ({ villages, onScheduleTournament }) => {
   const [selectedVillage, setSelectedVillage] = useState(null); // Changed to store selected village as an object
   const [newTournamentDate, setNewTournamentDate] = useState("");
+  const [endTournamentDate, setEndTournamentDate] = useState(""); // Added end date field
   const [error, setError] = useState("");
   const [requestStatus, setRequestStatus] = useState("pending"); // Track request status
   const [buttonText, setButtonText] = useState("Request to Schedule"); // Button text state
 
   // Handle the scheduling request
   const handleScheduleTournament = () => {
-    if (!selectedVillage || !newTournamentDate) {
-      setError("Please select a village and set a tournament date");
+    if (!selectedVillage || !newTournamentDate || !endTournamentDate) {
+      setError("Please select a village and set both start and end tournament dates");
       return;
     }
 
@@ -26,7 +27,7 @@ const OrganizeTournament = ({ villages, onScheduleTournament }) => {
     }, 2000);
 
     // Call the onScheduleTournament prop to send the request (can be replaced with actual API call)
-    onScheduleTournament(selectedVillage.name, newTournamentDate);
+    onScheduleTournament(selectedVillage.name, newTournamentDate, endTournamentDate);
   };
 
   // Map the villages data to the format that react-select expects
@@ -48,26 +49,39 @@ const OrganizeTournament = ({ villages, onScheduleTournament }) => {
 
       <div className="mb-4">
         <label htmlFor="villageSelect" className="block text-gray-700 font-medium mb-2">
-          Select Village
+          Select Team
         </label>
         <Select
           id="villageSelect"
           value={selectedVillage ? { label: selectedVillage.name, value: selectedVillage.name } : null}
           onChange={(e) => setSelectedVillage({ name: e.value })}
           options={villageOptions}
-          placeholder="Search for a village"
+          placeholder="Search for a Team"
         />
       </div>
 
       <div className="mb-4">
         <label htmlFor="tournamentDate" className="block text-gray-700 font-medium mb-2">
-          Select Tournament Date
+          Select Tournament Start Date
         </label>
         <input
           type="date"
           id="tournamentDate"
           value={newTournamentDate}
           onChange={(e) => setNewTournamentDate(e.target.value)}
+          className="w-full p-2 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+        />
+      </div>
+
+      <div className="mb-4">
+        <label htmlFor="endTournamentDate" className="block text-gray-700 font-medium mb-2">
+          Select Tournament End Date
+        </label>
+        <input
+          type="date"
+          id="endTournamentDate"
+          value={endTournamentDate}
+          onChange={(e) => setEndTournamentDate(e.target.value)}
           className="w-full p-2 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
         />
       </div>
