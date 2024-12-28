@@ -125,4 +125,55 @@ const updateTeamLogo = (req, res) => {
   });
 };
 
-module.exports = { loginAdmin, getAllAdminsAndTeams, updateTeamLogo };
+
+
+const tournamentOrganizer = (req, res) => {
+  const { id } = req.params; // Tournament ID from route parameters
+  const { name } = req.body; // Name provided in request body
+  const bannerImage = req.file ? req.file.path : null; // Banner image file uploaded (optional)
+
+  if (!name && !bannerImage) {
+    return res.status(400).json({
+      error: "At least one of name or banner image is required to update the tournament.",
+    });
+  }
+
+  // Construct dynamic SQL and parameters based on provided fields
+  let sql = "UPDATE tournaments SET ";
+  const params = [];
+
+  if (name) {
+    sql += "name = ?";
+    params.push(name);
+  }
+
+  if (bannerImage) {
+    if (params.length > 0) sql += ", "; // Add comma if name is already in the query
+    sql += "banner_image = ?";
+    params.push(bannerImage);
+  }
+
+  sql += " WHERE id = ?";
+  params.push(id);
+
+  db.query(sql, params, (err, result) => {
+    if (err) {
+      return res
+        .status(500)
+        .json({ error: "Error updating tournament details", details: err });
+    }
+
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ error: "Tournament not found" });
+    }
+
+    res.status(200).json({
+      message: "Tournament details updated successfully",
+      updatedFields: { name, banner_image: bannerImage },
+    });
+  });
+};
+
+
+
+module.exports = { loginAdmin, getAllAdminsAndTeams, updateTeamLogo ,tournamentOrganizer};

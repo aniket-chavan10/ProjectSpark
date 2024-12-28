@@ -1,89 +1,109 @@
-import React, { useState } from "react";
-import UpcomingTournaments from "../Tournaments/UpcomingTournaments";
-import RecentTournaments from "../Tournaments/RecentTournaments";
-import OrganizeTournament from "../Tournaments/OrganizeTournament";
+import React, { useState, useEffect } from 'react';
+import teamApi from '../../api/teamApi'; // Import the API helper
 
-const TournamentManager = () => {
-  // Static data for villages
-  const staticVillages = [
-    { id: 1, name: "Village A" },
-    { id: 2, name: "Village B" },
-    { id: 3, name: "Village C" },
-  ];
+const OrganizeTournament = () => {
+  const [teams, setTeams] = useState([]); // Initialize teams as an empty array
+  const [loading, setLoading] = useState(true); // Track loading state
+  const [error, setError] = useState(null); // Track any errors
 
-  // Static data for upcoming and recent tournaments
-  const staticUpcomingTournaments = [
-    { id: 1, village_name: "Village A", date: "2024-12-30" },
-    { id: 2, village_name: "Village B", date: "2024-12-31" },
-  ];
-  const staticRecentTournaments = [
-    { id: 1, village_name: "Village C", date: "2024-12-25" },
-    { id: 2, village_name: "Village B", date: "2024-12-20" },
-  ];
+  // New states for start and end date
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
 
-  const [activeTab, setActiveTab] = useState("upcoming"); // Tab state: upcoming, recent, organize
+  useEffect(() => {
+    const fetchTeams = async () => {
+      try {
+        const data = await teamApi.getAllTeams(); // Fetch teams using axios
+        setTeams(data); // Set the fetched teams
+      } catch (error) {
+        setError('Failed to load teams'); // Handle API errors
+      } finally {
+        setLoading(false); // Set loading to false after fetching
+      }
+    };
 
-  const handleScheduleTournament = (village, date) => {
-    alert(`Tournament scheduled successfully for ${village} on ${date}`);
-  };
+    fetchTeams();
+  }, []); // Empty dependency array means this effect runs once on mount
+
+  // Handle loading and error states
+  if (loading) {
+    return <p className="text-center text-lg text-gray-600">Loading teams...</p>;
+  }
+
+  if (error) {
+    return <p className="text-center text-lg text-red-600">{error}</p>;
+  }
 
   return (
-    <div className="flex min-h-screen">
-      {/* Sidebar (Ensure it remains visible) */}
-      <div className="w-1/4 bg-gray-200 p-4">
-        <h2 className="text-2xl font-semibold">Tournament Manager</h2>
-        <ul>
-          <li className="mt-4">
-            <button
-              onClick={() => setActiveTab("upcoming")}
-              className={`w-full p-2 text-left text-gray-700 ${
-                activeTab === "upcoming" ? "bg-blue-500 text-white" : "hover:bg-gray-300"
-              }`}
-            >
-              Upcoming Tournaments
-            </button>
-          </li>
-          <li className="mt-4">
-            <button
-              onClick={() => setActiveTab("recent")}
-              className={`w-full p-2 text-left text-gray-700 ${
-                activeTab === "recent" ? "bg-blue-500 text-white" : "hover:bg-gray-300"
-              }`}
-            >
-              Recent Tournaments
-            </button>
-          </li>
-          <li className="mt-4">
-            <button
-              onClick={() => setActiveTab("organize")}
-              className={`w-full p-2 text-left text-gray-700 ${
-                activeTab === "organize" ? "bg-blue-500 text-white" : "hover:bg-gray-300"
-              }`}
-            >
-              Organize Tournament
-            </button>
-          </li>
-        </ul>
-      </div>
+    <div className="max-w-lg mx-auto p-6 bg-white shadow-lg rounded-lg">
+      <h2 className="text-2xl font-semibold text-gray-700 mb-4">Organize Tournament</h2>
+      <form>
+        {/* Team Selection */}
+        <div className="mb-4">
+          <label htmlFor="team" className="block text-sm font-medium text-gray-700 mb-2">
+            Select Team
+          </label>
+          <select
+            id="team"
+            name="team"
+            className="w-full p-3 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+          >
+            {Array.isArray(teams) && teams.length > 0 ? (
+              teams.map((team) => (
+                <option key={team.id} value={team.id}>
+                  {team.team_name}
+                </option>
+              ))
+            ) : (
+              <option>No teams available</option>
+            )}
+          </select>
+        </div>
 
-      {/* Main Content */}
-      <div className="flex-1 p-6 bg-gray-100">
-        {/* Render the active tab's component */}
-        {activeTab === "upcoming" && (
-          <UpcomingTournaments tournaments={staticUpcomingTournaments} />
-        )}
-        {activeTab === "recent" && (
-          <RecentTournaments tournaments={staticRecentTournaments} />
-        )}
-        {activeTab === "organize" && (
-          <OrganizeTournament
-            villages={staticVillages}
-            onScheduleTournament={handleScheduleTournament}
+        {/* Start Date Selection */}
+        <div className="mb-4">
+          <label htmlFor="startDate" className="block text-sm font-medium text-gray-700 mb-2">
+            Tournament Start Date
+          </label>
+          <input
+            type="date"
+            id="startDate"
+            name="startDate"
+            value={startDate}
+            onChange={(e) => setStartDate(e.target.value)}
+            className="w-full p-3 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            required
           />
-        )}
-      </div>
+        </div>
+
+        {/* End Date Selection */}
+        <div className="mb-6">
+          <label htmlFor="endDate" className="block text-sm font-medium text-gray-700 mb-2">
+            Tournament End Date
+          </label>
+          <input
+            type="date"
+            id="endDate"
+            name="endDate"
+            value={endDate}
+            onChange={(e) => setEndDate(e.target.value)}
+            className="w-full p-3 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            required
+          />
+        </div>
+
+        {/* Submit Button */}
+        <div className="flex justify-end">
+          <button
+            type="submit"
+            className="bg-indigo-600 text-white py-2 px-6 rounded-lg shadow-md hover:bg-indigo-700 focus:outline-none"
+          >
+            Create Tournament
+          </button>
+        </div>
+      </form>
     </div>
   );
 };
 
-export default TournamentManager;
+export default OrganizeTournament;

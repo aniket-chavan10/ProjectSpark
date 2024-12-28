@@ -21,6 +21,16 @@ const getTeamById = (teamId, callback) => {
         callback(null, result[0]); // Return the single team record
     });
 };
+const getAllTeams = (callback) => {
+    const sql = 'SELECT * FROM teams';
+    db.query(sql, (err, results) => {
+        if (err) {
+            return callback(err, null);
+        }
+        callback(null, results); // Return all teams as an array
+    });
+};
+
 
 const getTeamByAdminId = (adminId, callback) => {
     const sql = 'SELECT * FROM teams WHERE admin_id = ?';
