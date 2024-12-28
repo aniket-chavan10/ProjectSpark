@@ -39,7 +39,7 @@ const AddNewPlayer = () => {
         formData.append("profile_picture", playerDetails.profile_picture);
       }
 
-      const response = await playerApi.createPlayer(formData);
+      const response = await playerApi.createPlayer(formData); // Pass the formData to API
       console.log("Player added successfully:", response.data);
       alert("Player added successfully!");
 

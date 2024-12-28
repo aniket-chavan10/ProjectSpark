@@ -21,37 +21,48 @@ const ViewPlayers = () => {
   }, []);
 
   return (
-    <div className="bg-white p-6 rounded-lg shadow-lg mt-6 overflow-x-auto">
-      <h2 className="text-2xl font-semibold text-gray-800 mb-4">All Players</h2>
-      {players.length > 0 ? (
-        <table className="w-full table-auto">
-          <thead>
-            <tr className="bg-gray-200 text-sm">
-              <th className="px-4 py-2 text-gray-800">#</th>
-              <th className="px-4 py-2 text-gray-800">Full Name</th>
-              <th className="px-4 py-2 text-gray-800">Mobile Number</th>
-              <th className="px-4 py-2 text-gray-800">Email</th>
-            </tr>
-          </thead>
-          <tbody>
-            {players.map((player, index) => (
-              <tr
-                key={player.id}
-                className={`border-b ${
-                  index % 2 === 0 ? "bg-gray-100" : "bg-white"
-                }`}
-              >
-                <td className="px-4 py-2 text-center">{index + 1}</td>
-                <td className="px-4 py-2">{player.full_name}</td>
-                <td className="px-4 py-2">{player.mobile_number}</td>
-                <td className="px-4 py-2">{player.email}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      ) : (
-        <p className="text-gray-600">No players found.</p>
-      )}
+    <div className="p-6 bg-gray-100 min-h-screen">
+      <h2 className="text-3xl font-semibold text-gray-800 mb-6">All Players</h2>
+
+      {/* Players List (Card Style) */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+        {players.length > 0 ? (
+          players.map((player) => (
+            <div
+              key={player.id}
+              className="bg-white p-6 rounded-lg shadow-lg hover:shadow-xl transition transform hover:scale-105"
+            >
+              <div className="flex justify-center mb-4">
+                {/* Profile Picture */}
+                {player.profile_picture ? (
+                  <img
+                    src={`http://localhost:3000/${player.profile_picture}`}
+                    alt={`${player.full_name}'s profile`}
+                    className="w-24 h-24 rounded-full object-cover border-2 border-gray-300"
+                  />
+                ) : (
+                  <div className="w-24 h-24 rounded-full bg-gray-300 flex items-center justify-center">
+                    <span className="text-white text-lg font-semibold">
+                      No Image
+                    </span>
+                  </div>
+                )}
+              </div>
+              <h3 className="text-xl font-semibold text-gray-800 text-center">
+                {player.full_name}
+              </h3>
+              <p className="text-sm text-gray-600 text-center">
+                {player.email}
+              </p>
+              <p className="text-sm text-gray-600 text-center">
+                {player.mobile_number}
+              </p>
+            </div>
+          ))
+        ) : (
+          <p className="text-gray-600">No players found.</p>
+        )}
+      </div>
     </div>
   );
 };

@@ -1,5 +1,6 @@
 const express = require('express');
 const router = express.Router();
+const upload = require("../middlewares/uploadMiddleware");
 const verifyAdminToken = require('../middlewares/authMiddleware'); // Middleware to verify admin token
 const {
     createPlayer,
@@ -11,7 +12,7 @@ const {
 } = require('../controllers/playersController');
 
 // Route to add a new player (Admin-only)
-router.post('/', verifyAdminToken, createPlayer);
+router.post('/', verifyAdminToken,upload.single("profile_picture"), createPlayer);
 
 router.post('/login',  playerLogin);
 

@@ -32,7 +32,7 @@ const adminRoute = require('./routes/adminRoute');
 app.use('/api/admin', adminRoute);
 
 const playersRoute = require('./routes/playersRoute');
-app.use('/api/player', playersRoute);
+app.use('/api/admin/player', playersRoute);
 
 
 

@@ -1,11 +1,10 @@
 const db = require("../dbconfigure");
 
-// Add a new player to the players_core table
 const addPlayerCore = (playerData, callback) => {
   const sql = `
         INSERT INTO players_core (
-            full_name, mobile_number, email, profile_picture, password, is_banned, banned_until
-        ) VALUES (?, ?, ?, ?, ?, ?, ?)
+            full_name, mobile_number, email, profile_picture, password, is_banned, banned_until, team_name
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
     `;
   const params = [
     playerData.full_name,
@@ -15,6 +14,7 @@ const addPlayerCore = (playerData, callback) => {
     playerData.password,
     playerData.is_banned || false,
     playerData.banned_until || null,
+    playerData.team_name, // Include team_name here
   ];
   db.query(sql, params, callback);
 };

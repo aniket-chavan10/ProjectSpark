@@ -18,7 +18,7 @@ function App() {
           {/* Public routes */}
           <Route path="/" element={<Home />} />
           <Route path="/sign-in" element={<LoginPage />} />
-          <Route path="/masteradmin-signin" element={<SignInMasterAdmin />} />
+          <Route path="/ma-signin" element={<SignInMasterAdmin />} />
           <Route path="/sign-up" element={<SignUpPage />} />
 
           {/* Protected routes */}
