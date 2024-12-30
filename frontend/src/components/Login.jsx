@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import adminApi from "../api/adminApi";
-import playersApi from "../api/playerApi"; // Import players API
+import playersApi from "../api/playerApi";
 import { useAuth } from "../contexts/AuthContext";
 
 export default function Login() {
@@ -10,51 +10,56 @@ export default function Login() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState(null);
   const navigate = useNavigate();
-  const { login } = useAuth(); // Access the login function from context
+  const { login } = useAuth();
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setIsSubmitting(true);
     setError(null);
-
+  
     const loginData = { email, password };
-
+  
     try {
-      // Check which login type to use (admin or player)
       let response;
       if (email.includes("admin")) {
-        // Admin login
         response = await adminApi.loginAdmin(loginData);
       } else {
-        // Player login
         response = await playersApi.playerLogin(loginData);
       }
-
-      // Check if the response contains token
-      if (response.data?.token) {
-        const { token } = response.data;
-
-        // If role is not present in response, we assign 'player' as default for players
-        const role = response.data?.role || "player";
-
-        // Store both token and role in localStorage
+  
+      console.log("Login Response:", response.data);
+  
+      if (response.data) {
+        const { token, role, team_id, team_name, logo } = response.data;
+  
+        // Decode the token manually
+        const decodedToken = decodeToken(token);
+        console.log("Decoded Token Payload:", decodedToken);
+  
+        const admin_id = decodedToken.id; // Extract the admin_id from the token
+  
+        // Store token and other information in localStorage
         localStorage.setItem("authToken", token);
         localStorage.setItem("userRole", role);
-
-        // Log to verify localStorage
-        console.log("localStorage token:", localStorage.getItem("authToken"));
-        console.log("localStorage role:", localStorage.getItem("userRole"));
-
-        // Update context with the token and role
-        login({ token, role });
-
-        console.log("Login successful:", response.data);
+        localStorage.setItem("userId", admin_id);  // Store admin_id as userId
+        localStorage.setItem("teamId", team_id);
+        localStorage.setItem("teamName", team_name || "");
+        localStorage.setItem("teamLogo", logo || "");
+  
+        // Redirect based on role
         if (role === "admin") {
-          navigate("/admin-dashboard"); // Redirect to the admin dashboard
+          console.log("Navigating to /admin-dashboard");
+          navigate("/admin-dashboard");
+        } else if (role === "master-admin") {
+          console.log("Navigating to /master-admin-dashboard");
+          navigate("/master-admin-dashboard");
+        } else if (role === "player") {
+          console.log("Navigating to /player-dashboard");
+          navigate("/player-dashboard");
         } else {
-          navigate("/player-dashboard"); // Redirect to the player dashboard
+          console.log("Unexpected role:", role);
+          setError("Unexpected role. Please contact support.");
         }
-        alert("Login successful!");
       } else {
         setError("Invalid response from server. Please try again.");
       }
@@ -64,6 +69,16 @@ export default function Login() {
     } finally {
       setIsSubmitting(false);
     }
+  };
+  
+  // Function to manually decode JWT token
+  const decodeToken = (token) => {
+    const base64Url = token.split('.')[1];  // Get the payload part
+    const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');  // Replace URL-safe characters
+    const jsonPayload = decodeURIComponent(atob(base64).split('').map(function(c) {
+      return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
+    }).join(''));
+    return JSON.parse(jsonPayload);
   };
 
   return (
@@ -87,10 +102,7 @@ export default function Login() {
             )}
 
             <div>
-              <label
-                htmlFor="email"
-                className="block text-sm font-medium text-gray-900"
-              >
+              <label htmlFor="email" className="block text-sm font-medium text-gray-900">
                 Email address
               </label>
               <div className="mt-2">
@@ -99,7 +111,6 @@ export default function Login() {
                   name="email"
                   type="email"
                   required
-                  autoComplete="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   className="block w-full rounded-md bg-white px-3 py-1.5 text-base text-gray-900 outline outline-1 -outline-offset-1 outline-gray-300 placeholder:text-gray-400 focus:outline focus:outline-2 focus:-outline-offset-2 focus:outline-indigo-600 sm:text-sm"
@@ -108,29 +119,15 @@ export default function Login() {
             </div>
 
             <div>
-              <div className="flex items-center justify-between">
-                <label
-                  htmlFor="password"
-                  className="block text-sm font-medium text-gray-900"
-                >
-                  Password
-                </label>
-                <div className="text-sm">
-                  <a
-                    href="#"
-                    className="font-semibold text-indigo-600 hover:text-indigo-500"
-                  >
-                    Forgot password?
-                  </a>
-                </div>
-              </div>
+              <label htmlFor="password" className="block text-sm font-medium text-gray-900">
+                Password
+              </label>
               <div className="mt-2">
                 <input
                   id="password"
                   name="password"
                   type="password"
                   required
-                  autoComplete="current-password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   className="block w-full rounded-md bg-white px-3 py-1.5 text-base text-gray-900 outline outline-1 -outline-offset-1 outline-gray-300 placeholder:text-gray-400 focus:outline focus:outline-2 focus:-outline-offset-2 focus:outline-indigo-600 sm:text-sm"

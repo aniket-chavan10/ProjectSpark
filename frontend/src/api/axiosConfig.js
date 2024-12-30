@@ -7,7 +7,6 @@ const axiosInstance = axios.create({
   },
 });
 
-
 axiosInstance.interceptors.request.use(
   (config) => {
     const token = localStorage.getItem("authToken");
@@ -24,6 +23,8 @@ axiosInstance.interceptors.response.use(
   (error) => {
     if (error.response?.status === 401) {
       console.error("Unauthorized, redirecting to login...");
+      localStorage.removeItem("authToken"); // Clear the token
+      window.location.href = "/sign-in"; // Redirect to login page
     }
     return Promise.reject(error);
   }

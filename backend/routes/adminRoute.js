@@ -5,6 +5,9 @@ const {
   getAllAdminsAndTeams,
   updateTeamLogo,
   tournamentOrganizer,
+  getAssignedTournaments,
+  getAdminById,
+  getPlayersByTeam
 } = require("../controllers/adminController");
 const verifyAdminToken = require("../middlewares/authMiddleware");
 const upload = require("../middlewares/uploadMiddleware");
@@ -13,7 +16,13 @@ const upload = require("../middlewares/uploadMiddleware");
 router.post("/login", loginAdmin);
 
 // Fetch admin profile, protected route
-router.get("/profile", verifyAdminToken, getAllAdminsAndTeams);
+router.get("/all", verifyAdminToken, getAllAdminsAndTeams);
+
+router.get("/profile/", verifyAdminToken, getAdminById);
+
+router.get("/tournaments/assigned/", verifyAdminToken, getAssignedTournaments);
+
+router.get("/players", verifyAdminToken, getPlayersByTeam);
 
 router.put(
   "/teams/logo",
@@ -23,8 +32,9 @@ router.put(
 );
 
 router.put(
-  "/tournaments/:id/update-details",
-  upload.single("banner_image"), // Middleware to handle file upload
+  "/tournaments/update-details",
+  upload.single("banner_image"),
+  verifyAdminToken, // Middleware to handle file upload
   tournamentOrganizer // Controller function
 );
 

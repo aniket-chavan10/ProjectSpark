@@ -4,14 +4,15 @@ const db = require("../dbconfigure");
 const addTournament = (tournamentData, callback) => {
   const sql = `
     INSERT INTO tournaments (
-        start_date, end_date, organizer_admin_id, name, banner_image, status
-    ) VALUES (?, ?, ?, ?, ?, ?)
+        start_date, end_date, organizer_admin_id, name, organizing_team, banner_image, status
+    ) VALUES (?, ?, ?, ?, ?, ?, ?)
   `;
   const params = [
     tournamentData.start_date,
     tournamentData.end_date,
     tournamentData.organizer_admin_id,
     tournamentData.name || null, // Name can be null initially
+    tournamentData.organizing_team, // Organizing team is required
     tournamentData.banner_image || null, // Banner image can be null initially
     tournamentData.status || "pending", // Default status
   ];
@@ -34,12 +35,13 @@ const getTournamentById = (tournamentId, callback) => {
 const updateTournament = (tournamentId, updatedData, callback) => {
   const sql = `
     UPDATE tournaments SET 
-        name = ?, banner_image = ?, status = ?, 
+        name = ?, organizing_team = ?, banner_image = ?, status = ?, 
         start_date = ?, end_date = ?
     WHERE id = ?
   `;
   const params = [
     updatedData.name,
+    updatedData.organizing_team, // Include organizing team in updates
     updatedData.banner_image,
     updatedData.status,
     updatedData.start_date,

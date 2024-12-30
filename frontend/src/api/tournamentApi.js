@@ -1,65 +1,79 @@
-import axiosInstance from "./axiosConfig";
+import axiosInstance from './axiosConfig'; // Assuming you have an axios instance configured
 
-const tournamentApi = {
-  // Add a new tournament (Master Admin only)
-  addTournament: async (tournamentData) => {
+// Helper function to get Admin ID from the token
+const getAdminIdFromToken = () => {
+  const token = localStorage.getItem('authToken');
+  if (token) {
     try {
-      const response = await axiosInstance.post("/tournaments/add", tournamentData);
-      console.log("API Response (Add Tournament):", response);
-      return response;
+      const decoded = JSON.parse(atob(token.split('.')[1])); // Decode JWT payload
+      console.log('Decoded Token:', decoded); // Debugging
+      return decoded.id || null; // Return `id` for admin ID
     } catch (error) {
-      console.error("Error during add tournament request:", error);
-      throw error;
+      console.error('Error decoding token:', error);
     }
-  },
+  }
+  return null;
+};
+
+
+// Define the tournamentApi object
+const tournamentApi = {
+  // Add a new tournament
+  addTournament: (tournamentData) => axiosInstance.post('master-admin/tournament/add', tournamentData),
 
   // Get all tournaments
-  getAllTournaments: async () => {
-    try {
-      const response = await axiosInstance.get("/tournaments/all");
-      console.log("API Response (Get All Tournaments):", response);
-      return response;
-    } catch (error) {
-      console.error("Error during get all tournaments request:", error);
-      throw error;
-    }
-  },
+  getAllTournaments: () => axiosInstance.get('/tournaments'),
 
-  // Get a specific tournament by ID
-  getTournamentById: async (id) => {
-    try {
-      const response = await axiosInstance.get(`/tournaments/${id}`);
-      console.log("API Response (Get Tournament By ID):", response);
-      return response;
-    } catch (error) {
-      console.error("Error during get tournament by ID request:", error);
-      throw error;
-    }
-  },
+  // Get a tournament by ID
+  getTournamentById: (id) => axiosInstance.get(`/tournaments/${id}`),
 
-  // Update a tournament (Organizer Admin)
-  updateTournament: async (id, tournamentData) => {
+  // Update tournament details
+  tournamentOrganizer: async (updatedData) => {
     try {
-      const response = await axiosInstance.put(`/tournaments/update/${id}`, tournamentData);
-      console.log("API Response (Update Tournament):", response);
-      return response;
+      const token = localStorage.getItem("authToken");
+      console.log("Making API call to /tournaments/update-details");
+      console.log("Token:", token);
+  
+      const response = await axiosInstance.put(`/admin/tournaments/update-details`, updatedData, {
+        headers: {
+          Authorization: `Bearer ${token}`, // Pass token explicitly
+        },
+      });
+  
+      console.log("API Response:", response.data);
+      return response.data;
     } catch (error) {
-      console.error("Error during update tournament request:", error);
+      console.error("Error updating tournament:", error.response || error.message);
       throw error;
     }
   },
+  
 
   // Delete a tournament
-  deleteTournament: async (id) => {
+  deleteTournament: (id) => axiosInstance.delete(`/tournaments/${id}`),
+
+  // Get assigned tournaments for a specific admin
+  getAssignedTournaments: async () => {
     try {
-      const response = await axiosInstance.delete(`/tournaments/delete/${id}`);
-      console.log("API Response (Delete Tournament):", response);
-      return response;
+      const token = localStorage.getItem("authToken");
+      console.log("Making API call to /admin/tournaments/assigned");
+      console.log("Token:", token);
+  
+      const response = await axiosInstance.get(`/admin/tournaments/assigned`, {
+        headers: {
+          Authorization: `Bearer ${token}`, // Pass token explicitly
+        },
+      });
+      console.log("API Response:", response.data);
+      return response.data;
     } catch (error) {
-      console.error("Error during delete tournament request:", error);
-      throw error;
+      console.error("Error fetching assigned tournaments:", error.response || error.message);
+      return [];
     }
   },
+  
+  
+  
 };
 
 export default tournamentApi;

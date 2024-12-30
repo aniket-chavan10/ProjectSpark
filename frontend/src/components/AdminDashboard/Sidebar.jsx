@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import adminApi from "../../api/adminApi"; // Import the adminApi to call the backend API
+import adminApi from "../../api/adminApi"; // Import the API file
 
 const Sidebar = ({
   sections,
@@ -8,32 +8,37 @@ const Sidebar = ({
   toggleSidebar,
   isSidebarOpen,
 }) => {
-  const [teamName, setTeamName] = useState("Admin"); // Default fallback
-  const [profileImage, setProfileImage] = useState(""); // State to hold the profile image URL
-  const [loading, setLoading] = useState(true); // Track loading state for team name and profile image
+  const [adminData, setAdminData] = useState({
+    teamName: "Admin",
+    teamLogo: "https://via.placeholder.com/150",
+  });
 
   useEffect(() => {
-    const fetchAdminProfile = async () => {
+    const fetchAdminData = async () => {
       try {
-        const response = await adminApi.getAllAdminsAndTeams(); // Fetch admins and teams
-        const adminData = response.data[0]; // Assuming the first admin in the list is the logged-in admin
-
-        setTeamName(adminData.team_name); // Set team name from the response
-        // If the logo is a relative path (like 'uploads/team-logo.jpg'), construct the full URL
-        const imageUrl = adminData.logo
-          ? `http://localhost:3000/${adminData.logo}` // Assuming logo stores the relative path
-          : "https://via.placeholder.com/150"; // Fallback image
-        setProfileImage(imageUrl); // Set the profile image URL
+        const data = await adminApi.getAdminData(); // Call the API function from adminApi
+        setAdminData({
+          teamName: data.team_name,
+          teamLogo: data.logo,
+        }); // Update state with fetched data
       } catch (error) {
-        console.error("Error fetching admin profile:", error);
-        setProfileImage("https://via.placeholder.com/150"); // Fallback image on error
-      } finally {
-        setLoading(false); // Set loading to false after the request completes
+        console.error("Failed to fetch admin data:", error);
       }
     };
 
-    fetchAdminProfile(); // Call the function to fetch the admin profile
+    fetchAdminData();
   }, []);
+
+  const { teamName, teamLogo } = adminData;
+
+  // Dynamically construct the profile image URL
+  const BASE_URL = "http://localhost:3000"; // Replace with your server's URL
+  const profileImage = teamLogo && teamLogo.startsWith("http")
+  ? teamLogo
+  : `${BASE_URL}/${teamLogo || "default.png"}`;
+
+  
+  
 
   return (
     <div
@@ -50,9 +55,7 @@ const Sidebar = ({
           alt="Admin Profile"
           className="w-16 h-16 rounded-full mx-auto mt-4"
         />
-        <p className="text-gray-400 mt-2">
-          {loading ? "Loading team name..." : teamName}
-        </p>
+        <h1 className="text-white mt-2">{teamName}</h1>
       </div>
       <nav className="px-4 py-6">
         <ul className="space-y-3">
