@@ -10,6 +10,8 @@ import ProtectedRoute from "./components/ProtectedRoute"; // Import the Protecte
 import { AuthProvider } from "./contexts/AuthContext"; // Import AuthProvider
 import SignInMasterAdmin from "./pages/SignInMasterAdmin";
 
+import CricketScoreManager from "./pages/CricketScoreManager";
+
 function App() {
   return (
     <Router>
