@@ -164,12 +164,17 @@ const playerLogin = async (req, res) => {
         return res.status(401).json({ error: "Invalid email or password" });
       }
 
-      // Generate JWT token
-      const token = jwt.sign(
-        { playerId: playerData.id, email: playerData.email },
-        process.env.JWT_SECRET, // Use a secure secret stored in environment variables
-        { expiresIn: "1h" } // Token expiration time
-      );
+      // Generate JWT token with role and player id
+      const payload = {
+        id: playerData.player_id,  // Ensure 'id' is in the payload
+        email: playerData.email,
+        role: "player",
+      };
+
+      // Log the payload before signing for debugging
+      console.log("Token Payload:", payload);
+
+      const token = jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: "1h" });
 
       res.status(200).json({ message: "Login successful", token });
     });
@@ -180,6 +185,8 @@ const playerLogin = async (req, res) => {
       .json({ error: "Unexpected error occurred", details: error });
   }
 };
+
+
 
 // Get all players
 const getAllPlayers = (req, res) => {

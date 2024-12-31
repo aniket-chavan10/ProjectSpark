@@ -7,6 +7,7 @@ import { useAuth } from "../contexts/AuthContext";
 export default function Login() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [role, setRole] = useState("player"); // Default role
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState(null);
   const navigate = useNavigate();
@@ -21,64 +22,71 @@ export default function Login() {
   
     try {
       let response;
-      if (email.includes("admin")) {
+      if (role === "admin") {
         response = await adminApi.loginAdmin(loginData);
       } else {
         response = await playersApi.playerLogin(loginData);
       }
   
-      console.log("Login Response:", response.data);
+      const { token, team_id, team_name, logo } = response.data;
   
-      if (response.data) {
-        const { token, role, team_id, team_name, logo } = response.data;
+      console.log("Token received:", token);
+      const decodedToken = decodeToken(token);
+      console.log("Decoded token:", decodedToken);
   
-        // Decode the token manually
-        const decodedToken = decodeToken(token);
-        console.log("Decoded Token Payload:", decodedToken);
+      const userId = decodedToken?.id || decodedToken?.playerId; // Adjust for token differences
   
-        const admin_id = decodedToken.id; // Extract the admin_id from the token
-  
-        // Store token and other information in localStorage
-        localStorage.setItem("authToken", token);
-        localStorage.setItem("userRole", role);
-        localStorage.setItem("userId", admin_id);  // Store admin_id as userId
-        localStorage.setItem("teamId", team_id);
-        localStorage.setItem("teamName", team_name || "");
-        localStorage.setItem("teamLogo", logo || "");
-  
-        // Redirect based on role
-        if (role === "admin") {
-          console.log("Navigating to /admin-dashboard");
-          navigate("/admin-dashboard");
-        } else if (role === "master-admin") {
-          console.log("Navigating to /master-admin-dashboard");
-          navigate("/master-admin-dashboard");
-        } else if (role === "player") {
-          console.log("Navigating to /player-dashboard");
-          navigate("/player-dashboard");
-        } else {
-          console.log("Unexpected role:", role);
-          setError("Unexpected role. Please contact support.");
-        }
-      } else {
-        setError("Invalid response from server. Please try again.");
+      if (!userId) {
+        throw new Error("Invalid token: User ID is missing");
       }
+  
+      // Update auth context
+      const authData = {
+        token,
+        role,
+        userId,
+        teamId: team_id,
+        teamName: team_name,
+        teamLogo: logo,
+      };
+  
+      login(authData); // Set auth context here
+  
+      // Store in localStorage
+      localStorage.setItem("authToken", token);
+      localStorage.setItem("userRole", role);
+      localStorage.setItem("userId", userId);
+      if (team_id) localStorage.setItem("teamId", team_id);
+      if (team_name) localStorage.setItem("teamName", team_name);
+      if (logo) localStorage.setItem("teamLogo", logo);
+  
+      // Redirect based on role
+      if (role === "admin") navigate("/admin-dashboard");
+      else navigate("/player-dashboard");
     } catch (error) {
-      console.error("Error logging in:", error);
-      setError("Invalid credentials. Please try again.");
+      console.error("Login error:", error);
+      setError("Login failed. Please check your credentials and try again.");
     } finally {
       setIsSubmitting(false);
     }
   };
   
-  // Function to manually decode JWT token
+  // Decode JWT
   const decodeToken = (token) => {
-    const base64Url = token.split('.')[1];  // Get the payload part
-    const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');  // Replace URL-safe characters
-    const jsonPayload = decodeURIComponent(atob(base64).split('').map(function(c) {
-      return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
-    }).join(''));
-    return JSON.parse(jsonPayload);
+    try {
+      const base64Url = token.split(".")[1];
+      const base64 = base64Url.replace(/-/g, "+").replace(/_/g, "/");
+      const jsonPayload = decodeURIComponent(
+        atob(base64)
+          .split("")
+          .map((c) => `%${("00" + c.charCodeAt(0).toString(16)).slice(-2)}`)
+          .join("")
+      );
+      return JSON.parse(jsonPayload);
+    } catch (error) {
+      console.error("Error decoding token:", error);
+      return null;
+    }
   };
 
   return (
@@ -132,6 +140,34 @@ export default function Login() {
                   onChange={(e) => setPassword(e.target.value)}
                   className="block w-full rounded-md bg-white px-3 py-1.5 text-base text-gray-900 outline outline-1 -outline-offset-1 outline-gray-300 placeholder:text-gray-400 focus:outline focus:outline-2 focus:-outline-offset-2 focus:outline-indigo-600 sm:text-sm"
                 />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-900">Login as</label>
+              <div className="mt-2 flex items-center space-x-4">
+                <label className="flex items-center">
+                  <input
+                    type="radio"
+                    name="role"
+                    value="player"
+                    checked={role === "player"}
+                    onChange={() => setRole("player")}
+                    className="form-radio text-indigo-600"
+                  />
+                  <span className="ml-2 text-gray-700">Player</span>
+                </label>
+                <label className="flex items-center">
+                  <input
+                    type="radio"
+                    name="role"
+                    value="admin"
+                    checked={role === "admin"}
+                    onChange={() => setRole("admin")}
+                    className="form-radio text-indigo-600"
+                  />
+                  <span className="ml-2 text-gray-700">Admin</span>
+                </label>
               </div>
             </div>
 
