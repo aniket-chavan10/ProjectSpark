@@ -4,25 +4,41 @@ const {
   loginAdmin,
   getAllAdminsAndTeams,
   updateTeamLogo,
+  getAdminById,
+} = require("../controllers/adminController");
+
+const {
   tournamentOrganizer,
   getAssignedTournaments,
-  getAdminById,
-  getPlayersByTeam
-} = require("../controllers/adminController");
+  getTournamentInvitations,
+  applyForTournament
+} = require("../controllers/tournamentController");
+
+const { getPlayersByTeam } = require("../controllers/playersController");
+const { getNotifications } = require("../controllers/notificationController");
+
+
 const verifyAdminToken = require("../middlewares/authMiddleware");
 const upload = require("../middlewares/uploadMiddleware");
 
-// Admin login route
+
+
 router.post("/login", loginAdmin);
 
-// Fetch admin profile, protected route
 router.get("/all", verifyAdminToken, getAllAdminsAndTeams);
 
-router.get("/profile/", verifyAdminToken, getAdminById);
+router.get("/profile", verifyAdminToken, getAdminById);
+
+router.get("/players", verifyAdminToken, getPlayersByTeam);
 
 router.get("/tournaments/assigned/", verifyAdminToken, getAssignedTournaments);
 
-router.get("/players", verifyAdminToken, getPlayersByTeam);
+router.get("/notifications", verifyAdminToken, getNotifications);
+
+router.get("/tournaments/invitations", verifyAdminToken, getTournamentInvitations);
+
+router.post("/tournaments/invitations/apply", verifyAdminToken, applyForTournament);
+
 
 router.put(
   "/teams/logo",

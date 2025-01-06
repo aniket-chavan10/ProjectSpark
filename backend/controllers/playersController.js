@@ -166,7 +166,7 @@ const playerLogin = async (req, res) => {
 
       // Generate JWT token with role and player id
       const payload = {
-        id: playerData.player_id,  // Ensure 'id' is in the payload
+        id: playerData.player_id, // Ensure 'id' is in the payload
         email: playerData.email,
         role: "player",
       };
@@ -174,7 +174,9 @@ const playerLogin = async (req, res) => {
       // Log the payload before signing for debugging
       console.log("Token Payload:", payload);
 
-      const token = jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: "1h" });
+      const token = jwt.sign(payload, process.env.JWT_SECRET, {
+        expiresIn: "1h",
+      });
 
       res.status(200).json({ message: "Login successful", token });
     });
@@ -185,8 +187,6 @@ const playerLogin = async (req, res) => {
       .json({ error: "Unexpected error occurred", details: error });
   }
 };
-
-
 
 // Get all players
 const getAllPlayers = (req, res) => {
@@ -262,6 +262,64 @@ const deletePlayer = (req, res) => {
   });
 };
 
+const getPlayersByTeam = (req, res) => {
+  const adminId = req.admin.id; // Extract admin ID from token
+
+  if (!adminId) {
+    return res.status(400).json({ error: "Admin ID is required" });
+  }
+
+  // Step 1: Fetch the admin's team name
+  const getTeamNameSql = `
+    SELECT team_name FROM admins
+    WHERE id = ?
+  `;
+
+  db.query(getTeamNameSql, [adminId], (err, adminResults) => {
+    if (err) {
+      return res.status(500).json({
+        error: "Error fetching admin details",
+        details: err,
+      });
+    }
+
+    if (adminResults.length === 0) {
+      return res.status(404).json({
+        error: "Admin not found",
+      });
+    }
+
+    const teamName = adminResults[0].team_name;
+
+    // Step 2: Fetch players by team name
+    const getPlayersSql = `
+      SELECT * FROM players_core
+      WHERE team_name = ?
+    `;
+
+    db.query(getPlayersSql, [teamName], (err, playerResults) => {
+      if (err) {
+        return res.status(500).json({
+          error: "Error fetching players",
+          details: err,
+        });
+      }
+
+      if (playerResults.length === 0) {
+        return res.status(404).json({
+          error: "No players found for the team",
+        });
+      }
+
+      // Return the list of players
+      res.status(200).json({
+        message: "Players fetched successfully",
+        players: playerResults,
+      });
+    });
+  });
+};
+
 module.exports = {
   createPlayer,
   playerLogin,
@@ -270,4 +328,5 @@ module.exports = {
   updatePlayer,
   deletePlayer,
   playerLogin,
+  getPlayersByTeam,
 };

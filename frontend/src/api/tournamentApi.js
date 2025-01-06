@@ -72,8 +72,24 @@ const tournamentApi = {
     }
   },
   
-  
-  
-};
+  getTournamentInvite: async()=>{
+    try {
+      const token = localStorage.getItem("authToken");
+
+      const response = await axiosInstance.get(`/admin/tournaments/invitations`, {
+        headers: {
+          Authorization: `Bearer ${token}`, 
+
+    },
+  });
+  console.log("API Response:", response.data);
+  return response.data;
+} catch (error) {
+  console.error("Error fetching assigned tournaments:", error.response || error.message);
+  return [];
+}
+},
+}
+
 
 export default tournamentApi;
