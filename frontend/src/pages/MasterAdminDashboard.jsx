@@ -3,7 +3,7 @@ import TeamRequests from "../components/MasterAdminDashboard/TeamRequests";
 import Sidebar from "../components/MasterAdminDashboard/Sidebar";
 import AllTeams from "../components/MasterAdminDashboard/AllTeams";
 import OrganizeTournament from "../components/MasterAdminDashboard/OrganizeTournament";
-
+import AllPlayers from '../components/MasterAdminDashboard/AllPlayers'
 const MasterAdminDashboard = () => {
   const [activeSection, setActiveSection] = useState(""); // Manage the active section state
 
@@ -21,8 +21,8 @@ const MasterAdminDashboard = () => {
         {activeSection === "profile" && <div>Profile Section</div>}
         {activeSection === "all-teams" && <AllTeams />}
         {activeSection === "rankings" && <div>Rankings Section</div>}
-        {activeSection === "tournamentManager" && <OrganizeTournament />} {/* Correctly renders TournamentManager */}
-        {activeSection === "managePlayers" && <div>Manage Players Section</div>}
+        {activeSection === "tournamentManager" && <OrganizeTournament />} 
+        {activeSection === "managePlayers" && <AllPlayers/>}
         {activeSection === "logout" && <div>You have logged out.</div>}
       </div>
     </div>
