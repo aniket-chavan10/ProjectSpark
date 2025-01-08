@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import tournamentApi from "../../api/tournamentApi";
+import GroupTeams from "./GroupTeams";
 
 const Organizer = () => {
   const [tournaments, setTournaments] = useState([]);
@@ -24,50 +25,44 @@ const Organizer = () => {
     fetchTournaments();
   }, []);
 
-  // Open Form with Existing Data
   const openForm = (tournament) => {
     setSelectedTournament(tournament);
     setFormData({
       name: tournament.name || "",
-      banner: null, // Banner is not pre-filled
+      banner: null,
     });
     setIsFormOpen(true);
   };
 
-  // Handle Form Input Change
   const handleFormChange = (e) => {
     const { name, value, files } = e.target;
     if (name === "banner") {
-      setFormData({ ...formData, banner: files[0] }); // Handle file input
+      setFormData({ ...formData, banner: files[0] });
     } else {
       setFormData({ ...formData, [name]: value });
     }
   };
 
-  // Submit Form
   const handleFormSubmit = async (e) => {
     e.preventDefault();
-  
+
     if (!selectedTournament) return;
-  
+
     if (!formData.name || !formData.banner) {
       setError("Both name and banner are required.");
       return;
     }
-  
+
     const updatedData = new FormData();
     updatedData.append("name", formData.name);
-    
-    // Log to check the banner
-    console.log("Form Data:", formData);
-  
+
     if (formData.banner) {
       updatedData.append("banner", formData.banner);
     }
-  
+
     try {
       const response = await tournamentApi.tournamentOrganizer(updatedData);
-  
+
       setTournaments((prevTournaments) =>
         prevTournaments.map((tournament) =>
           tournament.id === selectedTournament.id
@@ -75,7 +70,7 @@ const Organizer = () => {
             : tournament
         )
       );
-  
+
       setIsFormOpen(false);
       setError("");
     } catch (error) {
@@ -83,8 +78,7 @@ const Organizer = () => {
       setError("Failed to update the tournament. Please try again.");
     }
   };
-  
-  // Send Invitations
+
   const handleSendInvitations = async (tournament) => {
     if (!tournament.name || !tournament.banner) {
       setError("Please update the tournament details before sending invitations.");
@@ -93,7 +87,6 @@ const Organizer = () => {
 
     try {
       const response = await tournamentApi.sendTournamentInvitations(tournament.id);
-      console.log("Invitation Response:", response.data);
       alert(`Invitations sent for ${tournament.name}`);
     } catch (error) {
       console.error("Error sending invitations:", error);
@@ -102,51 +95,69 @@ const Organizer = () => {
   };
 
   return (
-    <div className="max-w-7xl mx-auto p-6">
-      <h2 className="text-2xl font-bold mb-6 text-gray-800">Assigned Tournaments</h2>
+    <div className="p-6 bg-gray-100 min-h-screen">
+      <h1 className="text-3xl font-bold text-gray-800 mb-6">Organizer Dashboard</h1>
 
-      {error && <p className="text-red-600 mb-4">{error}</p>}
+      {/* Part 1: Current Functionality */}
+      <div className="mb-8">
+        <h2 className="text-2xl font-semibold mb-4">Assigned Tournaments</h2>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
-        {tournaments?.length > 0 ? (
-          tournaments.map((tournament) => (
-            <div
-              key={tournament.id}
-              className="bg-white p-4 rounded-lg shadow-md border hover:shadow-lg transition"
-            >
-              <p className="text-gray-600">
-                <strong>Organizing Team:</strong> {tournament.organizing_team}
-              </p>
-              <p className="text-gray-600">
-                <strong>Start Date:</strong> {new Date(tournament.start_date).toLocaleString()}
-              </p>
-              <p className="text-gray-600">
-                <strong>End Date:</strong> {new Date(tournament.end_date).toLocaleString()}
-              </p>
-              <p className="text-gray-600">
-                <strong>Status:</strong> {tournament.status}
-              </p>
-              <div className="flex justify-between items-center mt-4">
-                <button
-                  className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
-                  onClick={() => openForm(tournament)}
-                >
-                  Update Details
-                </button>
-                <button
-                  className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700"
-                  onClick={() => handleSendInvitations(tournament)}
-                >
-                  Send Invitations
-                </button>
+        {error && <p className="text-red-600 mb-4">{error}</p>}
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
+          {tournaments?.length > 0 ? (
+            tournaments.map((tournament) => (
+              <div
+                key={tournament.id}
+                className="bg-white p-4 rounded-lg shadow-md border hover:shadow-lg transition"
+              >
+                <p className="text-gray-600">
+                  <strong>Organizing Team:</strong> {tournament.organizing_team}
+                </p>
+                <p className="text-gray-600">
+                  <strong>Start Date:</strong> {new Date(tournament.start_date).toLocaleString()}
+                </p>
+                <p className="text-gray-600">
+                  <strong>End Date:</strong> {new Date(tournament.end_date).toLocaleString()}
+                </p>
+                <p className="text-gray-600">
+                  <strong>Status:</strong> {tournament.status}
+                </p>
+                <div className="flex justify-between items-center mt-4">
+                  <button
+                    className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+                    onClick={() => openForm(tournament)}
+                  >
+                    Update Details
+                  </button>
+                  <button
+                    className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700"
+                    onClick={() => handleSendInvitations(tournament)}
+                  >
+                    Send Invitations
+                  </button>
+                </div>
               </div>
-            </div>
-          ))
-        ) : (
-          <p className="col-span-3 text-gray-500">No tournaments assigned.</p>
-        )}
+            ))
+          ) : (
+            <p className="col-span-3 text-gray-500">No tournaments assigned.</p>
+          )}
+        </div>
       </div>
 
+      {/* Part 2: Placeholder for Future Functionality */}
+      <div className="mb-8">
+        <h2 className="text-2xl font-semibold mb-4">These are 32 teams</h2>
+        <GroupTeams />
+      </div>
+
+      {/* Part 3: Placeholder for Future Functionality */}
+      <div>
+        <h2 className="text-2xl font-semibold mb-4">Another Feature</h2>
+        
+         </div>
+
+      {/* Form Modal */}
       {isFormOpen && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center">
           <div className="bg-white rounded-lg p-6 w-full max-w-md">
