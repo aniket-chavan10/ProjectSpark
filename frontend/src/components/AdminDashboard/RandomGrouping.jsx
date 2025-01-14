@@ -10,12 +10,12 @@ const shuffleTeams = (teams) => {
   return shuffledTeams;
 };
 
-const RandomGrouping = ({ savedTeams }) => {
+const RandomGrouping = ({ savedTeams, onSaveGroups }) => {
   const [groupAssignments, setGroupAssignments] = useState(
     savedTeams.map((team) => ({ ...team, group: "" }))
   );
 
-  const [error, setError] = useState("");
+  const [warningVisible, setWarningVisible] = useState(false);
 
   // Define color mapping for each group
   const groupColors = {
@@ -36,6 +36,22 @@ const RandomGrouping = ({ savedTeams }) => {
     });
 
     setGroupAssignments(updatedAssignments);
+    setWarningVisible(false); // Hide any warning when randomization occurs
+  };
+
+  // Save or submit group assignments
+  const handleSaveGroups = () => {
+    // Check if all teams have been assigned to a group
+    const unassignedTeams = groupAssignments.filter((team) => team.group === "");
+    if (unassignedTeams.length > 0) {
+      setWarningVisible(true); // Show warning modal
+      return;
+    }
+
+    setWarningVisible(false); // Hide warning
+    const groupedTeams = groupAssignments.filter((team) => team.group !== "");
+    console.log("Random Group Assignments:", groupedTeams);
+    onSaveGroups(groupedTeams); // Pass data to parent component
   };
 
   return (
@@ -44,8 +60,23 @@ const RandomGrouping = ({ savedTeams }) => {
         Random Grouping
       </h1>
 
-      {error && (
-        <div className="text-red-600 font-semibold text-center mb-4">{error}</div>
+      {/* Modal for warning */}
+      {warningVisible && (
+        <div className="fixed inset-0 bg-gray-500 bg-opacity-50 flex justify-center items-center z-50">
+          <div className="bg-white p-6 rounded-lg shadow-lg w-96">
+            <h2 className="text-xl font-semibold text-gray-800 mb-4 text-center">
+              Please randomize the groups before saving.
+            </h2>
+            <div className="text-center">
+              <button
+                onClick={() => setWarningVisible(false)}
+                className="px-6 py-2 rounded-lg bg-blue-600 text-white font-semibold hover:bg-blue-700 transition-all"
+              >
+                OK
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Randomize Groups Button */}
@@ -89,6 +120,16 @@ const RandomGrouping = ({ savedTeams }) => {
             </span>
           </div>
         ))}
+      </div>
+
+      {/* Save Button */}
+      <div className="mt-12 text-center">
+        <button
+          onClick={handleSaveGroups}
+          className="px-8 py-4 rounded-lg shadow-md bg-gradient-to-r from-blue-600 to-blue-800 text-white text-xl font-semibold hover:from-blue-500 hover:to-blue-700 transition-all"
+        >
+          Save Group Assignments
+        </button>
       </div>
     </div>
   );

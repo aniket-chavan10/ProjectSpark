@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import adminApi from '../../api/adminApi';
+import FixMatchDay from './FixMatchDay';
 
 const Profile = ({ profilePhoto, setProfilePhoto }) => {
   const [isUploading, setIsUploading] = useState(false);
@@ -62,6 +63,7 @@ const Profile = ({ profilePhoto, setProfilePhoto }) => {
         <p className="mt-4">Name: Team Manager</p>
         <p>Email: manager@example.com</p>
       </div>
+      <FixMatchDay />
     </div>
   );
 };

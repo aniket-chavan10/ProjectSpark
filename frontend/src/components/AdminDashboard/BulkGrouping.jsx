@@ -1,12 +1,12 @@
 import React, { useState } from "react";
 
-const BulkGrouping = ({ savedTeams }) => {
+const BulkGrouping = ({ savedTeams, onSaveGroups }) => {
   const [selectedGroup, setSelectedGroup] = useState("");
   const [groupAssignments, setGroupAssignments] = useState(
     savedTeams.map((team) => ({ ...team, group: "" }))
   );
-
   const [error, setError] = useState("");
+  const [warningVisible, setWarningVisible] = useState(false);
 
   // Define color mapping for each group
   const groupColors = {
@@ -52,10 +52,18 @@ const BulkGrouping = ({ savedTeams }) => {
 
   // Save or submit group assignments
   const handleSaveGroups = () => {
-    const groupedTeams = groupAssignments.filter((team) => team.group !== "");
-    console.log("Bulk Group Assignments:", groupedTeams);
-    alert("Bulk group assignments saved successfully!");
-    // Perform any additional save or submit actions here
+    // Check if all teams are assigned to a group
+    const unassignedTeams = groupAssignments.filter((team) => team.group === "");
+    if (unassignedTeams.length > 0) {
+      setWarningVisible(true); // Show warning modal
+      return;
+    }
+
+    setWarningVisible(false); // Hide warning modal
+    console.log("Bulk Group Assignments:", groupAssignments);
+    onSaveGroups(groupAssignments); // Pass data back to parent
+    setSelectedGroup(""); // Clear selected group after saving
+    setError(""); // Clear errors after save
   };
 
   return (
@@ -63,6 +71,25 @@ const BulkGrouping = ({ savedTeams }) => {
       <h1 className="text-5xl font-extrabold text-gray-800 mb-8 text-center">
         Bulk Grouping
       </h1>
+
+      {/* Modal for warning */}
+      {warningVisible && (
+        <div className="fixed inset-0 bg-gray-500 bg-opacity-50 flex justify-center items-center z-50">
+          <div className="bg-white p-6 rounded-lg shadow-lg w-96">
+            <h2 className="text-xl font-semibold text-gray-800 mb-4 text-center">
+              Please assign all teams to groups before saving.
+            </h2>
+            <div className="text-center">
+              <button
+                onClick={() => setWarningVisible(false)}
+                className="px-6 py-2 rounded-lg bg-blue-600 text-white font-semibold hover:bg-blue-700 transition-all"
+              >
+                OK
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Group Selection */}
       <div className="flex justify-center space-x-4 mb-8">
