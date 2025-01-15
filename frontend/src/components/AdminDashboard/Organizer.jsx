@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import tournamentApi from "../../api/tournamentApi";
-import GroupTeams from "./GroupTeams";
+import ShowAppliedTeams from "./ShowAppliedTeams";
 
 const Organizer = () => {
   const [tournaments, setTournaments] = useState([]);
@@ -147,8 +147,7 @@ const Organizer = () => {
 
       {/* Part 2: Placeholder for Future Functionality */}
       <div className="mb-8">
-        <h2 className="text-2xl font-semibold mb-4">These are 32 teams</h2>
-        <GroupTeams />
+         <ShowAppliedTeams />
       </div>
 
       {/* Part 3: Placeholder for Future Functionality */}
