@@ -79,6 +79,73 @@ const adminApi = {
       throw error; // Rethrow the error
     }
   },
+
+  getAppliedTeams: async (tournamentId) => {
+    try {
+      const token = localStorage.getItem("authToken"); // Retrieve the token
+      console.log("Making API call to fetch applied teams.");
+      console.log("Token:", token);
+
+      // Make an API request to the backend
+      const response = await axiosInstance.get(
+        `/admin/tournaments/6/invitations/apply/teams`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`, // Include the authorization token
+          },
+        }
+      );
+
+      console.log("API Response:", response.data);
+      return response.data.teams; // Return the applied teams array from the API response
+    } catch (error) {
+      console.error(
+        "Error fetching applied teams:",
+        error.response || error.message
+      );
+      throw error; // Rethrow the error for further handling
+    }
+  },
+
+  assignGroupsToTeams: async (
+    tournamentId,
+    groupAssignments,
+    random = false
+  ) => {
+    try {
+      const token = localStorage.getItem("authToken"); // Retrieve the token
+      console.log("Making API call to assign groups to teams.");
+      console.log("Token:", token);
+  
+      // Construct the request body
+      const requestBody = {
+        tournamentId,
+        groupAssignments, // Provide this only for manual or bulk grouping
+        random, // Set this to true for random grouping
+      };
+  
+      // Make an API request to the backend
+      const response = await axiosInstance.put(
+        `/admin/tournaments/organize/teams/group`, // The correct endpoint for assigning groups
+        requestBody,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`, // Include the authorization token
+          },
+        }
+      );
+  
+      console.log("API Response:", response.data);
+      return response.data; // Return the success message and assignments
+    } catch (error) {
+      console.error(
+        "Error assigning groups to teams:",
+        error.response || error.message
+      );
+      throw error; // Rethrow the error for further handling
+    }
+  },
+  
 };
 
 export default adminApi;

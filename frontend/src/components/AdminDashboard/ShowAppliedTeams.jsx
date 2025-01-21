@@ -1,49 +1,32 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import GroupTeams from "./GroupTeams";
-import ManualGrouping from "./ManualGrouping";
+import adminApi from "../../api/adminApi"; // Adjust the path according to your file structure
 
-const ShowAppliedTeams = () => {
-  const registeredTeams = [
-    { name: "Team 1", profilePicture: "https://via.placeholder.com/40" },
-    { name: "Team 2", profilePicture: "https://via.placeholder.com/40" },
-    { name: "Team 3", profilePicture: "https://via.placeholder.com/40" },
-    { name: "Team 4", profilePicture: "https://via.placeholder.com/40" },
-    { name: "Team 5", profilePicture: "https://via.placeholder.com/40" },
-    { name: "Team 6", profilePicture: "https://via.placeholder.com/40" },
-    { name: "Team 7", profilePicture: "https://via.placeholder.com/40" },
-    { name: "Team 8", profilePicture: "https://via.placeholder.com/40" },
-    { name: "Team 9", profilePicture: "https://via.placeholder.com/40" },
-    { name: "Team 10", profilePicture: "https://via.placeholder.com/40" },
-    { name: "Team 11", profilePicture: "https://via.placeholder.com/40" },
-    { name: "Team 12", profilePicture: "https://via.placeholder.com/40" },
-    { name: "Team 13", profilePicture: "https://via.placeholder.com/40" },
-    { name: "Team 14", profilePicture: "https://via.placeholder.com/40" },
-    { name: "Team 15", profilePicture: "https://via.placeholder.com/40" },
-    { name: "Team 16", profilePicture: "https://via.placeholder.com/40" },
-    { name: "Team 17", profilePicture: "https://via.placeholder.com/40" },
-    { name: "Team 18", profilePicture: "https://via.placeholder.com/40" },
-    { name: "Team 19", profilePicture: "https://via.placeholder.com/40" },
-    { name: "Team 20", profilePicture: "https://via.placeholder.com/40" },
-    { name: "Team 21", profilePicture: "https://via.placeholder.com/40" },
-    { name: "Team 22", profilePicture: "https://via.placeholder.com/40" },
-    { name: "Team 23", profilePicture: "https://via.placeholder.com/40" },
-    { name: "Team 24", profilePicture: "https://via.placeholder.com/40" },
-    { name: "Team 25", profilePicture: "https://via.placeholder.com/40" },
-    { name: "Team 26", profilePicture: "https://via.placeholder.com/40" },
-    { name: "Team 27", profilePicture: "https://via.placeholder.com/40" },
-    { name: "Team 28", profilePicture: "https://via.placeholder.com/40" },
-    { name: "Team 29", profilePicture: "https://via.placeholder.com/40" },
-    { name: "Team 30", profilePicture: "https://via.placeholder.com/40" },
-    { name: "Team 31", profilePicture: "https://via.placeholder.com/40" },
-    { name: "Team 32", profilePicture: "https://via.placeholder.com/40" }, 
-  ];
-
-  const [teams, setTeams] = useState(registeredTeams);
+const ShowAppliedTeams = ({ tournamentId }) => {
+  const [teams, setTeams] = useState([]);
   const [isEditing, setIsEditing] = useState(false);
   const [editIndex, setEditIndex] = useState(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [isSaved, setIsSaved] = useState(false);
   const [showGrouping, setShowGrouping] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    const fetchAppliedTeams = async () => {
+      try {
+        const fetchedTeams = await adminApi.getAppliedTeams(tournamentId); // Call the API method from adminApi
+        setTeams(fetchedTeams); // Set teams from the API response
+        setLoading(false);
+      } catch (err) {
+        console.error("Error fetching applied teams:", err);
+        setError("Failed to fetch applied teams.");
+        setLoading(false);
+      }
+    };
+
+    fetchAppliedTeams();
+  }, [tournamentId]);
 
   const handleEdit = (index) => {
     setEditIndex(index);
@@ -53,7 +36,7 @@ const ShowAppliedTeams = () => {
 
   const handleSave = (newTeamName) => {
     const updatedTeams = [...teams];
-    updatedTeams[editIndex].name = newTeamName;
+    updatedTeams[editIndex].team_name = newTeamName;
     setTeams(updatedTeams);
     setIsEditing(false);
     setEditIndex(null);
@@ -64,8 +47,8 @@ const ShowAppliedTeams = () => {
     setEditIndex(null);
   };
 
-  const filteredTeams = registeredTeams.filter((team) =>
-    team.name.toLowerCase().includes(searchQuery.toLowerCase())
+  const filteredTeams = teams.filter((team) =>
+    team.team_name.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
   const handleSaveTeams = () => {
@@ -85,9 +68,16 @@ const ShowAppliedTeams = () => {
     }
   };
 
-  // Render the ManualGrouping component if showGrouping is "manual"
   if (showGrouping === "group") {
     return <GroupTeams savedTeams={teams} />;
+  }
+
+  if (loading) {
+    return <div>Loading...</div>;
+  }
+
+  if (error) {
+    return <div>Error: {error}</div>;
   }
 
   return (
@@ -112,11 +102,13 @@ const ShowAppliedTeams = () => {
           >
             <div className="flex items-center space-x-4">
               <img
-                src={team.profilePicture}
-                alt={team.name}
+                src={team.logo}
+                alt={team.team_name}
                 className="w-10 h-10 rounded-full object-cover"
               />
-              <span className="text-lg font-semibold text-gray-800">{team.name}</span>
+              <span className="text-lg font-semibold text-gray-800">
+                {team.team_name}
+              </span>
             </div>
             <button
               onClick={() => handleEdit(index)}
@@ -157,7 +149,9 @@ const ShowAppliedTeams = () => {
       {isEditing && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center">
           <div className="bg-white p-6 rounded-lg shadow-xl w-1/3">
-            <h2 className="text-2xl font-bold mb-6 text-gray-700">Edit Team Name</h2>
+            <h2 className="text-2xl font-bold mb-6 text-gray-700">
+              Edit Team Name
+            </h2>
             <input
               type="text"
               placeholder="Search teams..."
@@ -169,10 +163,10 @@ const ShowAppliedTeams = () => {
               {filteredTeams.map((team, index) => (
                 <div
                   key={index}
-                  onClick={() => handleSave(team.name)}
+                  onClick={() => handleSave(team.team_name)}
                   className="p-3 hover:bg-blue-100 cursor-pointer text-gray-700"
                 >
-                  {team.name}
+                  {team.team_name}
                 </div>
               ))}
             </div>

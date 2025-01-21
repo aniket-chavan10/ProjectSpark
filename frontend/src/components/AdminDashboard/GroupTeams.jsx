@@ -1,14 +1,36 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
+import adminApi from "../../api/adminApi"; // Import the adminApi
 import ManualGrouping from "./ManualGrouping";
 import BulkGrouping from "./BulkGrouping";
 import RandomGrouping from "./RandomGrouping";
 import SavedGroups from "./SavedGroups";
-import ScheduleFirstRound from "./ScheduleFirstRound"; // Import the component
+import ScheduleFirstRound from "./ScheduleFirstRound";
 
-const GroupTeams = ({ savedTeams }) => {
+const GroupTeams = ({ tournamentId }) => {
+  const [savedTeams, setSavedTeams] = useState([]); // State for fetched teams
+  const [loading, setLoading] = useState(true); // State for loading
+  const [error, setError] = useState(null); // State for errors
   const [groupingMode, setGroupingMode] = useState(null); // Track grouping mode
   const [groupedTeams, setGroupedTeams] = useState(null); // Track grouped teams
   const [showSchedule, setShowSchedule] = useState(false); // Control schedule view
+
+  // Fetch applied teams when the component mounts or tournamentId changes
+  useEffect(() => {
+    const fetchTeams = async () => {
+      try {
+        setLoading(true);
+        setError(null); // Clear any previous errors
+        const teams = await adminApi.getAppliedTeams(tournamentId); // Fetch teams
+        setSavedTeams(teams);
+      } catch (err) {
+        setError(err.message || "An error occurred while fetching teams.");
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchTeams();
+  }, [tournamentId]);
 
   // Handle grouping mode selection
   const handleGroupingChange = (mode) => {
@@ -22,6 +44,22 @@ const GroupTeams = ({ savedTeams }) => {
     setGroupingMode(null); // Reset grouping mode
     setShowSchedule(true); // Show the schedule component
   };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-screen">
+        <p className="text-xl font-semibold text-gray-800">Loading teams...</p>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="flex items-center justify-center h-screen">
+        <p className="text-xl font-semibold text-red-600">{error}</p>
+      </div>
+    );
+  }
 
   return (
     <div className="p-8 bg-gradient-to-br from-indigo-600 via-purple-600 to-pink-500 min-h-screen">

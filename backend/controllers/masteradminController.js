@@ -1,51 +1,50 @@
-const {
-  addMasterAdmin,
-  authenticateMasterAdmin,
-} = require("../models/masteradminsModel");
-const { addTeam } = require("../models/teamsModel"); // Ensure this import matches your file structure
-const { addAdmin } = require("../models/adminsModel"); // Ensure this import matches your file structure
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const db = require("../dbconfigure");
+const { addMasterAdmin } = require("../models/masteradminsModel");
+const { addTeam } = require("../models/teamsModel");
+const { addAdmin } = require("../models/adminsModel");
 
-const registerMasterAdmin = (req, res) => {
+// Controller: Register Master Admin
+const registerMasterAdmin = async (req, res) => {
   const { username, password, email_address } = req.body;
 
-  // Ensure all required fields are provided
   if (!username || !password || !email_address) {
     return res.status(400).json({ error: "All fields are required" });
   }
 
-  // Create a new admin object and pass it to the model
-  const newAdmin = {
-    username,
-    password, // No hashing done here
-    email_address,
-  };
+  const newAdmin = { username, password, email_address };
 
-  // Call the model function to add the admin to the database
-  addMasterAdmin(newAdmin, (err, result) => {
-    if (err) {
-      return res.status(500).json({ error: "Failed to register master admin" });
-    }
+  try {
+    await addMasterAdmin(newAdmin);
     res.status(201).json({ message: "Master admin registered successfully" });
-  });
+  } catch (error) {
+    res.status(500).json({ error: "Failed to register master admin", details: error.message });
+  }
 };
 
-// Controller to log in a master admin
-const loginMasterAdmin = (req, res) => {
+// Controller: Login Master Admin
+const loginMasterAdmin = async (req, res) => {
   const { username, password } = req.body;
 
   if (!username || !password) {
     return res.status(400).json({ error: "Username and password are required" });
   }
 
-  authenticateMasterAdmin(username, password, (err, admin) => {
-    if (err) {
-      return res.status(500).json({ error: "An error occurred" });
+  try {
+    const [rows] = await db.query(
+      "SELECT id, username, password FROM master_admins WHERE username = ?",
+      [username]
+    );
+
+    if (rows.length === 0) {
+      return res.status(401).json({ error: "Invalid credentials" });
     }
 
-    if (!admin) {
+    const admin = rows[0];
+    const isPasswordValid = await bcrypt.compare(password, admin.password);
+
+    if (!isPasswordValid) {
       return res.status(401).json({ error: "Invalid credentials" });
     }
 
@@ -56,32 +55,28 @@ const loginMasterAdmin = (req, res) => {
     );
 
     res.status(200).json({ token, role: "master-admin" });
-  });
+  } catch (error) {
+    res.status(500).json({ error: "An error occurred during login", details: error.message });
+  }
 };
 
-
-// Controller to get all villages
-const getAllVillages = (req, res) => {
-  console.log("Fetching villages...");
-
-  const sql = "SELECT * FROM villages";
-  db.query(sql, (err, results) => {
-    if (err) {
-      console.error("Error executing query:", err);
-      return res.status(500).json({ error: "Error fetching villages" });
-    }
+// Controller: Get All Villages
+const getAllVillages = async (req, res) => {
+  try {
+    const [results] = await db.query("SELECT * FROM villages");
 
     if (results.length === 0) {
-      console.log("No villages found.");
       return res.status(404).json({ message: "No villages available." });
     }
 
-    console.log("Fetched villages:", results);
-    res.status(200).json(results); // Send the result as response
-  });
+    res.status(200).json(results);
+  } catch (error) {
+    res.status(500).json({ error: "Error fetching villages", details: error.message });
+  }
 };
 
-const updateVillageStatus = (req, res) => {
+// Controller: Update Village Status
+const updateVillageStatus = async (req, res) => {
   const { status } = req.body;
   const villageId = req.params.id;
 
@@ -93,10 +88,12 @@ const updateVillageStatus = (req, res) => {
     return res.status(400).json({ error: 'Status must be either "approved" or "rejected"' });
   }
 
-  const sqlGetVillage = "SELECT * FROM villages WHERE id = ?";
-  db.query(sqlGetVillage, [villageId], (err, villageResult) => {
-    if (err) return res.status(500).json({ error: "Error fetching village data" });
-    if (villageResult.length === 0) return res.status(404).json({ error: "Village not found" });
+  try {
+    const [villageResult] = await db.query("SELECT * FROM villages WHERE id = ?", [villageId]);
+
+    if (villageResult.length === 0) {
+      return res.status(404).json({ error: "Village not found" });
+    }
 
     const village = villageResult[0];
     const villageName = village.village_name || "default";
@@ -106,50 +103,44 @@ const updateVillageStatus = (req, res) => {
     const phone = village.phone || "0000000000";
 
     if (status === "approved") {
-      db.beginTransaction((err) => {
-        if (err) return res.status(500).json({ error: "Error starting transaction" });
+      const generatedPassword = `admin_${villageName.toLowerCase()}`;
+      const hashedPassword = bcrypt.hashSync(generatedPassword, 10);
 
-        const generatedPassword = `admin_${villageName.toLowerCase()}`;
-        const hashedPassword = bcrypt.hashSync(generatedPassword, 10);
+      await db.getConnection(async (connection) => {
+        await connection.beginTransaction();
 
-        addAdmin(adminName, email, hashedPassword, phone, teamName, (err, adminResult) => {
-          if (err) return handleError(res, db, "Failed to create admin", err);
-
+        try {
+          const [adminResult] = await addAdmin(adminName, email, hashedPassword, phone, teamName, connection);
           const adminId = adminResult.insertId;
-          addTeam(teamName, adminId, (err, teamResult) => {
-            if (err) return handleError(res, db, "Failed to create team", err);
 
-            const sqlUpdateVillage = "UPDATE villages SET status = ? WHERE id = ?";
-            db.query(sqlUpdateVillage, [status, villageId], (err) => {
-              if (err) return handleError(res, db, "Failed to update village status", err);
+          await addTeam(teamName, adminId, connection);
 
-              db.commit((err) => {
-                if (err) return handleError(res, db, "Error committing transaction", err, false);
+          await connection.query("UPDATE villages SET status = ? WHERE id = ?", [status, villageId]);
 
-                res.status(200).json({
-                  message: "Village approved successfully, admin and team created",
-                  teamId: teamResult.insertId,
-                  adminId,
-                });
-              });
-            });
+          await connection.commit();
+          res.status(200).json({
+            message: "Village approved successfully, admin and team created",
+            adminId,
           });
-        });
+        } catch (error) {
+          await connection.rollback();
+          res.status(500).json({ error: "Failed to approve village", details: error.message });
+        } finally {
+          connection.release();
+        }
       });
     } else {
-      const sqlUpdateVillage = "UPDATE villages SET status = ? WHERE id = ?";
-      db.query(sqlUpdateVillage, [status, villageId], (err) => {
-        if (err) return res.status(500).json({ error: "Failed to update village status", details: err });
-
-        res.status(200).json({ message: "Village rejected successfully" });
-      });
+      await db.query("UPDATE villages SET status = ? WHERE id = ?", [status, villageId]);
+      res.status(200).json({ message: "Village rejected successfully" });
     }
-  });
+  } catch (error) {
+    res.status(500).json({ error: "Error updating village status", details: error.message });
+  }
 };
 
 module.exports = {
   registerMasterAdmin,
   loginMasterAdmin,
-  updateVillageStatus,
   getAllVillages,
+  updateVillageStatus,
 };
