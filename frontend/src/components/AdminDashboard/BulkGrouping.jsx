@@ -1,12 +1,14 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
+import adminApi from "../../api/adminApi"; // Importing the pre-configured adminApi
 
 const BulkGrouping = ({ savedTeams, onSaveGroups }) => {
+  const tournamentId = 7;
+
+  const [groupAssignments, setGroupAssignments] = useState([]);
   const [selectedGroup, setSelectedGroup] = useState("");
-  const [groupAssignments, setGroupAssignments] = useState(
-    savedTeams.map((team) => ({ ...team, group: "" }))
-  );
   const [error, setError] = useState("");
   const [warningVisible, setWarningVisible] = useState(false);
+  const [loading, setLoading] = useState(false);
 
   // Define color mapping for each group
   const groupColors = {
@@ -15,6 +17,26 @@ const BulkGrouping = ({ savedTeams, onSaveGroups }) => {
     C: "bg-yellow-200",
     D: "bg-red-200",
   };
+
+  // Load saved groups into state when component mounts or savedGroups changes
+  useEffect(() => {
+    if (Array.isArray(savedTeams) && savedTeams.length > 0) {
+      const initializedTeams = savedTeams.map((team) => ({
+        id: team.team_id || team.id, // Handle both cases
+        team_name: team.team_name || `Team ${team.id}`, // Fallback for name
+        profilePicture:
+          team.team_logo || `https://via.placeholder.com/50?text=T${team.id}`,
+        group: team.group || "", // Default to unassigned
+      }));
+      setGroupAssignments(initializedTeams);
+    } else {
+      console.error("Invalid savedTeams data:", savedTeams);
+      setGroupAssignments([]); // Clear assignments if data is invalid
+    }
+  }, [savedTeams]);
+  
+  
+  
 
   // Handle group selection
   const handleGroupSelect = (group) => {
@@ -51,7 +73,7 @@ const BulkGrouping = ({ savedTeams, onSaveGroups }) => {
   };
 
   // Save or submit group assignments
-  const handleSaveGroups = () => {
+  const handleSaveGroups = async () => {
     // Check if all teams are assigned to a group
     const unassignedTeams = groupAssignments.filter((team) => team.group === "");
     if (unassignedTeams.length > 0) {
@@ -60,10 +82,33 @@ const BulkGrouping = ({ savedTeams, onSaveGroups }) => {
     }
 
     setWarningVisible(false); // Hide warning modal
-    console.log("Bulk Group Assignments:", groupAssignments);
-    onSaveGroups(groupAssignments); // Pass data back to parent
-    setSelectedGroup(""); // Clear selected group after saving
-    setError(""); // Clear errors after save
+    setLoading(true); // Start loading state
+
+    try {
+      // Prepare payload for the API
+      const groupAssignmentsPayload = groupAssignments.map((team) => ({
+        teamId: team.id,
+        groupName: team.group,
+      }));
+
+      const payload = {
+        tournamentId,
+        groupAssignments: groupAssignmentsPayload,
+        random: false,
+      };
+
+      console.log("Payload sent to backend:", JSON.stringify(payload, null, 2)); // Debugging
+      const response = await adminApi.assignGroupsToTeams(payload);
+      console.log("Groups assigned successfully:", response);
+
+      onSaveGroups(groupAssignments); // Notify parent component
+      setSelectedGroup(""); // Clear selected group
+    } catch (error) {
+      console.error("Error assigning groups:", error.response?.data || error.message);
+      setError("Failed to save group assignments. Please try again.");
+    } finally {
+      setLoading(false); // Stop loading state
+    }
   };
 
   return (
@@ -125,16 +170,15 @@ const BulkGrouping = ({ savedTeams, onSaveGroups }) => {
             }`}
           >
             <div className="flex items-center space-x-4">
-              {/* Profile Picture */}
               <img
                 src={team.profilePicture}
-                alt={team.name}
+                alt={team.team_name}
                 className="w-10 h-10 rounded-full object-cover"
               />
-              {/* Team Name */}
-              <span className="text-lg font-semibold text-gray-800">{team.name}</span>
+              <span className="text-lg font-semibold text-gray-800">
+                {team.team_name}
+              </span>
             </div>
-            {/* Assigned Group */}
             <span
               className={`text-sm font-semibold ${
                 team.group ? "text-blue-600" : "text-gray-500"
@@ -150,9 +194,12 @@ const BulkGrouping = ({ savedTeams, onSaveGroups }) => {
       <div className="mt-12 text-center">
         <button
           onClick={handleSaveGroups}
-          className="px-8 py-4 rounded-lg shadow-md bg-gradient-to-r from-blue-600 to-blue-800 text-white text-xl font-semibold hover:from-blue-500 hover:to-blue-700 transition-all"
+          disabled={loading} // Disable button while loading
+          className={`px-8 py-4 rounded-lg shadow-md bg-gradient-to-r from-blue-600 to-blue-800 text-white text-xl font-semibold hover:from-blue-500 hover:to-blue-700 transition-all ${
+            loading ? "cursor-not-allowed opacity-50" : ""
+          }`}
         >
-          Save Group Assignments
+          {loading ? "Saving..." : "Save Group Assignments"}
         </button>
       </div>
     </div>

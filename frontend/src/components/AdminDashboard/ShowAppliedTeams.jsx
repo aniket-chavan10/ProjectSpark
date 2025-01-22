@@ -60,6 +60,7 @@ const ShowAppliedTeams = ({ tournamentId }) => {
     }
   };
 
+  // ShowAppliedTeams.js
   const handleProceedToGrouping = () => {
     if (isSaved) {
       setShowGrouping("group");
@@ -67,6 +68,10 @@ const ShowAppliedTeams = ({ tournamentId }) => {
       alert("Please save the teams before proceeding to the next step.");
     }
   };
+
+  if (showGrouping === "group") {
+    return <GroupTeams savedTeams={teams} />;
+  }
 
   if (showGrouping === "group") {
     return <GroupTeams savedTeams={teams} />;

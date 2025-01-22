@@ -16,7 +16,9 @@ const {
   getAppliedTeams,
   assignGroupsToTeams,
   scheduleTournamentMatches,
-  updateMatchResult
+  updateMatchResult,
+  getGroupsAssignedTeams,
+  updateMatchDateTime 
 } = require("../controllers/tournamentController");
 
 const { getPlayersByTeam } = require("../controllers/playersController");
@@ -61,9 +63,17 @@ router.put(
   assignGroupsToTeams
 );
 
+router.get(
+  "/tournaments/grouped/teams/:tournamentId",
+  verifyAdminToken,
+  getGroupsAssignedTeams
+);
+
 router.post("/tournament/organize/schedule/match", verifyAdminToken, createMatch);
 
 router.post('/tournaments/schedule', verifyAdminToken, scheduleTournamentMatches);
+
+router.put('/tournaments/schedule/match/timestamp', verifyAdminToken, updateMatchDateTime );
 
 router.put('/tournaments/match/update/result', verifyAdminToken,   updateMatchResult);
 

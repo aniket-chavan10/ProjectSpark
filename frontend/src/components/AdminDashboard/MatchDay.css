@@ -1,0 +1,79 @@
+/* MatchDay Layout */
+.matchday-container {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    gap: 20px;
+    padding: 20px;
+  }
+  
+  .group-container {
+    flex: 1 1 calc(50% - 20px); /* Half width for larger screens */
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    max-width: 400px;
+  }
+  
+  .group-svg {
+    width: 100%;
+    height: auto;
+    max-width: 400px;
+  }
+  
+  /* SVG Styling */
+  .background {
+    fill: #1e0033;
+  }
+  
+  .border {
+    stroke: #ffcc00;
+    stroke-width: 4;
+  }
+  
+  .text {
+    fill: white;
+    font-family: Arial, sans-serif;
+  }
+  
+  .title {
+    font-size: 20px;
+    font-weight: bold;
+  }
+  
+  .team {
+    fill: #006400;
+    stroke: white;
+    stroke-width: 2;
+    rx: 5;
+    ry: 5;
+  }
+  
+  .team-text {
+    fill: white;
+    font-size: 12px;
+    font-family: Arial, sans-serif;
+    text-anchor: middle;
+    alignment-baseline: middle;
+  }
+  
+  .circle {
+    fill: #ff0000;
+    stroke: #ffcc00;
+    stroke-width: 2;
+  }
+  
+  .top4 {
+    fill: white;
+    font-size: 14px;
+    font-family: Arial, sans-serif;
+    font-weight: bold;
+  }
+  
+  /* Responsive Design */
+  @media (max-width: 768px) {
+    .group-container {
+      flex: 1 1 100%; /* Full width for smaller screens */
+    }
+  }
+  

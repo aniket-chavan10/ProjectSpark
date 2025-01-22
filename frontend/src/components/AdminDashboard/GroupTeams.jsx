@@ -1,36 +1,37 @@
 import React, { useState, useEffect } from "react";
-import adminApi from "../../api/adminApi"; // Import the adminApi
 import ManualGrouping from "./ManualGrouping";
 import BulkGrouping from "./BulkGrouping";
 import RandomGrouping from "./RandomGrouping";
 import SavedGroups from "./SavedGroups";
-import ScheduleFirstRound from "./ScheduleFirstRound";
+import ScheduleFirstRound from "./ScheduleFirstRound"; // Import the component
+import adminApi from "../../api/adminApi"; // Import the API
+import { DndProvider } from "react-dnd";
+import { HTML5Backend } from "react-dnd-html5-backend";
 
-const GroupTeams = ({ tournamentId }) => {
-  const [savedTeams, setSavedTeams] = useState([]); // State for fetched teams
-  const [loading, setLoading] = useState(true); // State for loading
-  const [error, setError] = useState(null); // State for errors
+const GroupTeams = ({ savedTeams, tournamentId }) => {
   const [groupingMode, setGroupingMode] = useState(null); // Track grouping mode
   const [groupedTeams, setGroupedTeams] = useState(null); // Track grouped teams
   const [showSchedule, setShowSchedule] = useState(false); // Control schedule view
+  const [loading, setLoading] = useState(false); // Loading state for API call
 
-  // Fetch applied teams when the component mounts or tournamentId changes
+  // Fetch assigned groups from the API when not in any grouping mode
   useEffect(() => {
-    const fetchTeams = async () => {
-      try {
-        setLoading(true);
-        setError(null); // Clear any previous errors
-        const teams = await adminApi.getAppliedTeams(tournamentId); // Fetch teams
-        setSavedTeams(teams);
-      } catch (err) {
-        setError(err.message || "An error occurred while fetching teams.");
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchTeams();
-  }, [tournamentId]);
+    console.log(savedTeams);
+    if (!groupingMode && !groupedTeams && !showSchedule && tournamentId) {
+      setLoading(true);
+      adminApi
+        .getGroupsAssignedTeams(tournamentId) // Call the API to fetch groups
+        .then((data) => {
+          console.log("Fetched teams:", data.groupsAssignedTeams); // Log the fetched teams
+          setGroupedTeams(data.groupsAssignedTeams);
+          setLoading(false);
+        })
+        .catch((error) => {
+          console.error("Error fetching assigned teams:", error);
+          setLoading(false);
+        });
+    }
+  }, [groupingMode, groupedTeams, showSchedule, tournamentId]);
 
   // Handle grouping mode selection
   const handleGroupingChange = (mode) => {
@@ -40,26 +41,11 @@ const GroupTeams = ({ tournamentId }) => {
 
   // Save group assignments from child component
   const saveGroupAssignments = (assignments) => {
+    console.log("Saving group assignments:", assignments); // Log the assignments being saved
     setGroupedTeams(assignments); // Save the grouped teams
     setGroupingMode(null); // Reset grouping mode
     setShowSchedule(true); // Show the schedule component
   };
-
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-screen">
-        <p className="text-xl font-semibold text-gray-800">Loading teams...</p>
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="flex items-center justify-center h-screen">
-        <p className="text-xl font-semibold text-red-600">{error}</p>
-      </div>
-    );
-  }
 
   return (
     <div className="p-8 bg-gradient-to-br from-indigo-600 via-purple-600 to-pink-500 min-h-screen">
@@ -93,18 +79,34 @@ const GroupTeams = ({ tournamentId }) => {
 
       {/* Render the Selected Grouping Method */}
       {groupingMode === "manual" && (
-        <ManualGrouping savedTeams={savedTeams} onSaveGroups={saveGroupAssignments} />
+        <ManualGrouping
+          savedTeams={savedTeams}
+          onSaveGroups={saveGroupAssignments}
+        />
       )}
       {groupingMode === "bulk" && (
-        <BulkGrouping savedTeams={savedTeams} onSaveGroups={saveGroupAssignments} />
+        <BulkGrouping
+          savedTeams={savedTeams}
+          onSaveGroups={saveGroupAssignments}
+        />
       )}
       {groupingMode === "random" && (
-        <RandomGrouping savedTeams={savedTeams} onSaveGroups={saveGroupAssignments} />
+        <RandomGrouping
+          savedTeams={savedTeams}
+          onSaveGroups={saveGroupAssignments}
+        />
       )}
 
       {/* Display Schedule Group Matches if Saved */}
-      {showSchedule && groupedTeams && (
-        <ScheduleFirstRound groupedTeams={groupedTeams} />
+      {showSchedule && groupedTeams && !loading && (
+        <DndProvider backend={HTML5Backend}>
+          <ScheduleFirstRound groupedTeams={groupedTeams} />
+        </DndProvider>
+      )}
+
+      {/* Show Loading State */}
+      {loading && (
+        <div className="text-center text-white text-xl">Loading...</div>
       )}
 
       {/* Display Saved Groups */}
@@ -113,7 +115,7 @@ const GroupTeams = ({ tournamentId }) => {
       )}
 
       {/* Display All Saved Teams if No Grouping Mode and No Saved Groups */}
-      {!groupingMode && !groupedTeams && !showSchedule && (
+      {!groupingMode && !groupedTeams && !showSchedule && !loading && (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mt-8">
           {savedTeams.map((team, index) => (
             <div

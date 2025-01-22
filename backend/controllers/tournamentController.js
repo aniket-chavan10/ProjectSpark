@@ -492,6 +492,7 @@ const assignGroupsToTeams = async (req, res) => {
   }
 
   try {
+    // Retrieve the list of teams participating in the tournament
     const sqlGetTeams = `
       SELECT id, team_id, group_name
       FROM tournament_participants
@@ -508,19 +509,21 @@ const assignGroupsToTeams = async (req, res) => {
 
     let assignments = [];
 
+    // Random assignment logic
     if (random) {
-      // Random assignment
       const groupNames = ["A", "B", "C", "D"];
       const shuffledTeams = teams.sort(() => Math.random() - 0.5);
       assignments = shuffledTeams.map((team, index) => ({
         id: team.id,
         groupName: groupNames[index % groupNames.length],
       }));
-    } else if (groupAssignments && groupAssignments.length) {
-      // Manual or Bulk assignment
+    }
+    // Manual assignment logic
+    else if (groupAssignments?.length) {
       const groupNames = ["A", "B", "C", "D"];
       const groupCounts = {};
 
+      // Validate and process groupAssignments
       try {
         assignments = groupAssignments.map(({ teamId, groupName }) => {
           if (!groupNames.includes(groupName)) {
@@ -532,6 +535,7 @@ const assignGroupsToTeams = async (req, res) => {
             throw new Error(`Team ID ${teamId} not found.`);
           }
 
+          // Track group sizes
           groupCounts[groupName] = (groupCounts[groupName] || 0) + 1;
           if (groupCounts[groupName] > 8) {
             throw new Error(`Group ${groupName} exceeds the limit of 8 teams.`);
@@ -546,37 +550,88 @@ const assignGroupsToTeams = async (req, res) => {
       return res.status(400).json({ error: "Invalid group assignments." });
     }
 
+    // Update the database with group assignments
     const sqlAssignGroup = `
       UPDATE tournament_participants
       SET group_name = ?
       WHERE id = ?
     `;
 
-    // Update groups in the database using Promise.all with async/await
-    const updatePromises = assignments.map(async ({ id, groupName }) => {
-      await db.query(sqlAssignGroup, [groupName, id]);
-    });
+    console.log("Assignments to be updated:", assignments);
+
+    // Execute SQL update for each assignment
+    const updatePromises = assignments.map(({ id, groupName }) =>
+      db.query(sqlAssignGroup, [groupName, id])
+    );
 
     await Promise.all(updatePromises);
 
-    // Prepare the response with updated team information
-    const updatedTeams = assignments.map(({ id, groupName }) => ({
-      teamId: id,
-      groupName,
-    }));
-
     res.status(200).json({
       message: "Groups assigned successfully.",
-      assignedTeams: updatedTeams,
+      assignedTeams: assignments,
     });
   } catch (error) {
-    console.error("Error assigning groups to teams:", error);
+    console.error("Error assigning groups to teams:", error.message);
     res.status(500).json({
       error: "Error assigning groups to teams.",
       details: error.message,
     });
   }
 };
+
+const getGroupsAssignedTeams = async (req, res) => {
+  const { tournamentId } = req.params;
+
+  if (!tournamentId) {
+    return res.status(400).json({ error: "Tournament ID is required." });
+  }
+
+  try {
+    // Retrieve the list of teams, their names, and their assigned groups in the tournament
+    const sqlGetAssignedTeams = `
+      SELECT t.id, t.team_name, tp.group_name
+      FROM tournament_participants tp
+      JOIN teams t ON tp.team_id = t.id
+      WHERE tp.tournament_id = ?
+    `;
+
+    const [teams] = await db.query(sqlGetAssignedTeams, [tournamentId]);
+
+    if (teams.length === 0) {
+      return res.status(404).json({ error: "No teams found for this tournament." });
+    }
+
+    // Group the teams by their assigned group name
+    const groupsAssignedTeams = teams.reduce((acc, team) => {
+      const { group_name, team_name, id } = team;
+      if (!acc[group_name]) {
+        acc[group_name] = [];
+      }
+      acc[group_name].push({
+        id,
+        team_name, // Adding team name to the response
+        group_name
+      });
+      return acc;
+    }, {});
+
+    // Send the response with teams grouped by their assigned group
+    res.status(200).json({
+      message: "Groups and assigned teams fetched successfully.",
+      groupsAssignedTeams,
+    });
+  } catch (error) {
+    console.error("Error retrieving assigned teams:", error.message);
+    res.status(500).json({
+      error: "Error retrieving assigned teams.",
+      details: error.message,
+    });
+  }
+};
+
+
+
+
 
 
 const createMatch = (req, res) => {
@@ -714,56 +769,90 @@ const scheduleTournamentMatches = async (req, res) => {
     });
   }
 
-  // Predefined dependencies for match numbers
   const matchDependencies = {
-    3: { dependent_match1_id: 1, dependent_match2_id: 2 },
-    6: { dependent_match1_id: 4, dependent_match2_id: 5 },
-    7: { dependent_match1_id: 3, dependent_match2_id: 6 },
-    10: { dependent_match1_id: 8, dependent_match2_id: 9 },
-    13: { dependent_match1_id: 11, dependent_match2_id: 12 },
-    14: { dependent_match1_id: 10, dependent_match2_id: 13 },
-    17: { dependent_match1_id: 15, dependent_match2_id: 16 },
-    20: { dependent_match1_id: 18, dependent_match2_id: 19 },
-    21: { dependent_match1_id: 17, dependent_match2_id: 20 },
-    24: { dependent_match1_id: 22, dependent_match2_id: 23 },
-    27: { dependent_match1_id: 25, dependent_match2_id: 26 },
-    28: { dependent_match1_id: 24, dependent_match2_id: 27 },
-    29: { dependent_match1_id: 7, dependent_match2_id: 21 },
-    30: { dependent_match1_id: 14, dependent_match2_id: 28 },
-    31: { dependent_match1_id: 29, dependent_match2_id: 30 },
+    3: { dependent_match1_id: 1, dependent_match2_id: 2, round: 2 },
+    6: { dependent_match1_id: 4, dependent_match2_id: 5, round: 2 },
+    7: { dependent_match1_id: 3, dependent_match2_id: 6, round: 3 },
+    10: { dependent_match1_id: 8, dependent_match2_id: 9, round: 2 },
+    13: { dependent_match1_id: 11, dependent_match2_id: 12, round: 2 },
+    14: { dependent_match1_id: 10, dependent_match2_id: 13, round: 3 },
+    17: { dependent_match1_id: 15, dependent_match2_id: 16, round: 2 },
+    20: { dependent_match1_id: 18, dependent_match2_id: 19, round: 2 },
+    21: { dependent_match1_id: 17, dependent_match2_id: 20, round: 3 },
+    24: { dependent_match1_id: 22, dependent_match2_id: 23, round: 2 },
+    27: { dependent_match1_id: 25, dependent_match2_id: 26, round: 2 },
+    28: { dependent_match1_id: 24, dependent_match2_id: 27, round: 3 },
+    29: { dependent_match1_id: 7, dependent_match2_id: 21, round: 4 },
+    30: { dependent_match1_id: 14, dependent_match2_id: 28, round: 4 },
+    31: { dependent_match1_id: 29, dependent_match2_id: 30, round: 5 },
   };
+
+  const sqlGetGroupForTeam = `
+    SELECT group_name FROM tournament_participants 
+    WHERE tournament_id = ? AND team_id = ?
+  `;
 
   const sqlInsertMatch = `
     INSERT INTO tournament_matches 
-    (tournament_id, round_number, group_name, team1_id, team2_id, match_no, match_date, match_time, venue, dependent_match1_id, dependent_match2_id, status)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    (tournament_id, round_number, group_name, team1_id, team2_id, match_no, venue, dependent_match1_id, dependent_match2_id, status)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `;
 
   try {
+    // Insert provided first-round matches
     for (const match of matches) {
-      // Retrieve dependent match IDs based on match_no
-      const { dependent_match1_id, dependent_match2_id } = matchDependencies[match.match_no] || { dependent_match1_id: null, dependent_match2_id: null };
+      const team1GroupResult = await db.execute(sqlGetGroupForTeam, [tournamentId, match.team1Id]);
+      const team2GroupResult = await db.execute(sqlGetGroupForTeam, [tournamentId, match.team2Id]);
 
-      // Insert match into the database
+      // Log the results to check group names
+      console.log("team1GroupResult:", team1GroupResult);
+      console.log("team2GroupResult:", team2GroupResult);
+
+      const team1Group = team1GroupResult[0]?.[0]?.group_name || null; // Fixing access to group_name
+      const team2Group = team2GroupResult[0]?.[0]?.group_name || null; // Fixing access to group_name
+
+      console.log(`team1Group: ${team1Group}, team2Group: ${team2Group}`);
+
+      // Check if teams belong to the same group
+      if (team1Group !== team2Group) {
+        return res.status(400).json({
+          error: `Teams ${match.team1Id} and ${match.team2Id} do not belong to the same group.`,
+        });
+      }
+
+      // Insert the match into the tournament
       await db.execute(sqlInsertMatch, [
         tournamentId,
-        match.round, // round_number
-        match.group || null, // group_name
-        Number.isInteger(match.team1Id) ? match.team1Id : null, // team1_id
-        Number.isInteger(match.team2Id) ? match.team2Id : null, // team2_id
-        match.match_no, // match_no
-        match.match_date || "2025-01-01", // Placeholder or provided match_date
-        match.match_time || "12:00:00", // Placeholder or provided match_time
-        match.venue || "Default Venue", // Placeholder or provided venue
-        dependent_match1_id, // dependent_match1_id (from predefined map)
-        dependent_match2_id, // dependent_match2_id (from predefined map)
-        "scheduled", // status
+        1, // First round
+        team1Group, // Group name fetched from the database
+        match.team1Id,
+        match.team2Id,
+        match.match_no,
+        match.venue || "Default Venue",
+        null, // No dependencies for round 1
+        null,
+        "scheduled",
+      ]);
+    }
+
+    // Generate and insert placeholders for dependent matches
+    for (const [match_no, dependencies] of Object.entries(matchDependencies)) {
+      await db.execute(sqlInsertMatch, [
+        tournamentId,
+        dependencies.round, // Set the round number based on the dependencies object
+        null, // No group yet
+        null, // No team1
+        null, // No team2
+        match_no,
+        "TBD Venue", // Placeholder
+        dependencies.dependent_match1_id,
+        dependencies.dependent_match2_id,
+        "scheduled", // Placeholder status
       ]);
     }
 
     res.status(200).json({
       message: "Tournament matches scheduled successfully!",
-      matches, // Return matches for verification
     });
   } catch (error) {
     res.status(500).json({
@@ -772,6 +861,85 @@ const scheduleTournamentMatches = async (req, res) => {
     });
   }
 };
+
+
+
+
+
+
+
+const  updateMatchDateTime  = async (req, res) => {
+  const { matches } = req.body;
+
+  // Validate request payload
+  if (!matches || !Array.isArray(matches) || matches.length === 0) {
+    return res.status(400).json({
+      error: "An array of matches with matchId, matchDate, and matchTime is required.",
+    });
+  }
+
+  const sqlUpdateMatch = `
+    UPDATE tournament_matches 
+    SET match_date = ?, match_time = ? 
+    WHERE id = ?
+  `;
+
+  try {
+    const results = [];
+    for (const match of matches) {
+      const { matchId, matchDate, matchTime } = match;
+
+      // Validate each match payload
+      if (!matchId || !matchDate || !matchTime) {
+        results.push({
+          matchId,
+          status: "error",
+          error: "Invalid match data (matchId, matchDate, and matchTime are required).",
+        });
+        continue;
+      }
+
+      try {
+        const [result] = await db.execute(sqlUpdateMatch, [
+          matchDate,
+          matchTime,
+          matchId,
+        ]);
+
+        if (result.affectedRows === 0) {
+          results.push({
+            matchId,
+            status: "not_found",
+            message: "Match not found or no changes made.",
+          });
+        } else {
+          results.push({
+            matchId,
+            status: "success",
+            message: "Match updated successfully.",
+          });
+        }
+      } catch (error) {
+        results.push({
+          matchId,
+          status: "error",
+          error: error.message || "Database error.",
+        });
+      }
+    }
+
+    res.status(200).json({
+      message: "Matches processed.",
+      results,
+    });
+  } catch (error) {
+    res.status(500).json({
+      error: "Error updating matches.",
+      details: error.message || error,
+    });
+  }
+};
+
 
 
 
@@ -868,5 +1036,7 @@ module.exports = {
   assignGroupsToTeams,
   getAppliedTeams,
   scheduleTournamentMatches,
-  updateMatchResult
+  updateMatchResult,
+  getGroupsAssignedTeams,
+  updateMatchDateTime 
 };

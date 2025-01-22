@@ -1,145 +1,195 @@
-import React, { useState } from 'react';
+import React from "react";
+import "./TournamentBracket.css";
 
-// Sample teams for Round 1
-const teams = [
-  "Team 1", "Team 2", "Team 3", "Team 4", "Team 5", "Team 6", "Team 7", "Team 8",
-  "Team 9", "Team 10", "Team 11", "Team 12", "Team 13", "Team 14", "Team 15", "Team 16"
-];
-
-// Function to create a match component
-const Match = ({ match, onSelectWinner }) => {
-  return (
-    <div className="flex justify-between items-center space-x-4 p-4 bg-gradient-to-r from-blue-200 via-purple-200 to-pink-200 rounded-xl shadow-lg hover:scale-105 transition-all duration-300">
-      <span className="text-xl font-semibold text-gray-800">{match[0]}</span>
-      <span className="text-xl font-semibold text-gray-800">{match[1]}</span>
-      <div className="space-x-2">
-        <button 
-          className="px-6 py-2 bg-blue-600 text-white rounded-lg shadow-md hover:bg-blue-700 transition-colors"
-          onClick={() => onSelectWinner(match[0])}
-        >
-          Choose {match[0]}
-        </button>
-        <button 
-          className="px-6 py-2 bg-green-600 text-white rounded-lg shadow-md hover:bg-green-700 transition-colors"
-          onClick={() => onSelectWinner(match[1])}
-        >
-          Choose {match[1]}
-        </button>
-      </div>
-    </div>
-  );
-};
-
-// Function to create a round component
-const Round = ({ roundNumber, matches, onSelectWinner, isFinal, roundIndex }) => {
-  return (
-    <div className="flex flex-col items-center mb-10 space-y-4 relative">
-      <h3 className={`text-2xl font-bold ${isFinal ? 'text-red-600' : 'text-indigo-600'} mb-6`}>Round {roundNumber}</h3>
-      <div className="space-y-8">
-        {matches.map((match, index) => (
-          <Match key={index} match={match} onSelectWinner={onSelectWinner} />
-        ))}
-      </div>
-
-      {/* Connecting lines to the next round */}
-      {roundIndex < 3 && (
-        <div className="absolute top-0 right-0 bottom-0 left-0">
-          <svg className="absolute top-0 left-0 right-0 bottom-0 w-full h-full" viewBox="0 0 100 100">
-            <line x1="100%" y1="0" x2="100%" y2="100%" stroke="gray" strokeWidth="2" />
-          </svg>
-        </div>
-      )}
-    </div>
-  );
-};
-
-const TournamentBracket = () => {
-  const [teamsInRound, setTeamsInRound] = useState([teams]);
-
-  const onSelectWinner = (winner) => {
-    // Get the current round index
-    const currentRoundIndex = teamsInRound.length - 1;
-    
-    // Get the teams from the current round
-    const currentRoundTeams = teamsInRound[currentRoundIndex];
-    
-    // Create the next round based on winners
-    const nextRoundTeams = [];
-    
-    // For each match in the current round, the winner moves to the next round
-    for (let i = 0; i < currentRoundTeams.length; i += 2) {
-      const match = currentRoundTeams.slice(i, i + 2);
-      if (match[0] === winner) {
-        nextRoundTeams.push(match[0]);
-      } else if (match[1] === winner) {
-        nextRoundTeams.push(match[1]);
-      }
-    }
-
-    // If this is the last round, the winner is the champion
-    if (nextRoundTeams.length === 1) {
-      alert(`${nextRoundTeams[0]} is the champion!`);
-      return;
-    }
-    
-    // Set the new state of the next round teams
-    setTeamsInRound([
-      ...teamsInRound,
-      nextRoundTeams
-    ]);
-  };
-
-  const getMatchesForRound = (roundIndex) => {
-    const teamsInThisRound = teamsInRound[roundIndex];
-    const matches = [];
-    for (let i = 0; i < teamsInThisRound.length; i += 2) {
-      matches.push([teamsInThisRound[i], teamsInThisRound[i + 1]]);
-    }
-    return matches;
-  };
+const TournamentBracket = ({ data }) => {
+  // If no data is passed, show a loading message (fallback)
+  if (!data) {
+    return <div>Loading...</div>;
+  }
 
   return (
-    <div className="max-w-6xl mx-auto py-12 relative">
-      <div className="flex justify-between space-x-6">
-        {/* Round 1 */}
-        <Round
-          roundNumber={1}
-          matches={getMatchesForRound(0)}
-          onSelectWinner={onSelectWinner}
-          roundIndex={0}
-        />
+    <div className="tournament-container">
+      <svg viewBox="0 0 800 500" className="tournament-svg" xmlns="http://www.w3.org/2000/svg">
+        <style>
+          {`
+            .background {
+              fill: #1b0b33;
+            }
+            .border {
+              fill: none;
+              stroke: #ffb400;
+              stroke-width: 2;
+            }
+            .text {
+              fill: white;
+              font-family: Arial, sans-serif;
+              font-size: 24px;
+              font-weight: bold;
+            }
+            .date-text {
+              fill: white;
+              font-family: Arial, sans-serif;
+              font-size: 16px;
+              font-weight: bold;
+            }
+            .team-box {
+              fill: #1b5e20;
+              stroke: #ffffff;
+              stroke-width: 2;
+              rx: 5;
+              ry: 5;
+            }
+            .team-text {
+              fill: white;
+              font-family: Arial, sans-serif;
+              font-size: 16px;
+              font-weight: bold;
+            }
+            .champion-text {
+              fill: white;
+              font-family: Arial, sans-serif;
+              font-size: 24px;
+              font-weight: bold;
+            }
+            .line {
+              stroke: white;
+              stroke-width: 2;
+            }
+            .time-text {
+              fill: white;
+              font-family: Arial, sans-serif;
+              font-size: 14px;
+              font-weight: bold;
+            }
+          `}
+        </style>
         
-        {/* Round 2 */}
-        {teamsInRound[1] && (
-          <Round
-            roundNumber={2}
-            matches={getMatchesForRound(1)}
-            onSelectWinner={onSelectWinner}
-            roundIndex={1}
-          />
-        )}
+        <rect className="background" width="100%" height="100%" />
+        <rect x="10" y="10" width="780" height="480" className="border" />
+        <text x="250" y="50" className="text">
+          Group Stage Matches [{data.groupName}]
+        </text>
+        <text x="650" y="50" className="date-text">
+          {data.date}
+        </text>
 
-        {/* Round 3 */}
-        {teamsInRound[2] && (
-          <Round
-            roundNumber={3}
-            matches={getMatchesForRound(2)}
-            onSelectWinner={onSelectWinner}
-            roundIndex={2}
-          />
-        )}
+        {/* First Round */}
+        {Array.from({ length: 8 }).map((_, i) => (
+          <React.Fragment key={i}>
+            <rect x="50" y={100 + i * 50} width="100" height="30" className="team-box" />
+            <text x="70" y={120 + i * 50} className="team-text">
+              {data.teams[i] || `TEAM ${i + 1}`} {/* Placeholder for missing team name */}
+            </text>
+          </React.Fragment>
+        ))}
 
-        {/* Round 4 (Finals) */}
-        {teamsInRound[3] && (
-          <Round
-            roundNumber={4}
-            matches={getMatchesForRound(3)}
-            onSelectWinner={onSelectWinner}
-            isFinal
-            roundIndex={3}
+        {/* Second Round */}
+        {Array.from({ length: 4 }).map((_, i) => (
+          <React.Fragment key={i}>
+            <rect x="200" y={125 + i * 100} width="100" height="30" className="team-box" />
+            <text x="220" y={145 + i * 100} className="team-text">
+              {data.secondRoundTeams[i] || `TEAM ${i + 1}`} {/* Placeholder for second round */}
+            </text>
+          </React.Fragment>
+        ))}
+
+        {/* Third Round */}
+        {Array.from({ length: 2 }).map((_, i) => (
+          <React.Fragment key={i}>
+            <rect x="350" y={175 + i * 200} width="100" height="30" className="team-box" />
+            <text x="370" y={195 + i * 200} className="team-text">
+              {data.thirdRoundTeams[i] || `TEAM ${i + 1}`} {/* Placeholder for third round */}
+            </text>
+          </React.Fragment>
+        ))}
+
+        {/* Final Round */}
+        <rect x="500" y="275" width="100" height="30" className="team-box" />
+        <text x="520" y="295" className="team-text">
+          {data.finalTeam || "TEAM 8"} {/* Placeholder for final round */}
+        </text>
+
+        {/* Winner */}
+        <text x="650" y="300" className="champion-text">
+          Top 4
+        </text>
+
+        {/* Lines */}
+        {/* First to Second Round */}
+        {Array.from({ length: 8 }).map((_, i) => (
+          <line
+            key={i}
+            x1="150"
+            y1={115 + i * 50}
+            x2="200"
+            y2={115 + i * 50}
+            className="line"
           />
-        )}
-      </div>
+        ))}
+        {Array.from({ length: 4 }).map((_, i) => (
+          <line
+            key={i}
+            x1="200"
+            y1={115 + i * 100}
+            x2="200"
+            y2={165 + i * 100}
+            className="line"
+          />
+        ))}
+
+        {/* Second to Third Round */}
+        {Array.from({ length: 4 }).map((_, i) => (
+          <line
+            key={i}
+            x1="300"
+            y1={140 + i * 100}
+            x2="350"
+            y2={140 + i * 100}
+            className="line"
+          />
+        ))}
+        {Array.from({ length: 2 }).map((_, i) => (
+          <line
+            key={i}
+            x1="350"
+            y1={140 + i * 200}
+            x2="350"
+            y2={240 + i * 200}
+            className="line"
+          />
+        ))}
+
+        {/* Third to Final Round */}
+        {Array.from({ length: 2 }).map((_, i) => (
+          <line
+            key={i}
+            x1="450"
+            y1={190 + i * 200}
+            x2="500"
+            y2={190 + i * 200}
+            className="line"
+          />
+        ))}
+        <line x1="500" y1="190" x2="500" y2="390" className="line" />
+
+        {/* Final to Winner */}
+        <line x1="600" y1="290" x2="650" y2="290" className="line" />
+
+        {/* Match Times */}
+        {data.matchTimes.map((time, i) => (
+          <text key={i} x="165" y={140 + i * 100} className="time-text">
+            {time}
+          </text>
+        ))}
+        {["14:00", "15:00"].map((time, i) => (
+          <text key={i} x="315" y={190 + i * 200} className="time-text">
+            {time}
+          </text>
+        ))}
+        <text x="465" y="290" className="time-text">
+          16:00
+        </text>
+      </svg>
     </div>
   );
 };

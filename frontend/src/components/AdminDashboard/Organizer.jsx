@@ -15,17 +15,15 @@ const Organizer = () => {
   useEffect(() => {
     const fetchTournaments = async () => {
       try {
-        const response = await tournamentApi.getAssignedTournaments();
-        console.log("Fetched Tournaments Response:", response);
-        setTournaments(response.tournaments || []); // Set the tournaments array
+        const fetchedTournaments = await tournamentApi.getAssignedTournaments();
+        setTournaments(fetchedTournaments || []);
       } catch (error) {
         console.error("Error fetching tournaments:", error);
       }
     };
-  
+
     fetchTournaments();
   }, []);
-  
 
   const openForm = (tournament) => {
     setSelectedTournament(tournament);
@@ -83,16 +81,12 @@ const Organizer = () => {
 
   const handleSendInvitations = async (tournament) => {
     if (!tournament.name || !tournament.banner) {
-      setError(
-        "Please update the tournament details before sending invitations."
-      );
+      setError("Please update the tournament details before sending invitations.");
       return;
     }
 
     try {
-      const response = await tournamentApi.sendTournamentInvitations(
-        tournament.id
-      );
+      const response = await tournamentApi.sendTournamentInvitations(tournament.id);
       alert(`Invitations sent for ${tournament.name}`);
     } catch (error) {
       console.error("Error sending invitations:", error);
@@ -102,9 +96,7 @@ const Organizer = () => {
 
   return (
     <div className="p-6 bg-gray-100 min-h-screen">
-      <h1 className="text-3xl font-bold text-gray-800 mb-6">
-        Organizer Dashboard
-      </h1>
+      <h1 className="text-3xl font-bold text-gray-800 mb-6">Organizer Dashboard</h1>
 
       {/* Part 1: Current Functionality */}
       <div className="mb-8">
@@ -116,22 +108,20 @@ const Organizer = () => {
           {tournaments?.length > 0 ? (
             tournaments.map((tournament) => (
               <div
-                key={tournament.tournamentId}
+                key={tournament.id}
                 className="bg-white p-4 rounded-lg shadow-md border hover:shadow-lg transition"
               >
                 <p className="text-gray-600">
-                  <strong>Organizing Team:</strong> {tournament.organizingTeam}
+                  <strong>Organizing Team:</strong> {tournament.organizing_team}
                 </p>
                 <p className="text-gray-600">
-                  <strong>Start Date:</strong>{" "}
-                  {new Date(tournament.startDate).toLocaleString()}
+                  <strong>Start Date:</strong> {new Date(tournament.start_date).toLocaleString()}
                 </p>
                 <p className="text-gray-600">
-                  <strong>End Date:</strong>{" "}
-                  {new Date(tournament.endDate).toLocaleString()}
+                  <strong>End Date:</strong> {new Date(tournament.end_date).toLocaleString()}
                 </p>
                 <p className="text-gray-600">
-                  <strong>Status:</strong> {tournament.status || "Pending"}
+                  <strong>Status:</strong> {tournament.status}
                 </p>
                 <div className="flex justify-between items-center mt-4">
                   <button
@@ -157,13 +147,14 @@ const Organizer = () => {
 
       {/* Part 2: Placeholder for Future Functionality */}
       <div className="mb-8">
-        <ShowAppliedTeams />
+         <ShowAppliedTeams />
       </div>
 
       {/* Part 3: Placeholder for Future Functionality */}
       <div>
         <h2 className="text-2xl font-semibold mb-4">Another Feature</h2>
-      </div>
+        
+         </div>
 
       {/* Form Modal */}
       {isFormOpen && (
@@ -172,9 +163,7 @@ const Organizer = () => {
             <h3 className="text-lg font-bold mb-4">Update Tournament</h3>
             <form onSubmit={handleFormSubmit} className="space-y-4">
               <div>
-                <label className="block text-sm font-medium">
-                  Tournament Name
-                </label>
+                <label className="block text-sm font-medium">Tournament Name</label>
                 <input
                   type="text"
                   name="name"
@@ -186,9 +175,7 @@ const Organizer = () => {
               </div>
 
               <div>
-                <label className="block text-sm font-medium">
-                  Banner Image
-                </label>
+                <label className="block text-sm font-medium">Banner Image</label>
                 <input
                   type="file"
                   name="banner"

@@ -1,0 +1,30 @@
+.bracket-container {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 20px;
+  }
+  
+  .bracket-item {
+    flex: 1 1 calc(50% - 40px); /* Two brackets per row on larger screens */
+    max-width: calc(50% - 40px);
+    margin: 20px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    box-sizing: border-box;
+  }
+  
+  .bracket-item svg {
+    width: 100%;
+    height: auto;
+    max-width: 600px; /* Ensure proper scaling */
+  }
+  
+  @media (max-width: 768px) {
+    .bracket-item {
+      flex: 1 1 100%; /* Full width on smaller screens */
+      max-width: 100%;
+    }
+  }
+  

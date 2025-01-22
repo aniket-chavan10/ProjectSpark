@@ -88,7 +88,7 @@ const adminApi = {
 
       // Make an API request to the backend
       const response = await axiosInstance.get(
-        `/admin/tournaments/6/invitations/apply/teams`,
+        `/admin/tournaments/7/invitations/apply/teams`,
         {
           headers: {
             Authorization: `Bearer ${token}`, // Include the authorization token
@@ -107,45 +107,89 @@ const adminApi = {
     }
   },
 
-  assignGroupsToTeams: async (
-    tournamentId,
-    groupAssignments,
-    random = false
-  ) => {
+  assignGroupsToTeams: async (payload) => {
     try {
-      const token = localStorage.getItem("authToken"); // Retrieve the token
+      const token = localStorage.getItem("authToken");
       console.log("Making API call to assign groups to teams.");
-      console.log("Token:", token);
-  
-      // Construct the request body
-      const requestBody = {
-        tournamentId,
-        groupAssignments, // Provide this only for manual or bulk grouping
-        random, // Set this to true for random grouping
-      };
-  
+      console.log("Payload:", JSON.stringify(payload, null, 2));
+
       // Make an API request to the backend
       const response = await axiosInstance.put(
-        `/admin/tournaments/organize/teams/group`, // The correct endpoint for assigning groups
-        requestBody,
+        `/admin/tournaments/organize/teams/group`,
+        payload,
         {
           headers: {
-            Authorization: `Bearer ${token}`, // Include the authorization token
+            Authorization: `Bearer ${token}`,
           },
         }
       );
-  
+
       console.log("API Response:", response.data);
-      return response.data; // Return the success message and assignments
+      return response.data;
     } catch (error) {
       console.error(
         "Error assigning groups to teams:",
         error.response || error.message
       );
-      throw error; // Rethrow the error for further handling
+      throw error;
     }
   },
-  
+
+  getGroupsAssignedTeams: async (tournamentId) => {
+    try {
+      const token = localStorage.getItem("authToken");
+      console.log("Making API call to fetch assigned groups for teams.");
+      console.log("Tournament ID:", tournamentId);
+
+      // Make an API request to the backend
+      const response = await axiosInstance.get(
+        `/admin/tournaments/grouped/teams/7`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+
+      console.log("API Response:", response.data);
+      return response.data;
+    } catch (error) {
+      console.error(
+        "Error fetching assigned groups for teams:",
+        error.response || error.message
+      );
+      throw error;
+    }
+  },
+
+  scheduleTournamentMatches: async (tournamentId, matches) => {
+    try {
+      const token = localStorage.getItem("authToken");
+      console.log("Making API call to schedule tournament matches.");
+      console.log("Tournament ID:", tournamentId);
+      console.log("Matches:", matches);
+
+      // Make an API request to the backend
+      const response = await axiosInstance.post(
+        `/admin/tournaments/schedule`,
+        { tournamentId, matches }, // Pass the required parameters in the request body
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+
+      console.log("API Response:", response.data);
+      return response.data;
+    } catch (error) {
+      console.error(
+        "Error scheduling tournament matches:",
+        error.response || error.message
+      );
+      throw error;
+    }
+  },
 };
 
 export default adminApi;

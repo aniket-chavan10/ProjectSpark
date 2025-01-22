@@ -1,9 +1,15 @@
-import React, { useState, useEffect } from "react";
-import adminApi from "../../api/adminApi"; // Import API functions
+import React, { useState } from "react";
+import adminApi from "../../api/adminApi"; // Importing the pre-configured adminApi
 
-const ManualGrouping = ({ savedTeams, onSuccess }) => {
-  const tournamentId = 6; // Hardcoded tournamentId for now
-  const [groupAssignments, setGroupAssignments] = useState([]);
+const ManualGrouping = ({ savedTeams, onSaveGroups }) => {
+  const [groupAssignments, setGroupAssignments] = useState(
+    savedTeams.map((team) => ({
+      id: team.team_id,
+      team_name: team.team_name,
+      team_logo: team.profilePicture || "https://via.placeholder.com/50?text=No+Logo",
+      group: "",
+    }))
+  );
   const [warningVisible, setWarningVisible] = useState(false);
   const [loading, setLoading] = useState(false);
 
@@ -13,13 +19,6 @@ const ManualGrouping = ({ savedTeams, onSuccess }) => {
     C: "bg-yellow-200",
     D: "bg-red-200",
   };
-
-  // Update `groupAssignments` whenever `savedTeams` changes
-  useEffect(() => {
-    setGroupAssignments(
-      savedTeams.map((team) => ({ ...team, group: "" }))
-    );
-  }, [savedTeams]);
 
   const handleGroupChange = (index, group) => {
     const updatedAssignments = [...groupAssignments];
@@ -38,36 +37,36 @@ const ManualGrouping = ({ savedTeams, onSuccess }) => {
     setLoading(true);
   
     try {
-      // Prepare the groupAssignments for the API request
-      const formattedAssignments = groupAssignments.map((team) => ({
-        teamId: team.id,
+      const groupAssignmentsPayload = groupAssignments.map((team) => ({
+        teamId: team.id, // Ensure the correct property is used
         groupName: team.group,
       }));
   
-      // Call the backend API to assign groups to teams
-      const response = await adminApi.assignGroupsToTeams(
-        tournamentId, // Use hardcoded tournamentId here
-        formattedAssignments,
-        false // false for manual grouping
-      );
+      const payload = {
+        tournamentId: 7, // Replace with dynamic ID if necessary
+        groupAssignments: groupAssignmentsPayload,
+        random: false,
+      };
   
-      console.log("API Response:", response);
-      onSuccess(response); // Trigger the parent callback on success
+      console.log("Payload sent to backend:", JSON.stringify(payload, null, 2));
+  
+      const response = await adminApi.assignGroupsToTeams(payload);
+      console.log("Groups assigned successfully:", response.data);
+      onSaveGroups(groupAssignments);
     } catch (error) {
-      console.error("Error:", error);
-      alert("Failed to save group assignments. Please try again.");
+      console.error("Error assigning groups:", error.response?.data || error.message);
     } finally {
       setLoading(false);
     }
   };
+  
 
   return (
     <div className="p-8 bg-gradient-to-br from-gray-100 via-gray-200 to-gray-300 min-h-screen">
-      <h1 className="text-4xl font-bold text-gray-800 mb-8 text-center">
-        Manual Grouping of Teams
+      <h1 className="text-5xl font-extrabold text-gray-800 mb-8 text-center">
+        Manual Grouping
       </h1>
 
-      {/* Warning Modal */}
       {warningVisible && (
         <div className="fixed inset-0 bg-gray-500 bg-opacity-50 flex justify-center items-center z-50">
           <div className="bg-white p-6 rounded-lg shadow-lg w-96">
@@ -86,34 +85,37 @@ const ManualGrouping = ({ savedTeams, onSuccess }) => {
         </div>
       )}
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
         {groupAssignments.map((team, index) => (
           <div
-            key={team.id}
-            className={`p-6 rounded-lg shadow-lg bg-white border border-gray-200 hover:shadow-xl transition-all`}
+            key={index}
+            className={`p-6 rounded-lg shadow-md flex justify-between items-center transition-all ${
+              team.group
+                ? groupColors[team.group]
+                : "bg-gradient-to-b from-white via-gray-100 to-gray-200"
+            }`}
           >
-            <div className="flex flex-col items-center text-center">
+            <div className="flex items-center space-x-4">
               <img
-                src={team.profilePicture || "/default-profile.png"}
-                alt={team.name}
-                className="w-20 h-20 rounded-full object-cover mb-4"
+                src={team.team_logo}
+                alt={team.team_name}
+                className="w-10 h-10 rounded-full object-cover"
               />
-              <span className="text-xl font-semibold text-gray-800 mb-2">
-                {team.team_name}
-              </span>
-
-              <select
-                value={team.group}
-                onChange={(e) => handleGroupChange(index, e.target.value)}
-                className="px-4 py-2 bg-gray-100 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 w-full"
-              >
-                <option value="" disabled>Select Group</option>
-                <option value="A">Group A</option>
-                <option value="B">Group B</option>
-                <option value="C">Group C</option>
-                <option value="D">Group D</option>
-              </select>
+              <span className="text-lg font-semibold text-gray-800">{team.team_name}</span>
             </div>
+            <select
+              value={team.group}
+              onChange={(e) => handleGroupChange(index, e.target.value)}
+              className="px-4 py-2 bg-white border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="" disabled>
+                Select Group
+              </option>
+              <option value="A">Group A</option>
+              <option value="B">Group B</option>
+              <option value="C">Group C</option>
+              <option value="D">Group D</option>
+            </select>
           </div>
         ))}
       </div>
@@ -122,10 +124,8 @@ const ManualGrouping = ({ savedTeams, onSuccess }) => {
         <button
           onClick={handleSaveGroups}
           disabled={loading}
-          className={`px-8 py-4 rounded-lg shadow-md text-white text-xl font-semibold transition-all ${
-            loading
-              ? "bg-gray-400 cursor-not-allowed"
-              : "bg-gradient-to-r from-blue-600 to-blue-800 hover:from-blue-500 hover:to-blue-700"
+          className={`px-8 py-4 rounded-lg shadow-md bg-gradient-to-r from-blue-600 to-blue-800 text-white text-xl font-semibold hover:from-blue-500 hover:to-blue-700 transition-all ${
+            loading ? "cursor-not-allowed opacity-50" : ""
           }`}
         >
           {loading ? "Saving..." : "Save Group Assignments"}
