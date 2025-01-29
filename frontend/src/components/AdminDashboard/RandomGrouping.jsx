@@ -1,5 +1,6 @@
-import React, { useState } from "react";
+import React, { useState, useContext } from "react";
 import adminApi from "../../api/adminApi"; // Importing the pre-configured API
+import { TournamentContext } from "../../contexts/TournamentContext"; // Import the context
 
 // Helper function to shuffle the teams
 const shuffleTeams = (teams) => {
@@ -12,6 +13,7 @@ const shuffleTeams = (teams) => {
 };
 
 const RandomGrouping = ({ onSaveGroups, savedTeams }) => {
+  const { tournamentId } = useContext(TournamentContext); // Get tournament ID from context
   const [groupAssignments, setGroupAssignments] = useState(
     savedTeams.map((team) => ({ ...team, group: "" }))
   );
@@ -61,7 +63,7 @@ const RandomGrouping = ({ onSaveGroups, savedTeams }) => {
       }));
 
       const payload = {
-        tournamentId: 6, // Hardcoded tournament ID
+        tournamentId, // Use tournament ID from context
         groupAssignments: groupAssignmentsPayload,
         random: true,
       };

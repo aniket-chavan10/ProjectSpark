@@ -1,8 +1,9 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useContext } from "react";
 import adminApi from "../../api/adminApi"; // Importing the pre-configured adminApi
+import { TournamentContext } from "../../contexts/TournamentContext";
 
 const BulkGrouping = ({ savedTeams, onSaveGroups }) => {
-  const tournamentId = 7;
+  const { tournamentId } = useContext(TournamentContext); // Access tournamentId from context
 
   const [groupAssignments, setGroupAssignments] = useState([]);
   const [selectedGroup, setSelectedGroup] = useState("");
@@ -10,7 +11,6 @@ const BulkGrouping = ({ savedTeams, onSaveGroups }) => {
   const [warningVisible, setWarningVisible] = useState(false);
   const [loading, setLoading] = useState(false);
 
-  // Define color mapping for each group
   const groupColors = {
     A: "bg-blue-200",
     B: "bg-green-200",
@@ -18,33 +18,27 @@ const BulkGrouping = ({ savedTeams, onSaveGroups }) => {
     D: "bg-red-200",
   };
 
-  // Load saved groups into state when component mounts or savedGroups changes
   useEffect(() => {
     if (Array.isArray(savedTeams) && savedTeams.length > 0) {
       const initializedTeams = savedTeams.map((team) => ({
-        id: team.team_id || team.id, // Handle both cases
-        team_name: team.team_name || `Team ${team.id}`, // Fallback for name
+        id: team.team_id || team.id,
+        team_name: team.team_name || `Team ${team.id}`,
         profilePicture:
           team.team_logo || `https://via.placeholder.com/50?text=T${team.id}`,
-        group: team.group || "", // Default to unassigned
+        group: team.group || "",
       }));
       setGroupAssignments(initializedTeams);
     } else {
       console.error("Invalid savedTeams data:", savedTeams);
-      setGroupAssignments([]); // Clear assignments if data is invalid
+      setGroupAssignments([]);
     }
   }, [savedTeams]);
-  
-  
-  
 
-  // Handle group selection
   const handleGroupSelect = (group) => {
     setSelectedGroup(group);
-    setError(""); // Clear any previous error
+    setError("");
   };
 
-  // Handle team selection
   const handleTeamToggle = (index) => {
     if (!selectedGroup) {
       setError("Please select a group before assigning teams.");
@@ -57,10 +51,8 @@ const BulkGrouping = ({ savedTeams, onSaveGroups }) => {
     );
 
     if (updatedAssignments[index].group === selectedGroup) {
-      // Remove from group if already assigned
       updatedAssignments[index].group = "";
     } else {
-      // Check if group is already full
       if (currentGroupTeams.length >= 8) {
         setError(`Group ${selectedGroup} can only have 8 teams.`);
         return;
@@ -69,45 +61,42 @@ const BulkGrouping = ({ savedTeams, onSaveGroups }) => {
     }
 
     setGroupAssignments(updatedAssignments);
-    setError(""); // Clear any errors after successful toggle
+    setError("");
   };
 
-  // Save or submit group assignments
   const handleSaveGroups = async () => {
-    // Check if all teams are assigned to a group
     const unassignedTeams = groupAssignments.filter((team) => team.group === "");
     if (unassignedTeams.length > 0) {
-      setWarningVisible(true); // Show warning modal
+      setWarningVisible(true);
       return;
     }
 
-    setWarningVisible(false); // Hide warning modal
-    setLoading(true); // Start loading state
+    setWarningVisible(false);
+    setLoading(true);
 
     try {
-      // Prepare payload for the API
       const groupAssignmentsPayload = groupAssignments.map((team) => ({
         teamId: team.id,
         groupName: team.group,
       }));
 
       const payload = {
-        tournamentId,
+        tournamentId, // Use tournamentId from context
         groupAssignments: groupAssignmentsPayload,
         random: false,
       };
 
-      console.log("Payload sent to backend:", JSON.stringify(payload, null, 2)); // Debugging
+      console.log("Payload sent to backend:", JSON.stringify(payload, null, 2));
       const response = await adminApi.assignGroupsToTeams(payload);
       console.log("Groups assigned successfully:", response);
 
-      onSaveGroups(groupAssignments); // Notify parent component
-      setSelectedGroup(""); // Clear selected group
+      onSaveGroups(groupAssignments);
+      setSelectedGroup("");
     } catch (error) {
       console.error("Error assigning groups:", error.response?.data || error.message);
       setError("Failed to save group assignments. Please try again.");
     } finally {
-      setLoading(false); // Stop loading state
+      setLoading(false);
     }
   };
 
@@ -117,7 +106,6 @@ const BulkGrouping = ({ savedTeams, onSaveGroups }) => {
         Bulk Grouping
       </h1>
 
-      {/* Modal for warning */}
       {warningVisible && (
         <div className="fixed inset-0 bg-gray-500 bg-opacity-50 flex justify-center items-center z-50">
           <div className="bg-white p-6 rounded-lg shadow-lg w-96">
@@ -136,7 +124,6 @@ const BulkGrouping = ({ savedTeams, onSaveGroups }) => {
         </div>
       )}
 
-      {/* Group Selection */}
       <div className="flex justify-center space-x-4 mb-8">
         {["A", "B", "C", "D"].map((group) => (
           <button
@@ -157,7 +144,6 @@ const BulkGrouping = ({ savedTeams, onSaveGroups }) => {
         <div className="text-red-600 font-semibold text-center mb-4">{error}</div>
       )}
 
-      {/* Teams List */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
         {groupAssignments.map((team, index) => (
           <div
@@ -190,11 +176,10 @@ const BulkGrouping = ({ savedTeams, onSaveGroups }) => {
         ))}
       </div>
 
-      {/* Save Button */}
       <div className="mt-12 text-center">
         <button
           onClick={handleSaveGroups}
-          disabled={loading} // Disable button while loading
+          disabled={loading}
           className={`px-8 py-4 rounded-lg shadow-md bg-gradient-to-r from-blue-600 to-blue-800 text-white text-xl font-semibold hover:from-blue-500 hover:to-blue-700 transition-all ${
             loading ? "cursor-not-allowed opacity-50" : ""
           }`}

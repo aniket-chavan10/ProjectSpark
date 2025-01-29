@@ -88,7 +88,7 @@ const adminApi = {
 
       // Make an API request to the backend
       const response = await axiosInstance.get(
-        `/admin/tournaments/7/invitations/apply/teams`,
+        `/admin/tournaments/invitations/apply/teams/${tournamentId}`,
         {
           headers: {
             Authorization: `Bearer ${token}`, // Include the authorization token
@@ -143,7 +143,7 @@ const adminApi = {
 
       // Make an API request to the backend
       const response = await axiosInstance.get(
-        `/admin/tournaments/grouped/teams/7`,
+        `/admin/tournaments/grouped/teams/${tournamentId}`,
         {
           headers: {
             Authorization: `Bearer ${token}`,
@@ -190,6 +190,86 @@ const adminApi = {
       throw error;
     }
   },
+
+  getScheduledMatches: async (tournamentId) => {
+    try {
+      const token = localStorage.getItem("authToken");
+      console.log("Making API call to fetch scheduled matches.");
+      console.log("Tournament ID:", tournamentId);
+
+      // Make an API request to the backend to get scheduled matches
+      const response = await axiosInstance.get(
+        `admin/tournaments/schedule/all/matches/${tournamentId}`, // URL with the tournamentId as a parameter
+        {
+          headers: {
+            Authorization: `Bearer ${token}`, // Authorization header with the token
+          },
+        }
+      );
+
+      console.log("API Response:", response.data);
+      return response.data; // Return the response data containing the scheduled matches
+    } catch (error) {
+      console.error(
+        "Error retrieving scheduled matches:",
+        error.response || error.message
+      );
+      throw error; // Throw the error to be handled in the calling function
+    }
+  },
+  
+  updateMatchDateTime: async (matches) => {
+    try {
+      const token = localStorage.getItem("authToken");
+      console.log("Making API call to update match dates and times.");
+  
+      const response = await axiosInstance.put( // Changed to PUT request
+        `/admin/tournaments/schedule/match/timestamp`, // Replace with your actual API endpoint
+        { matches }, // Payload containing match data
+        {
+          headers: {
+            Authorization: `Bearer ${token}`, // Authorization header with token
+          },
+        }
+      );
+  
+      console.log("API Response:", response.data);
+      return response.data; // Return the response containing the update results
+    } catch (error) {
+      console.error(
+        "Error updating match dates and times:",
+        error.response || error.message
+      );
+      throw error; // Throw the error to be handled in the calling function
+    }
+  },
+
+  updateTournamentStep: async (tournamentId, currentStep) => {
+    try {
+      const token = localStorage.getItem("authToken");
+      console.log("Making API call to update tournament step.");
+
+      const response = await axiosInstance.patch( // Using PATCH method
+        `/admin/update-step`, // Replace with your actual API endpoint
+        { tournamentId, currentStep }, // Payload containing tournament ID and new step
+        {
+          headers: {
+            Authorization: `Bearer ${token}`, // Authorization header with token
+          },
+        }
+      );
+
+      console.log("API Response:", response.data);
+      return response.data; // Return the response containing the update results
+    } catch (error) {
+      console.error(
+        "Error updating tournament step:",
+        error.response || error.message
+      );
+      throw error; // Throw the error to be handled in the calling function
+    }
+  },
 };
+  
 
 export default adminApi;

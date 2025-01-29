@@ -1,10 +1,10 @@
-import React, { useState } from 'react';
-import adminApi from '../../api/adminApi';
-import FixMatchDay from './FixMatchDay';
-import GroupsBracket from './GroupsBracket';
-import TournamentBracket from './TournamentBracket';
-import MatchDay from './MatchDay';
-import ShowMatchSequence from './ShowMatchSeuquence';
+import React, { useState } from "react";
+import adminApi from "../../api/adminApi";
+import FixMatchDay from "./FixMatchDay";
+import GroupsBracket from "./GroupsBracket";
+import TournamentBracket from "./TournamentBracket";
+import MatchDay from "./MatchDay";
+import ShowMatchSequence from "./ShowMatchSeuquence";
 
 const Profile = ({ profilePhoto, setProfilePhoto }) => {
   const [isUploading, setIsUploading] = useState(false);
@@ -28,20 +28,20 @@ const Profile = ({ profilePhoto, setProfilePhoto }) => {
     setError(null);
     setSuccessMessage(null);
 
-    const token = localStorage.getItem('authToken'); // Get the token from localStorage
+    const token = localStorage.getItem("authToken"); // Get the token from localStorage
 
     try {
       const response = await adminApi.updateTeamLogo(file, token);
 
       if (response.status === 200) {
-        setSuccessMessage('Team logo updated successfully!');
-        console.log('Updated team logo:', response.data);
+        setSuccessMessage("Team logo updated successfully!");
+        console.log("Updated team logo:", response.data);
       } else {
-        setError('Failed to update team logo.');
+        setError("Failed to update team logo.");
       }
     } catch (err) {
-      console.error('Error during logo update:', err);
-      setError('An error occurred while updating the team logo.');
+      console.error("Error during logo update:", err);
+      setError("An error occurred while updating the team logo.");
     } finally {
       setIsUploading(false);
     }
@@ -67,11 +67,6 @@ const Profile = ({ profilePhoto, setProfilePhoto }) => {
         <p className="mt-4">Name: Team Manager</p>
         <p>Email: manager@example.com</p>
       </div>
-      
-      
-      
-      <ShowMatchSequence/>
-      
     </div>
   );
 };

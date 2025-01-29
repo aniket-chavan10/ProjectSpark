@@ -1,8 +1,10 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useContext } from "react";
 import GroupTeams from "./GroupTeams";
 import adminApi from "../../api/adminApi"; // Adjust the path according to your file structure
+import { TournamentContext } from "../../contexts/TournamentContext"; // Import the context
 
-const ShowAppliedTeams = ({ tournamentId }) => {
+const ShowAppliedTeams = ({updateTournamentStep}) => {
+  const { tournamentId } = useContext(TournamentContext); // Access tournamentId from context
   const [teams, setTeams] = useState([]);
   const [isEditing, setIsEditing] = useState(false);
   const [editIndex, setEditIndex] = useState(null);
@@ -13,6 +15,14 @@ const ShowAppliedTeams = ({ tournamentId }) => {
   const [error, setError] = useState(null);
 
   useEffect(() => {
+    console.log("Tournament ID in ShowAppliedTeams:", tournamentId); // Log the tournamentId to confirm it's coming from context
+  
+    if (!tournamentId) {
+      setError("Tournament ID is not available.");
+      setLoading(false);
+      return;
+    }
+  
     const fetchAppliedTeams = async () => {
       try {
         const fetchedTeams = await adminApi.getAppliedTeams(tournamentId); // Call the API method from adminApi
@@ -24,9 +34,10 @@ const ShowAppliedTeams = ({ tournamentId }) => {
         setLoading(false);
       }
     };
-
+  
     fetchAppliedTeams();
   }, [tournamentId]);
+  
 
   const handleEdit = (index) => {
     setEditIndex(index);
@@ -60,18 +71,16 @@ const ShowAppliedTeams = ({ tournamentId }) => {
     }
   };
 
-  // ShowAppliedTeams.js
   const handleProceedToGrouping = () => {
     if (isSaved) {
+      console.log("Teams being passed to GroupTeams:", teams);
+
       setShowGrouping("group");
+      updateTournamentStep(tournamentId,3);
     } else {
       alert("Please save the teams before proceeding to the next step.");
     }
   };
-
-  if (showGrouping === "group") {
-    return <GroupTeams savedTeams={teams} />;
-  }
 
   if (showGrouping === "group") {
     return <GroupTeams savedTeams={teams} />;

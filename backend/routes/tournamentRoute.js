@@ -8,6 +8,8 @@ const {
   deleteTournament,
 } = require("../controllers/tournamentController");
 
+const verifyAdminToken = require("../middlewares/authMiddleware");
+
 // Route to add a new tournament (Master Admin only)
 router.post("/add", addTournament);
 
@@ -22,5 +24,7 @@ router.put("/update/:id", updateTournament);
 
 // Route to delete a tournament
 router.delete("/delete/:id", deleteTournament);
+
+
 
 module.exports = router;

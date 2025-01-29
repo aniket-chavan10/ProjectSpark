@@ -34,3 +34,61 @@
     { "id": 31, "match_no": 31, "team1Id": "winner of match 29", "team2Id": "winner of match 30", "group": null, "round": 5 }
   ]
 }
+
+
+
+
+Matches Table:
+match_id (Primary Key)
+tournament_id (Foreign Key)
+team1_id (Foreign Key)
+team2_id (Foreign Key)
+date
+venue
+winner_team_id (Foreign Key, nullable)
+result (e.g., "Team A won by 5 wickets")
+status (e.g., "completed", "upcoming", "live")
+
+
+Player Performance Table:
+performance_id (Primary Key)
+match_id (Foreign Key)
+player_id (Foreign Key)
+runs_scored
+balls_faced
+wickets_taken
+overs_bowled
+catches
+stumpings
+run_outs
+Innings table (Optional, for detailed ball-by-ball data):
+inning_id (Primary Key)
+match_id (Foreign Key)
+team_id (Foreign Key)
+total_runs
+wickets
+overs
+extras
+
+
+Scorecard Table (Optional, for live score updates):
+scorecard_id (Primary Key)
+match_id (Foreign Key)
+current_score
+current_wickets
+current_overs
+batsman1_id (Foreign Key)
+batsman2_id (Foreign Key)
+bowler_id (Foreign Key)
+
+
+Players Stats Table:
+player_id (Primary Key, Foreign Key referencing players_core)
+total_runs (Total runs scored by the player)
+total_balls_faced (Total balls faced by the player)
+total_wickets (Total wickets taken by the player)
+total_overs_bowled (Total overs bowled by the player)
+total_catches (Total catches taken by the player)
+total_stumpings (Total stumpings by the player)
+total_run_outs (Total run-outs by the player)
+total_matches_played (Total matches played by the player)

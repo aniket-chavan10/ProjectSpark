@@ -1,17 +1,25 @@
-import React, { useState } from "react";
-import adminApi from "../../api/adminApi"; // Importing the pre-configured adminApi
+import React, { useState, useEffect, useContext } from "react";
+import adminApi from "../../api/adminApi";
+import { TournamentContext } from "../../contexts/TournamentContext";
 
 const ManualGrouping = ({ savedTeams, onSaveGroups }) => {
-  const [groupAssignments, setGroupAssignments] = useState(
-    savedTeams.map((team) => ({
-      id: team.team_id,
-      team_name: team.team_name,
-      team_logo: team.profilePicture || "https://via.placeholder.com/50?text=No+Logo",
-      group: "",
-    }))
-  );
+  const { tournamentId } = useContext(TournamentContext);
+  const [groupAssignments, setGroupAssignments] = useState([]);
   const [warningVisible, setWarningVisible] = useState(false);
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (savedTeams.length > 0) {
+      setGroupAssignments(
+        savedTeams.map((team) => ({
+          id: team.team_id,
+          team_name: team.team_name,
+          team_logo: team.profilePicture || "https://via.placeholder.com/50?text=No+Logo",
+          group: "",
+        }))
+      );
+    }
+  }, [savedTeams]); // Run when savedTeams changes
 
   const groupColors = {
     A: "bg-blue-200",
@@ -27,39 +35,35 @@ const ManualGrouping = ({ savedTeams, onSaveGroups }) => {
   };
 
   const handleSaveGroups = async () => {
-    const unassignedTeams = groupAssignments.filter((team) => team.group === "");
-    if (unassignedTeams.length > 0) {
+    if (groupAssignments.some((team) => !team.group)) {
       setWarningVisible(true);
       return;
     }
-  
+
     setWarningVisible(false);
     setLoading(true);
-  
+
     try {
-      const groupAssignmentsPayload = groupAssignments.map((team) => ({
-        teamId: team.id, // Ensure the correct property is used
-        groupName: team.group,
-      }));
-  
       const payload = {
-        tournamentId: 7, // Replace with dynamic ID if necessary
-        groupAssignments: groupAssignmentsPayload,
+        tournamentId,
+        groupAssignments: groupAssignments.map((team) => ({
+          teamId: team.id,
+          groupName: team.group,
+        })),
         random: false,
       };
-  
+
       console.log("Payload sent to backend:", JSON.stringify(payload, null, 2));
-  
+
       const response = await adminApi.assignGroupsToTeams(payload);
       console.log("Groups assigned successfully:", response.data);
       onSaveGroups(groupAssignments);
     } catch (error) {
-      console.error("Error assigning groups:", error.response?.data || error.message);
+      console.error("Error assigning groups:", error);
     } finally {
       setLoading(false);
     }
   };
-  
 
   return (
     <div className="p-8 bg-gradient-to-br from-gray-100 via-gray-200 to-gray-300 min-h-screen">

@@ -32,7 +32,9 @@ const addTournament = async (req, res) => {
 
   try {
     // Step 1: Retrieve the admin ID for the organizing team
-    const [teamResults] = await connection.query(sqlGetAdminId, [organizing_team]);
+    const [teamResults] = await connection.query(sqlGetAdminId, [
+      organizing_team,
+    ]);
 
     if (teamResults.length === 0) {
       return res.status(404).json({ error: "Organizing team not found" });
@@ -232,7 +234,9 @@ const tournamentOrganizer = async (req, res) => {
     );
 
     if (tournaments.length === 0) {
-      return res.status(404).json({ error: "No tournaments found for this admin" });
+      return res
+        .status(404)
+        .json({ error: "No tournaments found for this admin" });
     }
 
     const tournament = tournaments[0];
@@ -254,7 +258,9 @@ const tournamentOrganizer = async (req, res) => {
     }
     params.push(tournament.id);
 
-    const updateSql = `UPDATE tournaments SET ${updateFields.join(", ")} WHERE id = ?`;
+    const updateSql = `UPDATE tournaments SET ${updateFields.join(
+      ", "
+    )} WHERE id = ?`;
     const [updateResult] = await db.query(updateSql, params);
 
     if (updateResult.affectedRows === 0) {
@@ -297,7 +303,6 @@ const tournamentOrganizer = async (req, res) => {
   }
 };
 
-
 const getAssignedTournaments = async (req, res) => {
   const adminId = req.admin?.id; // Extract admin ID from the request
 
@@ -312,6 +317,7 @@ const getAssignedTournaments = async (req, res) => {
       start_date AS startDate,
       end_date AS endDate,
       organizing_team AS organizingTeam,
+      current_step,
       banner_image AS bannerImage,
       status
     FROM tournaments
@@ -338,6 +344,43 @@ const getAssignedTournaments = async (req, res) => {
     });
   }
 };
+
+const updateTournamentStep = async (req, res) => {
+  const adminId = req.admin?.id; // Extract admin ID from the request
+  const { tournamentId, currentStep } = req.body;
+
+  if (!adminId || !tournamentId || currentStep === undefined) {
+    return res.status(400).json({ error: "Admin ID, tournament ID, and current step are required" });
+  }
+
+  const sql = `
+    UPDATE tournaments
+    SET current_step = ?
+    WHERE id = ? AND organizer_admin_id = ?
+  `;
+
+  try {
+    const [result] = await db.query(sql, [currentStep, tournamentId, adminId]);
+
+    if (result.affectedRows === 0) {
+      return res.status(404).json({
+        message: "Tournament not found or you are not authorized to update this tournament",
+      });
+    }
+
+    res.status(200).json({
+      message: "Tournament step updated successfully",
+      tournamentId,
+      currentStep,
+    });
+  } catch (error) {
+    res.status(500).json({
+      error: "Error updating tournament step",
+      details: error.message || error,
+    });
+  }
+};
+
 
 const getTournamentInvitations = async (req, res) => {
   const adminId = req.admin?.id; // Extract admin ID from the token
@@ -406,7 +449,10 @@ const applyForTournament = async (req, res) => {
       WHERE tournament_id = ? AND team_id = ?
     `;
 
-    const [results] = await db.query(sqlCheckParticipant, [tournamentId, teamId]);
+    const [results] = await db.query(sqlCheckParticipant, [
+      tournamentId,
+      teamId,
+    ]);
 
     if (results.length > 0) {
       return res
@@ -427,7 +473,9 @@ const applyForTournament = async (req, res) => {
     ]);
 
     if (insertResult.affectedRows === 0) {
-      return res.status(500).json({ error: "Failed to apply the team to the tournament." });
+      return res
+        .status(500)
+        .json({ error: "Failed to apply the team to the tournament." });
     }
 
     res.status(200).json({
@@ -442,7 +490,6 @@ const applyForTournament = async (req, res) => {
     });
   }
 };
-
 
 const getAppliedTeams = async (req, res) => {
   const { tournamentId } = req.params;
@@ -482,7 +529,6 @@ const getAppliedTeams = async (req, res) => {
     });
   }
 };
-
 
 const assignGroupsToTeams = async (req, res) => {
   const { tournamentId, groupAssignments, random } = req.body;
@@ -598,7 +644,9 @@ const getGroupsAssignedTeams = async (req, res) => {
     const [teams] = await db.query(sqlGetAssignedTeams, [tournamentId]);
 
     if (teams.length === 0) {
-      return res.status(404).json({ error: "No teams found for this tournament." });
+      return res
+        .status(404)
+        .json({ error: "No teams found for this tournament." });
     }
 
     // Group the teams by their assigned group name
@@ -610,7 +658,7 @@ const getGroupsAssignedTeams = async (req, res) => {
       acc[group_name].push({
         id,
         team_name, // Adding team name to the response
-        group_name
+        group_name,
       });
       return acc;
     }, {});
@@ -628,11 +676,6 @@ const getGroupsAssignedTeams = async (req, res) => {
     });
   }
 };
-
-
-
-
-
 
 const createMatch = (req, res) => {
   console.log("Request Body:", req.body);
@@ -763,7 +806,12 @@ const createMatch = (req, res) => {
 const scheduleTournamentMatches = async (req, res) => {
   const { tournamentId, matches } = req.body;
 
-  if (!tournamentId || !matches || !Array.isArray(matches) || matches.length === 0) {
+  if (
+    !tournamentId ||
+    !matches ||
+    !Array.isArray(matches) ||
+    matches.length === 0
+  ) {
     return res.status(400).json({
       error: "Tournament ID and matches array are required.",
     });
@@ -801,8 +849,14 @@ const scheduleTournamentMatches = async (req, res) => {
   try {
     // Insert provided first-round matches
     for (const match of matches) {
-      const team1GroupResult = await db.execute(sqlGetGroupForTeam, [tournamentId, match.team1Id]);
-      const team2GroupResult = await db.execute(sqlGetGroupForTeam, [tournamentId, match.team2Id]);
+      const team1GroupResult = await db.execute(sqlGetGroupForTeam, [
+        tournamentId,
+        match.team1Id,
+      ]);
+      const team2GroupResult = await db.execute(sqlGetGroupForTeam, [
+        tournamentId,
+        match.team2Id,
+      ]);
 
       // Log the results to check group names
       console.log("team1GroupResult:", team1GroupResult);
@@ -862,19 +916,72 @@ const scheduleTournamentMatches = async (req, res) => {
   }
 };
 
+const getScheduledMatches = async (req, res) => {
+  const { tournamentId } = req.params; // Assuming tournamentId is passed as a URL parameter
 
+  if (!tournamentId) {
+    return res.status(400).json({
+      error: "Tournament ID is required.",
+    });
+  }
 
+  const sqlGetScheduledMatches = `
+  SELECT 
+    tm.match_no,
+    tm.round_number,
+    tm.group_name,
+    tm.team1_id,
+    t1.team_name AS team1_name,
+    tm.team2_id,
+    t2.team_name AS team2_name,
+    tm.match_date,
+    tm.match_time,
+    tm.venue,
+    tm.status,
+    tm.dependent_match1_id,
+    tm.dependent_match2_id,
+    t.start_date AS tournament_start_date,
+    t.end_date AS tournament_end_date
+  FROM tournament_matches tm
+  LEFT JOIN teams t1 ON tm.team1_id = t1.id
+  LEFT JOIN teams t2 ON tm.team2_id = t2.id
+  LEFT JOIN tournaments t ON tm.tournament_id = t.id
+  WHERE tm.tournament_id = ? AND tm.status = 'scheduled'
+  ORDER BY tm.round_number, tm.match_no;
+`;
 
+  try {
+    // Query the database to get all scheduled matches
+    const [matches] = await db.execute(sqlGetScheduledMatches, [tournamentId]);
 
+    // Check if matches are found
+    if (matches.length === 0) {
+      return res.status(404).json({
+        message: "No scheduled matches found for this tournament.",
+      });
+    }
 
+    // Return the scheduled matches
+    res.status(200).json({
+      message: "Scheduled matches retrieved successfully!",
+      matches,
+    });
+  } catch (error) {
+    res.status(500).json({
+      error: "Error retrieving scheduled matches.",
+      details: error.message || error,
+    });
+  }
+};
 
-const  updateMatchDateTime  = async (req, res) => {
+const updateMatchDateTime = async (req, res) => {
   const { matches } = req.body;
 
   // Validate request payload
   if (!matches || !Array.isArray(matches) || matches.length === 0) {
     return res.status(400).json({
-      error: "An array of matches with matchId, matchDate, and matchTime is required.",
+      error:
+        "An array of matches with matchId, matchDate, and matchTime is required.",
     });
   }
 
@@ -894,15 +1001,19 @@ const  updateMatchDateTime  = async (req, res) => {
         results.push({
           matchId,
           status: "error",
-          error: "Invalid match data (matchId, matchDate, and matchTime are required).",
+          error:
+            "Invalid match data (matchId, matchDate, and matchTime are required).",
         });
         continue;
       }
 
+      // Combine matchDate and matchTime into a valid datetime string
+      const combinedDateTime = `${matchDate} ${matchTime}:00`; // Assuming matchTime is in "HH:mm" format
+
       try {
         const [result] = await db.execute(sqlUpdateMatch, [
-          matchDate,
-          matchTime,
+          combinedDateTime, // Updated datetime value for match_date
+          combinedDateTime, // Updated datetime value for match_time
           matchId,
         ]);
 
@@ -940,11 +1051,7 @@ const  updateMatchDateTime  = async (req, res) => {
   }
 };
 
-
-
-
-
-// sample controller just to check 
+// sample controller just to check
 
 const updateMatchResult = async (req, res) => {
   const { matchId, winnerTeamId } = req.body;
@@ -980,11 +1087,15 @@ const updateMatchResult = async (req, res) => {
     await db.execute(sqlUpdateMatch, [winnerTeamId, matchId]);
 
     // Step 2: Retrieve dependent matches
-    const [dependentMatches] = await db.query(sqlGetDependentMatches, [matchId, matchId]);
+    const [dependentMatches] = await db.query(sqlGetDependentMatches, [
+      matchId,
+      matchId,
+    ]);
 
     if (dependentMatches.length === 0) {
       return res.status(200).json({
-        message: "Match result updated successfully. No dependent matches found.",
+        message:
+          "Match result updated successfully. No dependent matches found.",
       });
     }
 
@@ -1006,7 +1117,8 @@ const updateMatchResult = async (req, res) => {
     await Promise.all(updatePromises);
 
     res.status(200).json({
-      message: "Match result updated and dependent matches updated successfully.",
+      message:
+        "Match result updated and dependent matches updated successfully.",
       winnerTeamId,
       updatedMatchId: matchId,
     });
@@ -1017,10 +1129,6 @@ const updateMatchResult = async (req, res) => {
     });
   }
 };
-
-
-
-
 
 module.exports = {
   addTournament,
@@ -1038,5 +1146,7 @@ module.exports = {
   scheduleTournamentMatches,
   updateMatchResult,
   getGroupsAssignedTeams,
-  updateMatchDateTime 
+  updateMatchDateTime,
+  getScheduledMatches,
+  updateTournamentStep
 };
