@@ -1,21 +1,21 @@
-const db = require('../dbconfigure'); // Import the database connection
+// models/villageModel.js
 
-// Define a function to insert a new village
-const addVillage = (villageData, callback) => {
-    const sql = `
-        INSERT INTO villages (village_name, team_name, admin_name, email_address, phone_number, status)
-        VALUES (?, ?, ?, ?, ?, ?)
-    `;
-    const { village_name, team_name, admin_name, email_address, phone_number, status } = villageData;
-    db.query(
-        sql,
-        [village_name, team_name, admin_name, email_address, phone_number, status],
-        (err, result) => {
-            callback(err, result);
-        }
-    );
+const mysql = require('mysql2'); // Or whatever database you're using
+
+const pool = mysql.createPool({ /* your db config */ });
+
+const addVillage = (villageData) => {
+    return new Promise((resolve, reject) => {
+        const query = 'INSERT INTO villages (village_name, team_name, admin_name, email_address, phone_number, status) VALUES (?, ?, ?, ?, ?, ?)';
+        pool.execute(query, [villageData.village_name, villageData.team_name, villageData.admin_name, villageData.email_address, villageData.phone_number, villageData.status], (err, result) => {
+            if (err) {
+                return reject(err);
+            }
+            resolve(result);
+        });
+    });
 };
 
 module.exports = {
-    addVillage,
+    addVillage
 };

@@ -19,6 +19,7 @@ const AdminDashboard = () => {
 
   const toggleSidebar = () => setIsSidebarOpen(!isSidebarOpen);
 
+
   const handleLogout = () => {
     navigate('/'); // Redirect to login/home page
   };

@@ -1,0 +1,94 @@
+{
+  "tournamentId": 6,
+  "matches": [
+    { "id": 1, "match_no": 1, "team1Id": 1, "team2Id": 2, "group": "A", "round": 1 },
+    { "id": 2, "match_no": 2, "team1Id": 3, "team2Id": 4, "group": "A", "round": 1 },
+    { "id": 3, "match_no": 3, "team1Id": "winner of match 1", "team2Id": "winner of match 2", "group": "A", "round": 2 },
+    { "id": 4, "match_no": 4, "team1Id": 5, "team2Id": 6, "group": "A", "round": 1 },
+    { "id": 5, "match_no": 5, "team1Id": 7, "team2Id": 8, "group": "A", "round": 1 },
+    { "id": 6, "match_no": 6, "team1Id": "winner of match 4", "team2Id": "winner of match 5", "group": "A", "round": 2 },
+    { "id": 7, "match_no": 7, "team1Id": "winner of match 3", "team2Id": "winner of match 6", "group": "A", "round": 3 },
+    { "id": 8, "match_no": 8, "team1Id": 9, "team2Id": 10, "group": "B", "round": 1 },
+    { "id": 9, "match_no": 9, "team1Id": 11, "team2Id": 12, "group": "B", "round": 1 },
+    { "id": 10, "match_no": 10, "team1Id": "winner of match 8", "team2Id": "winner of match 9", "group": "B", "round": 2 },
+    { "id": 11, "match_no": 11, "team1Id": 13, "team2Id": 14, "group": "B", "round": 1 },
+    { "id": 12, "match_no": 12, "team1Id": 15, "team2Id": 16, "group": "B", "round": 1 },
+    { "id": 13, "match_no": 13, "team1Id": "winner of match 11", "team2Id": "winner of match 12", "group": "B", "round": 2 },
+    { "id": 14, "match_no": 14, "team1Id": "winner of match 10", "team2Id": "winner of match 13", "group": "B", "round": 3 },
+    { "id": 15, "match_no": 15, "team1Id": 17, "team2Id": 18, "group": "C", "round": 1 },
+    { "id": 16, "match_no": 16, "team1Id": 19, "team2Id": 20, "group": "C", "round": 1 },
+    { "id": 17, "match_no": 17, "team1Id": "winner of match 15", "team2Id": "winner of match 16", "group": "C", "round": 2 },
+    { "id": 18, "match_no": 18, "team1Id": 21, "team2Id": 22, "group": "C", "round": 1 },
+    { "id": 19, "match_no": 19, "team1Id": 23, "team2Id": 24, "group": "C", "round": 1 },
+    { "id": 20, "match_no": 20, "team1Id": "winner of match 18", "team2Id": "winner of match 19", "group": "C", "round": 2 },
+    { "id": 21, "match_no": 21, "team1Id": "winner of match 17", "team2Id": "winner of match 20", "group": "C", "round": 3 },
+    { "id": 22, "match_no": 22, "team1Id": 25, "team2Id": 26, "group": "D", "round": 1 },
+    { "id": 23, "match_no": 23, "team1Id": 27, "team2Id": 28, "group": "D", "round": 1 },
+    { "id": 24, "match_no": 24, "team1Id": "winner of match 22", "team2Id": "winner of match 23", "group": "D", "round": 2 },
+    { "id": 25, "match_no": 25, "team1Id": 29, "team2Id": 30, "group": "D", "round": 1 },
+    { "id": 26, "match_no": 26, "team1Id": 31, "team2Id": 32, "group": "D", "round": 1 },
+    { "id": 27, "match_no": 27, "team1Id": "winner of match 25", "team2Id": "winner of match 26", "group": "D", "round": 2 },
+    { "id": 28, "match_no": 28, "team1Id": "winner of match 24", "team2Id": "winner of match 27", "group": "D", "round": 3 },
+    { "id": 29, "match_no": 29, "team1Id": "winner of match 7", "team2Id": "winner of match 21", "group": null, "round": 4 },
+    { "id": 30, "match_no": 30, "team1Id": "winner of match 14", "team2Id": "winner of match 28", "group": null, "round": 4 },
+    { "id": 31, "match_no": 31, "team1Id": "winner of match 29", "team2Id": "winner of match 30", "group": null, "round": 5 }
+  ]
+}
+
+
+
+
+Matches Table:
+match_id (Primary Key)
+tournament_id (Foreign Key)
+team1_id (Foreign Key)
+team2_id (Foreign Key)
+date
+venue
+winner_team_id (Foreign Key, nullable)
+result (e.g., "Team A won by 5 wickets")
+status (e.g., "completed", "upcoming", "live")
+
+
+Player Performance Table:
+performance_id (Primary Key)
+match_id (Foreign Key)
+player_id (Foreign Key)
+runs_scored
+balls_faced
+wickets_taken
+overs_bowled
+catches
+stumpings
+run_outs
+Innings table (Optional, for detailed ball-by-ball data):
+inning_id (Primary Key)
+match_id (Foreign Key)
+team_id (Foreign Key)
+total_runs
+wickets
+overs
+extras
+
+
+Scorecard Table (Optional, for live score updates):
+scorecard_id (Primary Key)
+match_id (Foreign Key)
+current_score
+current_wickets
+current_overs
+batsman1_id (Foreign Key)
+batsman2_id (Foreign Key)
+bowler_id (Foreign Key)
+
+
+Players Stats Table:
+player_id (Primary Key, Foreign Key referencing players_core)
+total_runs (Total runs scored by the player)
+total_balls_faced (Total balls faced by the player)
+total_wickets (Total wickets taken by the player)
+total_overs_bowled (Total overs bowled by the player)
+total_catches (Total catches taken by the player)
+total_stumpings (Total stumpings by the player)
+total_run_outs (Total run-outs by the player)
+total_matches_played (Total matches played by the player)

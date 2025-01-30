@@ -7,8 +7,9 @@ import MasterAdminDashboard from "./pages/MasterAdminDashboard";
 import PlayerDashboard from "./pages/PlayerDashboard";
 import AdminDashboard from "./pages/AdminDashboard";
 import ProtectedRoute from "./components/ProtectedRoute";
-import { AuthProvider } from "./contexts/AuthContext";
 import SignInMasterAdmin from "./pages/SignInMasterAdmin";
+import { AuthProvider } from "./contexts/AuthContext";
+import { TournamentProvider } from "./contexts/TournamentContext";
 
 function App() {
   return (
@@ -23,7 +24,14 @@ function App() {
 
           {/* Protected routes */}
           <Route element={<ProtectedRoute allowedRoles={["admin"]} />}>
-            <Route path="/admin-dashboard" element={<AdminDashboard />} />
+            <Route
+              path="/admin-dashboard"
+              element={
+                <TournamentProvider>
+                  <AdminDashboard />
+                </TournamentProvider>
+              }
+            />
           </Route>
 
           <Route element={<ProtectedRoute allowedRoles={["master-admin"]} />}>

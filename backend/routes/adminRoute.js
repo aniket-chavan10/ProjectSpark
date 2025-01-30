@@ -11,17 +11,23 @@ const {
   tournamentOrganizer,
   getAssignedTournaments,
   getTournamentInvitations,
-  applyForTournament
+  applyForTournament,
+  createMatch,
+  getAppliedTeams,
+  assignGroupsToTeams,
+  scheduleTournamentMatches,
+  updateMatchResult,
+  getGroupsAssignedTeams,
+  updateMatchDateTime,
+  getScheduledMatches,
+  updateTournamentStep,
 } = require("../controllers/tournamentController");
 
 const { getPlayersByTeam } = require("../controllers/playersController");
 const { getNotifications } = require("../controllers/notificationController");
 
-
 const verifyAdminToken = require("../middlewares/authMiddleware");
 const upload = require("../middlewares/uploadMiddleware");
-
-
 
 router.post("/login", loginAdmin);
 
@@ -35,10 +41,65 @@ router.get("/tournaments/assigned/", verifyAdminToken, getAssignedTournaments);
 
 router.get("/notifications", verifyAdminToken, getNotifications);
 
-router.get("/tournaments/invitations", verifyAdminToken, getTournamentInvitations);
+router.get(
+  "/tournaments/invitations",
+  verifyAdminToken,
+  getTournamentInvitations
+);
 
-router.post("/tournaments/invitations/apply", verifyAdminToken, applyForTournament);
+router.post(
+  "/tournaments/invitations/apply",
+  verifyAdminToken,
+  applyForTournament
+);
 
+router.get(
+  "/tournaments/invitations/apply/teams/:tournamentId",
+  verifyAdminToken,
+  getAppliedTeams
+);
+
+router.put(
+  "/tournaments/organize/teams/group",
+  verifyAdminToken,
+  assignGroupsToTeams
+);
+
+router.get(
+  "/tournaments/grouped/teams/:tournamentId",
+  verifyAdminToken,
+  getGroupsAssignedTeams
+);
+
+router.post(
+  "/tournament/organize/schedule/match",
+  verifyAdminToken,
+  createMatch
+);
+
+router.post(
+  "/tournaments/schedule",
+  verifyAdminToken,
+  scheduleTournamentMatches
+);
+
+router.get(
+  "/tournaments/schedule/all/matches/:tournamentId",
+  verifyAdminToken,
+  getScheduledMatches
+);
+
+router.put(
+  "/tournaments/schedule/match/timestamp",
+  verifyAdminToken,
+  updateMatchDateTime
+);
+
+router.put(
+  "/tournaments/match/update/result",
+  verifyAdminToken,
+  updateMatchResult
+);
 
 router.put(
   "/teams/logo",
@@ -53,5 +114,7 @@ router.put(
   verifyAdminToken, // Middleware to handle file upload
   tournamentOrganizer // Controller function
 );
+
+router.patch("/update-step", verifyAdminToken, updateTournamentStep);
 
 module.exports = router;

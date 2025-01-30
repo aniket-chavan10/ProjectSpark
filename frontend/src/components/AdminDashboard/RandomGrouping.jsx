@@ -1,4 +1,6 @@
-import React, { useState } from "react";
+import React, { useState, useContext } from "react";
+import adminApi from "../../api/adminApi"; // Importing the pre-configured API
+import { TournamentContext } from "../../contexts/TournamentContext"; // Import the context
 
 // Helper function to shuffle the teams
 const shuffleTeams = (teams) => {
@@ -10,12 +12,15 @@ const shuffleTeams = (teams) => {
   return shuffledTeams;
 };
 
-const RandomGrouping = ({ savedTeams, onSaveGroups }) => {
+const RandomGrouping = ({ onSaveGroups, savedTeams }) => {
+  const { tournamentId } = useContext(TournamentContext); // Get tournament ID from context
   const [groupAssignments, setGroupAssignments] = useState(
     savedTeams.map((team) => ({ ...team, group: "" }))
   );
 
   const [warningVisible, setWarningVisible] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
 
   // Define color mapping for each group
   const groupColors = {
@@ -31,27 +36,49 @@ const RandomGrouping = ({ savedTeams, onSaveGroups }) => {
 
     const updatedAssignments = shuffledTeams.map((team, index) => {
       // Assign each team to a group (A, B, C, D) cyclically
-      const group = ["A", "B", "C", "D"][index % 4]; // This ensures even distribution
+      const group = ["A", "B", "C", "D"][index % 4];
       return { ...team, group };
     });
 
     setGroupAssignments(updatedAssignments);
-    setWarningVisible(false); // Hide any warning when randomization occurs
+    setWarningVisible(false);
   };
 
   // Save or submit group assignments
-  const handleSaveGroups = () => {
+  const handleSaveGroups = async () => {
     // Check if all teams have been assigned to a group
     const unassignedTeams = groupAssignments.filter((team) => team.group === "");
     if (unassignedTeams.length > 0) {
-      setWarningVisible(true); // Show warning modal
+      setWarningVisible(true);
       return;
     }
 
     setWarningVisible(false); // Hide warning
-    const groupedTeams = groupAssignments.filter((team) => team.group !== "");
-    console.log("Random Group Assignments:", groupedTeams);
-    onSaveGroups(groupedTeams); // Pass data to parent component
+    setLoading(true); // Start loading state
+
+    try {
+      const groupAssignmentsPayload = groupAssignments.map((team) => ({
+        teamId: team.id,
+        groupName: team.group,
+      }));
+
+      const payload = {
+        tournamentId, // Use tournament ID from context
+        groupAssignments: groupAssignmentsPayload,
+        random: true,
+      };
+
+      console.log("Payload sent to backend:", JSON.stringify(payload, null, 2));
+      const response = await adminApi.assignGroupsToTeams(payload);
+      console.log("Groups assigned successfully:", response);
+
+      onSaveGroups(groupAssignments); // Notify parent component
+    } catch (err) {
+      console.error("Error assigning groups:", err.response?.data || err.message);
+      setError("Failed to save group assignments. Please try again.");
+    } finally {
+      setLoading(false); // Stop loading state
+    }
   };
 
   return (
@@ -89,6 +116,10 @@ const RandomGrouping = ({ savedTeams, onSaveGroups }) => {
         </button>
       </div>
 
+      {error && (
+        <div className="text-red-600 font-semibold text-center mb-4">{error}</div>
+      )}
+
       {/* Teams List */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
         {groupAssignments.map((team, index) => (
@@ -101,16 +132,13 @@ const RandomGrouping = ({ savedTeams, onSaveGroups }) => {
             }`}
           >
             <div className="flex items-center space-x-4">
-              {/* Profile Picture */}
               <img
                 src={team.profilePicture}
-                alt={team.name}
+                alt={team.team_name}
                 className="w-10 h-10 rounded-full object-cover"
               />
-              {/* Team Name */}
-              <span className="text-lg font-semibold text-gray-800">{team.name}</span>
+              <span className="text-lg font-semibold text-gray-800">{team.team_name}</span>
             </div>
-            {/* Assigned Group */}
             <span
               className={`text-sm font-semibold ${
                 team.group ? "text-blue-600" : "text-gray-500"
@@ -126,9 +154,12 @@ const RandomGrouping = ({ savedTeams, onSaveGroups }) => {
       <div className="mt-12 text-center">
         <button
           onClick={handleSaveGroups}
-          className="px-8 py-4 rounded-lg shadow-md bg-gradient-to-r from-blue-600 to-blue-800 text-white text-xl font-semibold hover:from-blue-500 hover:to-blue-700 transition-all"
+          disabled={loading}
+          className={`px-8 py-4 rounded-lg shadow-md bg-gradient-to-r from-blue-600 to-blue-800 text-white text-xl font-semibold hover:from-blue-500 hover:to-blue-700 transition-all ${
+            loading ? "cursor-not-allowed opacity-50" : ""
+          }`}
         >
-          Save Group Assignments
+          {loading ? "Saving..." : "Save Group Assignments"}
         </button>
       </div>
     </div>

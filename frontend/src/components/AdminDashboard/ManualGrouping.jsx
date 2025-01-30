@@ -1,10 +1,25 @@
-import React, { useState } from "react";
+import React, { useState, useEffect, useContext } from "react";
+import adminApi from "../../api/adminApi";
+import { TournamentContext } from "../../contexts/TournamentContext";
 
 const ManualGrouping = ({ savedTeams, onSaveGroups }) => {
-  const [groupAssignments, setGroupAssignments] = useState(
-    savedTeams.map((team) => ({ ...team, group: "" }))
-  );
+  const { tournamentId } = useContext(TournamentContext);
+  const [groupAssignments, setGroupAssignments] = useState([]);
   const [warningVisible, setWarningVisible] = useState(false);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (savedTeams.length > 0) {
+      setGroupAssignments(
+        savedTeams.map((team) => ({
+          id: team.team_id,
+          team_name: team.team_name,
+          team_logo: team.profilePicture || "https://via.placeholder.com/50?text=No+Logo",
+          group: "",
+        }))
+      );
+    }
+  }, [savedTeams]); // Run when savedTeams changes
 
   const groupColors = {
     A: "bg-blue-200",
@@ -19,16 +34,35 @@ const ManualGrouping = ({ savedTeams, onSaveGroups }) => {
     setGroupAssignments(updatedAssignments);
   };
 
-  const handleSaveGroups = () => {
-    // Check if all teams are assigned to a group
-    const unassignedTeams = groupAssignments.filter((team) => team.group === "");
-    if (unassignedTeams.length > 0) {
-      setWarningVisible(true); // Show warning if any team is unassigned
+  const handleSaveGroups = async () => {
+    if (groupAssignments.some((team) => !team.group)) {
+      setWarningVisible(true);
       return;
     }
 
-    setWarningVisible(false); // Hide the warning if all teams are assigned
-    onSaveGroups(groupAssignments); // Pass data back to parent
+    setWarningVisible(false);
+    setLoading(true);
+
+    try {
+      const payload = {
+        tournamentId,
+        groupAssignments: groupAssignments.map((team) => ({
+          teamId: team.id,
+          groupName: team.group,
+        })),
+        random: false,
+      };
+
+      console.log("Payload sent to backend:", JSON.stringify(payload, null, 2));
+
+      const response = await adminApi.assignGroupsToTeams(payload);
+      console.log("Groups assigned successfully:", response.data);
+      onSaveGroups(groupAssignments);
+    } catch (error) {
+      console.error("Error assigning groups:", error);
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -37,7 +71,6 @@ const ManualGrouping = ({ savedTeams, onSaveGroups }) => {
         Manual Grouping
       </h1>
 
-      {/* Modal for warning */}
       {warningVisible && (
         <div className="fixed inset-0 bg-gray-500 bg-opacity-50 flex justify-center items-center z-50">
           <div className="bg-white p-6 rounded-lg shadow-lg w-96">
@@ -68,11 +101,11 @@ const ManualGrouping = ({ savedTeams, onSaveGroups }) => {
           >
             <div className="flex items-center space-x-4">
               <img
-                src={team.profilePicture}
-                alt={team.name}
+                src={team.team_logo}
+                alt={team.team_name}
                 className="w-10 h-10 rounded-full object-cover"
               />
-              <span className="text-lg font-semibold text-gray-800">{team.name}</span>
+              <span className="text-lg font-semibold text-gray-800">{team.team_name}</span>
             </div>
             <select
               value={team.group}
@@ -94,9 +127,12 @@ const ManualGrouping = ({ savedTeams, onSaveGroups }) => {
       <div className="mt-12 text-center">
         <button
           onClick={handleSaveGroups}
-          className="px-8 py-4 rounded-lg shadow-md bg-gradient-to-r from-blue-600 to-blue-800 text-white text-xl font-semibold hover:from-blue-500 hover:to-blue-700 transition-all"
+          disabled={loading}
+          className={`px-8 py-4 rounded-lg shadow-md bg-gradient-to-r from-blue-600 to-blue-800 text-white text-xl font-semibold hover:from-blue-500 hover:to-blue-700 transition-all ${
+            loading ? "cursor-not-allowed opacity-50" : ""
+          }`}
         >
-          Save Group Assignments
+          {loading ? "Saving..." : "Save Group Assignments"}
         </button>
       </div>
     </div>

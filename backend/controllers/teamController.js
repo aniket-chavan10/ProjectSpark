@@ -1,19 +1,22 @@
-const db = require("../dbconfigure"); // Ensure the database configuration is imported
+const db = require("../dbconfigure");
 
-// Controller function to get all teams
-const getAllTeams = (req, res) => {
-    const sql = 'SELECT * FROM teams';
+const getAllTeams = async (req, res) => {
+  const connection = await db.getConnection();
+  try {
+    // Execute the query to fetch all teams
+    const [teams] = await connection.query("SELECT * FROM teams");
 
-    db.query(sql, (err, results) => {
-        if (err) {
-            return res.status(500).json({
-                error: "Error fetching teams",
-                details: err,
-            });
-        }
-
-        res.status(200).json(results); // Send all teams as a response
-    });
+    // Send all teams as a response
+    res.status(200).json(teams);
+  } catch (error) {
+    console.error("Error fetching teams:", error);
+    res
+      .status(500)
+      .json({ error: "Failed to fetch teams", details: error.message });
+  } finally {
+    // Release the connection to the pool
+    connection.release();
+  }
 };
 
 module.exports = { getAllTeams };

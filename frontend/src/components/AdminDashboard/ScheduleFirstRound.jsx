@@ -1,319 +1,315 @@
-import React, { useState } from "react";
-import FixMatchDay from "./FixMatchDay";
+import React, { useState, useEffect, useContext } from "react";
+import { FaTrash } from "react-icons/fa";
 
-const ScheduleFirstRound = ({ groupedTeams }) => {
+
+import adminApi from "../../api/adminApi";
+import { TournamentContext } from "../../contexts/TournamentContext";
+import MatchDateTime from "./MatchDateTime";
+
+const ScheduleFirstRound = ({ updateTournamentStep}) => {
+  const { tournamentId } = useContext(TournamentContext);
   const groups = ["A", "B", "C", "D"];
-  const initialGroupTeams = groups.map((group) =>
-    groupedTeams.filter((team) => team.group === group)
-  );
 
-  const [groupTeams, setGroupTeams] = useState(initialGroupTeams);
-  const [groupMatches, setGroupMatches] = useState(
-    initialGroupTeams.map(() =>
-      Array.from({ length: 4 }, (_, i) => ({
-        name: `Match ${i + 1}`,
-        slots: [null, null],
-      }))
-    )
-  );
+  // Match numbers assigned for each group
+  const matchNumbersByGroup = {
+    A: [1, 2, 4, 5],
+    B: [8, 9, 11, 12],
+    C: [15, 16, 18, 19],
+    D: [22, 23, 25, 26],
+  };
+
+  const [groupTeams, setGroupTeams] = useState([]);
+  const [groupMatches, setGroupMatches] = useState([]);
   const [selectedMatch, setSelectedMatch] = useState({
-    group: null,
+    groupIndex: null,
     matchIndex: null,
   });
-  const [isSaveModalOpen, setIsSaveModalOpen] = useState(false);
-  const [isArrangeModalOpen, setIsArrangeModalOpen] = useState(false); // For arrange all matches modal
-  const [successMessage, setSuccessMessage] = useState(""); // For the success message
-  const [isConfirmationModalOpen, setIsConfirmationModalOpen] = useState(false); // For confirmation modal
+  const [isScheduleVisible, setIsScheduleVisible] = useState(true);
+  const [isConfirmationModalOpen, setIsConfirmationModalOpen] = useState(false);
+  const [successMessage, setSuccessMessage] = useState("");
+  const [isMatchDateTimeVisible, setIsMatchDateTimeVisible] = useState(false);
 
-  // Function to check if all match slots are filled
-  const checkIfAllMatchesFilled = () => {
-    return groupMatches.every((matches) =>
-      matches.every((match) => match.slots.every((slot) => slot !== null))
-    );
-  };
+  useEffect(() => {
+    const fetchGroupedTeams = async () => {
+      try {
+        const { groupsAssignedTeams } = await adminApi.getGroupsAssignedTeams(
+          tournamentId
+        );
+        const initialGroupTeams = groups.map(
+          (group) => groupsAssignedTeams[group] || []
+        );
+        setGroupTeams(initialGroupTeams);
 
-  const handleSave = () => {
-    if (checkIfAllMatchesFilled()) {
-      // Show confirmation modal before saving
-      setIsConfirmationModalOpen(true);
-    } else {
-      // If not all matches are filled, show arrange modal
-      setIsArrangeModalOpen(true);
+        // Initialize matches with specific match numbers for each group
+        const initializedMatches = groups.map((group) =>
+          matchNumbersByGroup[group].map((matchNo) => ({
+            match_no: matchNo,
+            name: `Match ${matchNo}`,
+            slots: [null, null],
+          }))
+        );
+
+        setGroupMatches(initializedMatches);
+      } catch (error) {
+        console.error("Error fetching grouped teams:", error.message);
+      }
+    };
+
+    fetchGroupedTeams();
+  }, [tournamentId]);
+
+  const handleAssignTeam = (groupIndex, teamIndex) => {
+    const { matchIndex } = selectedMatch;
+
+    if (matchIndex === null || groupIndex !== selectedMatch.groupIndex) {
+      alert("Please select a match in the current group first.");
+      return;
     }
-  };
 
-  const closeArrangeModal = () => {
-    setIsArrangeModalOpen(false);
-  };
+    const match = groupMatches[groupIndex][matchIndex];
+    if (match.slots[0] && match.slots[1]) {
+      alert("This match already has two teams assigned.");
+      return;
+    }
 
-  const closeSuccessMessage = () => {
-    setSuccessMessage(""); // Close success message when the cross is clicked
-  };
-
-  const generateRandomMatches = (groupIndex) => {
+    const team = groupTeams[groupIndex][teamIndex];
     const updatedMatches = [...groupMatches];
-    const teams = groupTeams[groupIndex];
+    const updatedTeams = [...groupTeams];
 
-    // Randomly shuffle teams
-    const shuffledTeams = [...teams].sort(() => Math.random() - 0.5);
+    // Assign the team to the first empty slot
+    if (!match.slots[0]) {
+      updatedMatches[groupIndex][matchIndex].slots[0] = {
+        team_name: team.team_name,
+        team_id: team.id,
+      };
+    } else {
+      updatedMatches[groupIndex][matchIndex].slots[1] = {
+        team_name: team.team_name,
+        team_id: team.id,
+      };
+    }
 
-    // Assign shuffled teams to the available match slots
-    let teamIndex = 0;
-    updatedMatches[groupIndex].forEach((match) => {
-      match.slots.forEach((slot, slotIndex) => {
-        if (teamIndex < shuffledTeams.length) {
-          match.slots[slotIndex] = shuffledTeams[teamIndex++];
+    // Remove team from available teams
+    updatedTeams[groupIndex].splice(teamIndex, 1);
+
+    setGroupMatches(updatedMatches);
+    setGroupTeams(updatedTeams);
+  };
+  const handleRandomAssign = (groupIndex) => {
+    const shuffledTeams = [...groupTeams[groupIndex]].sort(() => Math.random() - 0.5);
+    const updatedMatches = [...groupMatches];
+    const updatedTeams = [...groupTeams];
+  
+    // Assign teams to the first available slot in the group's matches
+    for (let match of updatedMatches[groupIndex]) {
+      for (let i = 0; i < match.slots.length; i++) {
+        if (!match.slots[i] && shuffledTeams.length > 0) {
+          const team = shuffledTeams.shift();
+          match.slots[i] = {
+            team_name: team.team_name,
+            team_id: team.id,
+          };
         }
-      });
-    });
-
+      }
+    }
+  
+    // Update remaining teams
+    updatedTeams[groupIndex] = shuffledTeams;
+  
     setGroupMatches(updatedMatches);
+    setGroupTeams(updatedTeams);
   };
-
-  const assignTeamToMatch = (groupIndex, team) => {
-    const { group, matchIndex } = selectedMatch;
-    if (group !== groupIndex || matchIndex === null) return;
-
+  
+  const handleRemoveTeam = (groupIndex, matchIndex, slotIndex) => {
     const updatedMatches = [...groupMatches];
-    const emptySlotIndex = updatedMatches[groupIndex][matchIndex].slots.findIndex(
-      (slot) => slot === null
-    );
-    if (emptySlotIndex === -1) return;
+    const updatedTeams = [...groupTeams];
 
-    updatedMatches[groupIndex][matchIndex].slots[emptySlotIndex] = team;
-    setGroupMatches(updatedMatches);
-  };
-
-  const removeTeamFromMatch = (groupIndex, matchIndex, slotIndex) => {
-    const { group, matchIndex: selectedMatchIndex } = selectedMatch;
-    if (group !== groupIndex || selectedMatchIndex !== matchIndex) return;
-
-    const updatedMatches = [...groupMatches];
+    // Add the removed team back to available teams
     const removedTeam = updatedMatches[groupIndex][matchIndex].slots[slotIndex];
+    if (removedTeam) {
+      updatedTeams[groupIndex].push({
+        team_name: removedTeam.team_name,
+        id: removedTeam.team_id,
+      });
+    }
 
-    if (!removedTeam) return;
-
-    // Clear the team from the match slot
+    // Clear the slot
     updatedMatches[groupIndex][matchIndex].slots[slotIndex] = null;
 
-    const updatedGroupTeams = [...groupTeams];
-    // Add the team back to the group only if it's not already present in the group
-    if (!updatedGroupTeams[groupIndex].some((t) => t.name === removedTeam.name)) {
-      updatedGroupTeams[groupIndex].push(removedTeam);
-    }
-
     setGroupMatches(updatedMatches);
-    setGroupTeams(updatedGroupTeams);
+    setGroupTeams(updatedTeams);
   };
 
-  const confirmSaveMatches = () => {
-    // Proceed with saving
-    console.log("Matches saved to database:", groupMatches);
-
-    // Show success message after saving
-    setSuccessMessage("Matches saved successfully!");
-    setIsSaveModalOpen(false);
-    setIsConfirmationModalOpen(false); // Close the confirmation modal
+  const handleSave = async () => {
+    if (
+      groupMatches.every((matches) =>
+        matches.every((match) => match.slots.every((slot) => slot !== null))
+      )
+    ) {
+      setIsConfirmationModalOpen(true);
+      
+    } else {
+      alert("Please ensure all matches have both teams assigned.");
+    }
   };
 
-  const closeConfirmationModal = () => {
-    setIsConfirmationModalOpen(false); // Close the confirmation modal
+  const confirmSave = async () => {
+    try {
+      updateTournamentStep(tournamentId, 6);
+      const matches = groupMatches.flatMap((group, groupIndex) =>
+        group.map((match) => ({
+          group: groups[groupIndex],
+          match_no: match.match_no,
+          team1Id: match.slots[0]?.team_id || null,
+          team2Id: match.slots[1]?.team_id || null,
+          venue: "TBD",
+        }))
+      );
+
+      await adminApi.scheduleTournamentMatches(tournamentId, matches);
+      setSuccessMessage("Tournament matches scheduled successfully!");
+    
+      setIsMatchDateTimeVisible(true);
+      setIsScheduleVisible(false);
+    } catch (error) {
+      console.error("Error scheduling matches:", error);
+      setSuccessMessage("Error scheduling matches. Please try again.");
+    } finally {
+      setIsConfirmationModalOpen(false);
+    }
   };
 
   return (
     <div className="p-8 bg-gray-100 min-h-screen flex flex-col">
-      <h1 className="text-4xl font-bold text-gray-800 mb-8 text-center">
-        Schedule Group Matches
-      </h1>
-      <div className="grid grid-cols-2 gap-12 flex-1">
-        {groups.map((group, groupIndex) => (
-          <div key={group} className="p-6 bg-white rounded-lg shadow-md">
-            <h2 className="text-xl font-bold text-gray-800 mb-4">Group {group}</h2>
-
-            {/* Team List (Two Cards Per Line) */}
-            <div className="grid grid-cols-2 gap-4">
-              {groupTeams[groupIndex].map((team) => (
-                <div
-                  key={team.name}
-                  className="p-3 bg-blue-100 rounded-lg shadow-md flex items-center justify-between"
-                >
-                  <div className="flex items-center space-x-2">
-                    <img
-                      src={team.profilePicture}
-                      alt={team.name}
-                      className="w-6 h-6 rounded-full object-cover"
-                    />
-                    <span className="text-sm font-semibold text-gray-800">
-                      {team.name}
-                    </span>
-                  </div>
-                  <button
-                    onClick={() => assignTeamToMatch(groupIndex, team)}
-                    className={`text-xs py-1 px-2 rounded ${
-                      selectedMatch.group === null || selectedMatch.matchIndex === null ||
-                      groupMatches[groupIndex].some((match) =>
-                        match.slots.includes(team)
-                      )
-                        ? "bg-green-500 text-white cursor-not-allowed"
-                        : "bg-blue-500 text-white hover:bg-blue-600"
-                    }`}
-                    disabled={selectedMatch.group === null || selectedMatch.matchIndex === null ||
-                      groupMatches[groupIndex].some((match) => match.slots.includes(team))}
+      {isScheduleVisible && (
+        <>
+          <h1 className="text-4xl font-bold text-gray-800 mb-8 text-center">
+            Schedule Group Matches
+          </h1>
+          <div className="grid grid-cols-2 gap-8">
+            {groups.map((group, groupIndex) => (
+              <div key={group} className="p-6 bg-white rounded-lg shadow">
+              <h2 className="text-xl font-bold text-gray-800 mb-4">Group {group}</h2>
+            
+              <button
+                onClick={() => handleRandomAssign(groupIndex)}
+                className="mb-4 px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
+              >
+                Random Assign
+              </button>
+            
+              <h3 className="text-lg font-medium text-gray-700 mb-2">Available Teams:</h3>
+              <ul className="mb-4 max-h-40 overflow-y-auto border border-gray-300 rounded-lg p-2">
+                {groupTeams[groupIndex]?.map((team, teamIndex) => (
+                  <li
+                    key={team.id}
+                    className="text-gray-600 flex items-center justify-between mb-2 p-1 bg-gray-50 rounded hover:bg-gray-100"
                   >
-                    {groupMatches[groupIndex].some((match) =>
-                      match.slots.includes(team)
-                    )
-                      ? "Assigned"
-                      : "Assign"}
-                  </button>
-                </div>
-              ))}
-            </div>
-
-            {/* Match Slots */}
-            <div className="mt-6">
-              <h3 className="text-lg font-bold text-gray-600 mb-2">Matches</h3>
-
-              <div className="mt-4">
-                <button
-                  onClick={() => generateRandomMatches(groupIndex)}
-                  className="w-full py-2 px-4 bg-yellow-500 text-white rounded hover:bg-yellow-600"
-                >
-                  Random Matches
-                </button>
-              </div>
-
-              <div className="space-y-4 mt-4">
-                {groupMatches[groupIndex].map((match, matchIndex) => (
+                    {team.team_name}
+                    <button
+                      onClick={() => handleAssignTeam(groupIndex, teamIndex)}
+                      className="px-2 py-1 bg-blue-500 text-white rounded hover:bg-blue-600 text-sm"
+                    >
+                      Assign
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            
+              <h3 className="text-lg font-medium text-gray-700 mb-4">Matches:</h3>
+              <div className="grid gap-4">
+                {groupMatches[groupIndex]?.map((match, matchIndex) => (
                   <div
                     key={matchIndex}
-                    className={`flex items-center justify-between space-x-2 bg-gray-200 p-4 rounded-lg ${
-                      selectedMatch.group === groupIndex && selectedMatch.matchIndex === matchIndex
-                        ? "ring-2 ring-blue-500"
-                        : ""
+                    className={`p-4 rounded-lg flex justify-between items-center cursor-pointer ${
+                      selectedMatch.groupIndex === groupIndex &&
+                      selectedMatch.matchIndex === matchIndex
+                        ? "bg-yellow-100"
+                        : match.slots.every((slot) => slot !== null)
+                        ? "bg-green-100"
+                        : "bg-gray-100"
                     }`}
+                    onClick={() => setSelectedMatch({ groupIndex, matchIndex })}
                   >
-                    <div
-                      className={`flex-1 text-center cursor-pointer ${
-                        selectedMatch.group === groupIndex && selectedMatch.matchIndex === matchIndex
-                          ? "bg-blue-300"
-                          : "bg-gray-100"
-                      } py-2 px-4 rounded-md`}
-                      onClick={() => setSelectedMatch({ group: groupIndex, matchIndex })}
-                    >
-                      <span className="text-sm font-semibold text-gray-700">
-                        {`Group ${group} Match ${matchIndex + 1}`}
-                      </span>
+                    <div>
+                      <strong>{match.name}</strong>
                     </div>
-                    {match.slots.map((slot, slotIndex) => (
-                      <div
-                        key={slotIndex}
-                        className={`flex-1 h-12 flex items-center justify-center ${
-                          slot
-                            ? "bg-blue-300"
-                            : "bg-gray-100 border border-dashed border-gray-400"
-                        } rounded-md`}
-                      >
-                        {slot ? (
-                          <div className="flex items-center justify-between w-full px-2">
-                            <span className="text-sm font-semibold text-gray-700">
-                              {slot.name}
-                            </span>
+                    <div className="flex gap-2">
+                      {match.slots.map((slot, slotIndex) => (
+                        <span
+                          key={slotIndex}
+                          className="flex items-center gap-2"
+                        >
+                          <span
+                            className={`px-2 py-1 ${
+                              slot ? "bg-green-200" : "bg-gray-300"
+                            } text-sm rounded-lg`}
+                          >
+                            {slot?.team_name || `Slot ${slotIndex + 1}`}
+                          </span>
+                          {slot && (
                             <button
-                              onClick={() =>
-                                removeTeamFromMatch(groupIndex, matchIndex, slotIndex)
-                              }
-                              className="text-xs bg-red-500 text-white py-1 px-2 rounded hover:bg-red-600"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleRemoveTeam(
+                                  groupIndex,
+                                  matchIndex,
+                                  slotIndex
+                                );
+                              }}
+                              className="text-red-500 hover:text-red-600"
                             >
-                              Remove
+                              <FaTrash />
                             </button>
-                          </div>
-                        ) : (
-                          <span className="text-xs text-gray-500">Empty Slot</span>
-                        )}
-                      </div>
-                    ))}
+                          )}
+                        </span>
+                      ))}
+                    </div>
                   </div>
                 ))}
               </div>
             </div>
+            
+            ))}
           </div>
-        ))}
-      </div>
 
-      <div className="mt-8">
-        <button
-          onClick={handleSave}
-          className="w-full py-2 px-4 bg-green-500 text-white rounded hover:bg-green-600"
-        >
-          Save Round 1 Matches
-        </button>
-      </div>
-
-      {/* Arrange Matches Modal */}
-      {isArrangeModalOpen && (
-        <div className="fixed inset-0 flex items-center justify-center bg-gray-800 bg-opacity-50">
-          <div className="bg-white p-6 rounded-lg shadow-md w-1/3">
-            <h3 className="text-lg font-semibold text-gray-800 mb-4">
-              Arrange all matches to continue.
-            </h3>
-            <div className="flex space-x-4">
-              <button
-                onClick={closeArrangeModal}
-                className="w-full py-2 px-4 bg-red-500 text-white rounded hover:bg-red-600"
-              >
-                Close
-              </button>
-            </div>
-          </div>
-        </div>
+          <button
+            onClick={handleSave}
+            className="mt-8 w-full py-2 px-4 bg-green-500 text-white rounded hover:bg-green-600"
+          >
+            Save Round 1 Matches
+          </button>
+        </>
       )}
 
-      {/* Success Message Modal */}
-      {successMessage && (
-        <div className="fixed inset-0 flex items-center justify-center bg-gray-800 bg-opacity-50">
-          <div className="bg-white p-6 rounded-lg shadow-md w-1/3">
-            <div className="flex justify-between items-center">
-              <h3 className="text-lg font-semibold text-gray-800 mb-4">
-                {successMessage}
-              </h3>
-              <button
-                onClick={closeSuccessMessage}
-                className="text-xl font-semibold text-gray-600 hover:text-gray-800"
-              >
-                &times; {/* Cross Icon */}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Confirmation Modal */}
       {isConfirmationModalOpen && (
-        <div className="fixed inset-0 flex items-center justify-center bg-gray-800 bg-opacity-50">
-          <div className="bg-white p-6 rounded-lg shadow-md w-1/3">
-            <h3 className="text-lg font-semibold text-gray-800 mb-4">
-              Are you sure to save matches? This action cannot be undone.
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white p-6 rounded-lg shadow-lg w-96">
+            <h3 className="text-xl font-semibold mb-4 text-gray-800">
+              Confirm Save
             </h3>
-            <div className="flex space-x-4">
+            <p className="text-gray-600 mb-6">
+              Are you sure you want to save the match schedule?
+            </p>
+            <div className="flex justify-end space-x-4">
               <button
-                onClick={confirmSaveMatches}
-                className="w-full py-2 px-4 bg-green-500 text-white rounded hover:bg-green-600"
-              >
-                Yes, Save
-              </button>
-              <button
-                onClick={closeConfirmationModal}
-                className="w-full py-2 px-4 bg-gray-500 text-white rounded hover:bg-gray-600"
+                onClick={() => setIsConfirmationModalOpen(false)}
+                className="px-4 py-2 bg-gray-300 text-gray-800 rounded hover:bg-gray-400"
               >
                 Cancel
               </button>
-              
+              <button
+                onClick={confirmSave}
+                className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
+              >
+                Confirm
+              </button>
             </div>
           </div>
         </div>
       )}
-      
+
+      {isMatchDateTimeVisible && <MatchDateTime tournamentId={tournamentId}/>}
     </div>
   );
 };
