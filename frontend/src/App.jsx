@@ -1,7 +1,7 @@
 import React from "react";
 import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
 import LoginPage from "./pages/LogInPage";
-import Home from "./pages/HomePage";
+import Home from "./pages/LandingPage";
 import SignUpPage from "./pages/SignUpPage";
 import MasterAdminDashboard from "./pages/MasterAdminDashboard";
 import PlayerDashboard from "./pages/PlayerDashboard";

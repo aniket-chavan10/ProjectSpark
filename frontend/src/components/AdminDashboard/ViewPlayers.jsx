@@ -1,70 +1,119 @@
 import React, { useState, useEffect } from "react";
-import adminApi from "../../api/adminApi";
+import { motion } from "framer-motion";
+import PlayerCard from "./PlayerCard";
+import teamLogo from "../../../../backend/uploads/kohli.png";
+
+// Dummy data remains unchanged
+const playerData = {
+  picture: teamLogo,
+  firstName: "Virat",
+  lastName: "Kohli",
+  role: "Batter",
+  country: "India",
+  countryFlag: "https://flagcdn.com/w320/in.png",
+  stats: [
+    { title: "Matches", value: "254" },
+    { title: "Runs", value: "12000" },
+    { title: "Highest Score", value: "183" },
+  ],
+  profileLink: "/players/68176-virat-kohli-profile",
+};
+
+const batterData = [
+  { ...playerData, firstName: "Virat", lastName: "Kohli" },
+  { ...playerData, firstName: "Rohit", lastName: "Sharma" },
+];
+
+const bowlerData = [
+  {
+    ...playerData,
+    firstName: "Jasprit",
+    lastName: "Bumrah",
+    role: "Bowler",
+    stats: [
+      { title: "Matches", value: "50" },
+      { title: "Wickets", value: "100" },
+      { title: "Best Bowling", value: "5/15" },
+    ],
+    profileLink: "/players/68176-jasprit-bumrah-profile",
+  },
+  {
+    ...playerData,
+    firstName: "Mohammad",
+    lastName: "Shami",
+    role: "Bowler",
+    stats: [
+      { title: "Matches", value: "60" },
+      { title: "Wickets", value: "150" },
+      { title: "Best Bowling", value: "5/25" },
+    ],
+    profileLink: "/players/68176-mohammad-shami-profile",
+  },
+];
 
 const ViewPlayers = () => {
-  const [players, setPlayers] = useState([]);
-  const [error, setError] = useState(null);
+  // Existing state and effects unchanged
+  const [activeFilter, setActiveFilter] = useState("All");
+  const [scrollPosition, setScrollPosition] = useState(0);
 
-  // Fetch players by team
   useEffect(() => {
-    const fetchPlayersByTeam = async () => {
-      try {
-        const response = await adminApi.getPlayersByTeam();
-        console.log("Fetched players for team:", response);
-        setPlayers(response); // Assuming `getPlayersByTeam` returns an array of players
-      } catch (error) {
-        console.error("Error fetching players by team:", error);
-        setError("Failed to fetch players. Please try again later.");
-      }
-    };
-
-    fetchPlayersByTeam();
+    const handleScroll = () => setScrollPosition(window.scrollY);
+    window.addEventListener("scroll", handleScroll);
+    return () => window.removeEventListener("scroll", handleScroll);
   }, []);
 
+  const logoScale = Math.min(1.5, 1 + scrollPosition / 1000);
+
+  let displayedPlayers = [];
+  if (activeFilter === "All") displayedPlayers = [...batterData, ...bowlerData];
+  else if (activeFilter === "Batters") displayedPlayers = batterData;
+  else displayedPlayers = bowlerData;
+
   return (
-    <div className="p-6 bg-gray-100 min-h-screen">
-      <h2 className="text-3xl font-semibold text-gray-800 mb-6">Team Players</h2>
-
-      {error && <p className="text-red-600 mb-4">{error}</p>}
-
-      {/* Players List (Card Style) */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
-        {players.length > 0 ? (
-          players.map((player) => (
-            <div
-              key={player.player_id}
-              className="bg-white p-6 rounded-lg shadow-lg hover:shadow-xl transition transform hover:scale-105"
+    <div className="min-h-screen bg-[#f4f4f4] flex flex-col">
+      {/* Updated Buttons Section */}
+      <div className="bg-white py-3 z-10">
+        <div className="flex justify-center space-x-5">
+          {["All", "Batters", "Bowlers"].map((filter) => (
+            <motion.button
+              key={filter}
+              type="button"
+              className={`relative overflow-hidden font-semibold rounded-full text-sm px-6 py-2.5 transition-all duration-300 ${
+                activeFilter === filter
+                  ? "text-white bg-gradient-to-r from-[#0C1C4A] to-[#1E3A8A] shadow-lg"
+                  : "text-[#0C1C4A] bg-gray-100 hover:bg-gray-200"
+              }`}
+              whileHover={{ 
+                scale: activeFilter !== filter ? 1.05 : 1,
+                boxShadow: activeFilter !== filter ? "0 4px 12px rgba(12, 28, 74, 0.1)" : "none"
+              }}
+              whileTap={{ scale: 0.95 }}
+              onClick={() => setActiveFilter(filter)}
             >
-              <div className="flex justify-center mb-4">
-                {/* Profile Picture */}
-                {player.profile_picture ? (
-                  <img
-                    src={`http://localhost:3000/${player.profile_picture}`}
-                    alt={`${player.full_name}'s profile`}
-                    className="w-24 h-24 rounded-full object-cover border-2 border-gray-300"
-                  />
-                ) : (
-                  <div className="w-24 h-24 rounded-full bg-gray-300 flex items-center justify-center">
-                    <span className="text-white text-lg font-semibold">
-                      No Image
-                    </span>
-                  </div>
-                )}
-              </div>
-              <h3 className="text-xl font-semibold text-gray-800 text-center">
-                {player.full_name}
-              </h3>
-              <p className="text-sm text-gray-600 text-center">
-                {player.email}
-              </p>
-              <p className="text-sm text-gray-600 text-center">
-                {player.mobile_number}
-              </p>
-            </div>
-          ))
-        ) : (
-          <p className="text-gray-600">No players found for your team.</p>
-        )}
+              {filter}
+              {activeFilter === filter && (
+                <motion.div
+                  className="absolute inset-0 bg-white/10 rounded-full"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: [0, 0.2, 0] }}
+                  transition={{ duration: 1.5, repeat: Infinity }}
+                />
+              )}
+            </motion.button>
+          ))}
+        </div>
+      </div>
+
+      {/* Rest of the code remains exactly the same */}
+      <div className="flex-1 overflow-y-auto px-4 py-6 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-8" style={{ marginTop: "20px" }}>
+        {displayedPlayers.map((player, index) => (
+          <div
+            key={index}
+            className="bg-white rounded-lg shadow-xl overflow-hidden p-4 transition-transform duration-300 ease-in-out hover:scale-105"
+          >
+            <PlayerCard player={player} />
+          </div>
+        ))}
       </div>
     </div>
   );

@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { motion, AnimatePresence } from "framer-motion";
 import Sidebar from "../components/PlayerDashboard/Sidebar";
 import Dashboard from "../components/PlayerDashboard/Dashboard";
 import Profile from "../components/PlayerDashboard/Profile";
@@ -39,24 +40,40 @@ const PlayerDashboard = () => {
       />
 
       {/* Hamburger Button for Mobile */}
-      <button
-        className="md:hidden text-white bg-gray-800 p-4 rounded-lg absolute top-4 left-4 z-30"
+      <motion.button
+        whileHover={{ scale: 1.1 }}
+        whileTap={{ scale: 0.9 }}
+        className="md:hidden fixed top-4 left-4 z-30 p-3 bg-gray-800 text-white rounded-lg shadow-lg"
         onClick={toggleSidebar}
       >
         ☰
-      </button>
+      </motion.button>
 
       {/* Main Content */}
-      <div
+      <motion.div
         className={`flex-1 p-6 transition-all duration-300 ${
           isSidebarOpen ? "ml-64" : "ml-0"
-        }`}
+        } md:ml-64`}
+        style={{
+          height: "100vh",
+          overflowY: "auto",
+        }}
       >
-        {activeSection === "dashboard" && <Dashboard />}
-        {activeSection === "profile" && <Profile />}
-        {activeSection === "stats" && <Stats />}
-        {activeSection === "leaderboards" && <Leaderboards />}
-      </div>
+        <AnimatePresence mode="wait">
+          <motion.div
+            key={activeSection}
+            initial={{ opacity: 0, x: 20 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: -20 }}
+            transition={{ duration: 0.3 }}
+          >
+            {activeSection === "dashboard" && <Dashboard />}
+            {activeSection === "profile" && <Profile />}
+            {activeSection === "stats" && <Stats />}
+            {activeSection === "leaderboards" && <Leaderboards />}
+          </motion.div>
+        </AnimatePresence>
+      </motion.div>
     </div>
   );
 };

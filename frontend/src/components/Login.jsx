@@ -3,66 +3,64 @@ import { useNavigate } from "react-router-dom";
 import adminApi from "../api/adminApi";
 import playersApi from "../api/playerApi";
 import { useAuth } from "../contexts/AuthContext";
+import loginImage from "../../../backend/uploads/loginpage1.jpg";
 
-export default function Login() {
+const Loginn = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [role, setRole] = useState("player"); // Default role
+  const [selectedRole, setSelectedRole] = useState("player");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState(null);
   const navigate = useNavigate();
   const { login } = useAuth();
 
+  const handleRoleSelection = (role) => {
+    setSelectedRole(role);
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setIsSubmitting(true);
     setError(null);
-  
+
     const loginData = { email, password };
-  
+
     try {
       let response;
-      if (role === "admin") {
+      if (selectedRole === "admin") {
         response = await adminApi.loginAdmin(loginData);
       } else {
         response = await playersApi.playerLogin(loginData);
       }
-  
+
       const { token, team_id, team_name, logo } = response.data;
-  
-      console.log("Token received:", token);
       const decodedToken = decodeToken(token);
-      console.log("Decoded token:", decodedToken);
-  
-      const userId = decodedToken?.id || decodedToken?.playerId; // Adjust for token differences
-  
+      const userId = decodedToken?.id || decodedToken?.playerId;
+
       if (!userId) {
         throw new Error("Invalid token: User ID is missing");
       }
-  
-      // Update auth context
+
       const authData = {
         token,
-        role,
+        role: selectedRole,
         userId,
         teamId: team_id,
         teamName: team_name,
         teamLogo: logo,
       };
-  
-      login(authData); // Set auth context here
-  
-      // Store in localStorage
+
+      login(authData);
       localStorage.setItem("authToken", token);
-      localStorage.setItem("userRole", role);
+      localStorage.setItem("userRole", selectedRole);
       localStorage.setItem("userId", userId);
       if (team_id) localStorage.setItem("teamId", team_id);
       if (team_name) localStorage.setItem("teamName", team_name);
       if (logo) localStorage.setItem("teamLogo", logo);
-  
-      // Redirect based on role
-      if (role === "admin") navigate("/admin-dashboard");
-      else navigate("/player-dashboard");
+
+      selectedRole === "admin" 
+        ? navigate("/admin-dashboard") 
+        : navigate("/player-dashboard");
     } catch (error) {
       console.error("Login error:", error);
       setError("Login failed. Please check your credentials and try again.");
@@ -70,8 +68,7 @@ export default function Login() {
       setIsSubmitting(false);
     }
   };
-  
-  // Decode JWT
+
   const decodeToken = (token) => {
     try {
       const base64Url = token.split(".")[1];
@@ -90,99 +87,117 @@ export default function Login() {
   };
 
   return (
-    <div className="relative">
-      <div className="flex min-h-full flex-1 flex-col justify-center px-6 py-12 lg:px-8">
-        <div className="sm:mx-auto sm:w-full sm:max-w-sm">
-          <img
-            alt="Your Company"
-            src="https://tailwindui.com/plus/img/logos/mark.svg?color=indigo&shade=600"
-            className="mx-auto h-10 w-auto"
-          />
-          <h2 className="mt-10 text-center text-2xl font-bold tracking-tight text-gray-900">
-            Sign in to your account
-          </h2>
-        </div>
+    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 flex items-center justify-center p-4">
+      <div className="flex w-full max-w-6xl rounded-2xl shadow-2xl backdrop-blur-lg bg-white/5 border border-white/10 overflow-hidden transition-all duration-300 hover:shadow-3xl">
+        
+        {/* Login Form Section */}
+        <div className="flex-1 p-8 lg:p-12 space-y-8">
+          <div className="text-center">
+            <div className="inline-flex items-center gap-2 mb-8">
+              <svg className="w-8 h-8 text-indigo-400" fill="currentColor" viewBox="0 0 24 24">
+                <path d="M12 14l9-5-9-5-9 5 9 5z" />
+                <path d="M12 14l6.16-3.422a12.083 12.083 0 01.665 6.479A11.952 11.952 0 0012 20.055a11.952 11.952 0 00-6.824-2.998 12.078 12.078 0 01.665-6.479L12 14z" />
+              </svg>
+              <span className="text-2xl font-bold bg-gradient-to-r from-indigo-400 to-blue-500 bg-clip-text text-transparent">
+                SportSync
+              </span>
+            </div>
+            <h1 className="text-3xl font-bold text-white mb-2">Welcome Back</h1>
+            <p className="text-gray-300">Sign in to continue your journey</p>
+          </div>
 
-        <div className="mt-10 sm:mx-auto sm:w-full sm:max-w-sm">
           <form onSubmit={handleSubmit} className="space-y-6">
-            {error && (
-              <div className="text-red-500 text-sm text-center">{error}</div>
-            )}
+            {/* Role Selector */}
+            <div className="flex gap-4 justify-center">
+              {['admin', 'player'].map((role) => (
+                <button
+                  key={role}
+                  type="button"
+                  onClick={() => handleRoleSelection(role)}
+                  className={`px-6 py-2 rounded-full font-medium transition-all duration-300 ${
+                    selectedRole === role
+                      ? 'bg-gradient-to-r from-indigo-500 to-blue-600 text-white shadow-lg'
+                      : 'bg-white/5 text-gray-300 hover:bg-white/10 hover:text-white'
+                  }`}
+                >
+                  {role.charAt(0).toUpperCase() + role.slice(1)}
+                </button>
+              ))}
+            </div>
 
-            <div>
-              <label htmlFor="email" className="block text-sm font-medium text-gray-900">
-                Email address
-              </label>
-              <div className="mt-2">
+            {/* Form Fields */}
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-gray-300">Email</label>
                 <input
-                  id="email"
-                  name="email"
                   type="email"
-                  required
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  className="block w-full rounded-md bg-white px-3 py-1.5 text-base text-gray-900 outline outline-1 -outline-offset-1 outline-gray-300 placeholder:text-gray-400 focus:outline focus:outline-2 focus:-outline-offset-2 focus:outline-indigo-600 sm:text-sm"
+                  className="w-full px-4 py-3 rounded-lg bg-white/5 border border-white/10 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
+                  placeholder="name@example.com"
+                  required
                 />
               </div>
-            </div>
 
-            <div>
-              <label htmlFor="password" className="block text-sm font-medium text-gray-900">
-                Password
-              </label>
-              <div className="mt-2">
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-gray-300">Password</label>
                 <input
-                  id="password"
-                  name="password"
                   type="password"
-                  required
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="block w-full rounded-md bg-white px-3 py-1.5 text-base text-gray-900 outline outline-1 -outline-offset-1 outline-gray-300 placeholder:text-gray-400 focus:outline focus:outline-2 focus:-outline-offset-2 focus:outline-indigo-600 sm:text-sm"
+                  className="w-full px-4 py-3 rounded-lg bg-white/5 border border-white/10 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
+                  placeholder="••••••••"
+                  required
                 />
               </div>
             </div>
 
-            <div>
-              <label className="block text-sm font-medium text-gray-900">Login as</label>
-              <div className="mt-2 flex items-center space-x-4">
-                <label className="flex items-center">
-                  <input
-                    type="radio"
-                    name="role"
-                    value="player"
-                    checked={role === "player"}
-                    onChange={() => setRole("player")}
-                    className="form-radio text-indigo-600"
-                  />
-                  <span className="ml-2 text-gray-700">Player</span>
-                </label>
-                <label className="flex items-center">
-                  <input
-                    type="radio"
-                    name="role"
-                    value="admin"
-                    checked={role === "admin"}
-                    onChange={() => setRole("admin")}
-                    className="form-radio text-indigo-600"
-                  />
-                  <span className="ml-2 text-gray-700">Admin</span>
-                </label>
+            {/* Error Message */}
+            {error && (
+              <div className="p-3 bg-red-500/10 text-red-300 rounded-lg flex items-center gap-2">
+                <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                </svg>
+                <span>{error}</span>
               </div>
-            </div>
+            )}
 
-            <div>
-              <button
-                type="submit"
-                disabled={isSubmitting}
-                className="flex w-full justify-center rounded-md bg-indigo-600 px-3 py-1.5 text-sm font-semibold text-white shadow-sm hover:bg-indigo-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600"
-              >
-                {isSubmitting ? "Signing in..." : "Sign in"}
-              </button>
-            </div>
+            {/* Submit Button */}
+            <button
+              type="submit"
+              disabled={isSubmitting}
+              className="w-full py-3 px-6 bg-gradient-to-r from-indigo-500 to-blue-600 hover:from-indigo-600 hover:to-blue-700 text-white font-medium rounded-lg transition-all duration-300 transform hover:scale-[1.02] shadow-lg hover:shadow-xl disabled:opacity-50"
+            >
+              {isSubmitting ? (
+                <div className="flex items-center justify-center gap-2">
+                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  Signing in...
+                </div>
+              ) : (
+                'Sign In'
+              )}
+            </button>
           </form>
+
+          <div className="text-center text-sm text-gray-400">
+            <a href="#" className="hover:text-indigo-400 transition-colors">
+              Forgot password?
+            </a>
+          </div>
+        </div>
+
+        {/* Image Section */}
+        <div className="hidden lg:block relative w-1/2">
+          <img
+            src={loginImage}
+            alt="Login Visual"
+            className="w-full h-full object-cover transform transition-transform duration-500 hover:scale-105"
+          />
+          <div className="absolute inset-0 bg-gradient-to-t from-slate-900/60 to-transparent" />
         </div>
       </div>
     </div>
   );
-}
+};
+
+export default Loginn;

@@ -5,6 +5,7 @@ import GroupsBracket from './GroupsBracket';
 import TournamentBracket from './TournamentBracket';
 import MatchDay from './MatchDay';
 import ShowMatchSequence from './ShowMatchSeuquence';
+import PlayerCard from './PlayerCard'
 
 const Profile = ({ profilePhoto, setProfilePhoto }) => {
   const [isUploading, setIsUploading] = useState(false);
