@@ -39,15 +39,17 @@
 
 
 Matches Table:
+
 match_id (Primary Key)
 tournament_id (Foreign Key)
 team1_id (Foreign Key)
 team2_id (Foreign Key)
 date
 venue
-winner_team_id (Foreign Key, nullable)
+winner_team_id (Foreign Key, nullable)/Trigger
 result (e.g., "Team A won by 5 wickets")
 status (e.g., "completed", "upcoming", "live")
+
 
 
 Player Performance Table:
@@ -61,6 +63,8 @@ overs_bowled
 catches
 stumpings
 run_outs
+
+
 Innings table (Optional, for detailed ball-by-ball data):
 inning_id (Primary Key)
 match_id (Foreign Key)

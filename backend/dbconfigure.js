@@ -1,44 +1,47 @@
 require('dotenv').config();
 const mysql = require('mysql2/promise');
 
-// Utility function to validate required environment variables
+// Utility to validate env vars
 const validateEnvVars = () => {
   const requiredVars = ['DB_HOST', 'DB_USER', 'DB_PASSWORD', 'DB_NAME'];
   const missingVars = requiredVars.filter((key) => !process.env[key]);
 
   if (missingVars.length > 0) {
-    console.error(`Missing required environment variables: ${missingVars.join(', ')}`);
-    process.exit(1); // Exit the application if any required variable is missing
+    console.error(`❌ Missing environment variables: ${missingVars.join(', ')}`);
+    process.exit(1);
   }
 };
 
-// Validate environment variables
 validateEnvVars();
+
+console.log('DB Config:', {
+  DB_HOST: process.env.DB_HOST,
+  DB_USER: process.env.DB_USER,
+  DB_PASSWORD: !!process.env.DB_PASSWORD,
+  DB_NAME: process.env.DB_NAME
+});
+
 
 const createDatabasePool = () => {
   try {
-    // Create and configure the MySQL connection pool
     const pool = mysql.createPool({
       host: process.env.DB_HOST,
       user: process.env.DB_USER,
       password: process.env.DB_PASSWORD,
       database: process.env.DB_NAME,
       waitForConnections: true,
-      connectionLimit: process.env.DB_CONNECTION_LIMIT || 10, // Default to 10 if not set
-      queueLimit: process.env.DB_QUEUE_LIMIT || 0, // Default to no limit
-      charset: process.env.DB_CHARSET || 'utf8mb4', // Default to UTF-8 with emoji support
+      connectionLimit: parseInt(process.env.DB_CONNECTION_LIMIT) || 10,
+      queueLimit: parseInt(process.env.DB_QUEUE_LIMIT) || 0,
+      charset: process.env.DB_CHARSET || 'utf8mb4'
     });
 
-    console.log('Database connection pool created successfully.');
+    console.log('✅ Database connection pool created successfully.');
     return pool;
-  } catch (error) {
-    console.error('Error creating database connection pool:', error.message);
-    process.exit(1); // Exit the application if pool creation fails
+  } catch (err) {
+    console.error('❌ Error creating DB connection pool:', err.message);
+    process.exit(1);
   }
 };
 
-// Create the database pool
 const db = createDatabasePool();
-
-// Export the pool object for use in your application
 module.exports = db;
