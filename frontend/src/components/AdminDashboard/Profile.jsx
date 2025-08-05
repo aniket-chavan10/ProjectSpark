@@ -1,11 +1,6 @@
-import React, { useState } from 'react';
-import adminApi from '../../api/adminApi';
-import FixMatchDay from './FixMatchDay';
-import GroupsBracket from './GroupsBracket';
-import TournamentBracket from './TournamentBracket';
-import MatchDay from './MatchDay';
-import ShowMatchSequence from './ShowMatchSeuquence';
-import PlayerCard from './PlayerCard'
+import React, { useState } from "react";
+import adminApi from "../../api/adminApi";
+
 
 const Profile = ({ profilePhoto, setProfilePhoto }) => {
   const [isUploading, setIsUploading] = useState(false);
@@ -68,11 +63,6 @@ const Profile = ({ profilePhoto, setProfilePhoto }) => {
         <p className="mt-4">Name: Team Manager</p>
         <p>Email: manager@example.com</p>
       </div>
-      
-      
-      
-      <ShowMatchSequence/>
-      
     </div>
   );
 };

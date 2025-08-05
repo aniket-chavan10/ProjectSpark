@@ -1,13 +1,21 @@
 import React from "react";
 
 const MatchCard = ({ match, onStart }) => {
+  const handleStartMatch = (matchNo) => {
+    const externalProjectBaseUrl = "http://localhost:5173"; // Update with actual URL
+    const matchUrl = `${externalProjectBaseUrl}/matches/details/${matchNo}`;
+  
+    window.open(matchUrl, "_blank"); // Opens the new tab with match number
+    onStart(matchNo); // Pass match_no to onStart callback
+  };
+
   return (
     <div
       className={`shadow-md rounded-lg p-6 m-4 w-full transition-all duration-300 transform hover:scale-105 
         ${match.status === "completed" ? "bg-gray-200" : "bg-gradient-to-r from-blue-50 to-blue-100 hover:shadow-lg"}`}
     >
       <div className="text-center mb-4">
-        <p className="text-sm font-bold text-gray-500">Match #{match.id}</p>
+        <p className="text-sm font-bold text-gray-500">Match #{match.match_no}</p>
         <p className="text-xs text-gray-400">
           {new Date(match.date).toLocaleDateString()} | {match.time}
         </p>
@@ -42,7 +50,7 @@ const MatchCard = ({ match, onStart }) => {
       ) : (
         <div className="flex justify-center mt-4">
           <button
-            onClick={() => onStart(match.id)}
+            onClick={() => handleStartMatch(match.match_no)}
             className="bg-green-500 text-white px-6 py-2 rounded-lg hover:bg-green-600 transition"
           >
             Start Match
