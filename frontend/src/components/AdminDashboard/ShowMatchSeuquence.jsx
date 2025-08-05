@@ -4,7 +4,7 @@ import MatchCard from "./MatchCard";
 import { TournamentContext } from "../../contexts/TournamentContext";
 
 const ShowMatchSequence = () => {
-  const { tournamentId } = useContext(TournamentContext); // Access tournamentId from context
+  const { tournamentId } = useContext(TournamentContext);
   const [matchesState, setMatchesState] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -22,9 +22,9 @@ const ShowMatchSequence = () => {
         const matchesMap = new Map();
         console.log("Response:", response);
 
-        // Transform and map data
         const matches = response.matches.map((match) => ({
-          id: match.match_no,
+          id: match.id, // Keep id internally if needed
+          match_no: match.match_no,
           round: match.round_number,
           group: match.group_name || "Unassigned",
           team1: {
@@ -39,17 +39,15 @@ const ShowMatchSequence = () => {
               (match.dependent_match2_id ? `Winner of Match ${match.dependent_match2_id}` : "TBD"),
             logo: "https://via.placeholder.com/50",
           },
-          date: new Date(match.match_date).toLocaleDateString(), // Use match_date
-          time: new Date(match.match_time).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }), // Use match_time
-          status: match.status, // Use status directly from the response
+          date: new Date(match.match_date).toLocaleDateString(),
+          time: new Date(match.match_time).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+          status: match.status,
           winner: match.winner || "TBD",
           wonBy: match.won_by || "TBD",
           dependentMatch1Id: match.dependent_match1_id,
           dependentMatch2Id: match.dependent_match2_id,
         }));
-        
 
-        // Resolve dependent matches
         matches.forEach((match) => {
           if (match.dependentMatch1Id && matchesMap.has(match.dependentMatch1Id)) {
             match.team1.name = `Winner of Match ${match.dependentMatch1Id}`;
@@ -57,7 +55,7 @@ const ShowMatchSequence = () => {
           if (match.dependentMatch2Id && matchesMap.has(match.dependentMatch2Id)) {
             match.team2.name = `Winner of Match ${match.dependentMatch2Id}`;
           }
-          matchesMap.set(match.id, match);
+          matchesMap.set(match.match_no, match); // Use match_no as key in Map
         });
 
         setMatchesState(matches);
@@ -87,14 +85,14 @@ const ShowMatchSequence = () => {
         {matchesState.length > 0 ? (
           matchesState.map((match) => (
             <MatchCard
-              key={match.id}
+              key={match.match_no} // Use match_no as key
               match={match}
-              onUpdate={(id, date, time) =>
+              onUpdate={(matchNo, date, time) =>
                 setMatchesState((prevMatches) =>
-                  prevMatches.map((m) => (m.id === id ? { ...m, date, time } : m))
+                  prevMatches.map((m) => (m.match_no === matchNo ? { ...m, date, time } : m))
                 )
               }
-              onStart={(id) => console.log(`Match ${id} started!`)}
+              onStart={(matchNo) => console.log(`Match ${matchNo} started!`)}
             />
           ))
         ) : (

@@ -1,10 +1,10 @@
 import React, { useState, useEffect, useContext } from "react";
 import GroupTeams from "./GroupTeams";
-import adminApi from "../../api/adminApi"; // Adjust the path according to your file structure
-import { TournamentContext } from "../../contexts/TournamentContext"; // Import the context
+import adminApi from "../../api/adminApi"; 
+import { TournamentContext } from "../../contexts/TournamentContext";
 
-const ShowAppliedTeams = ({updateTournamentStep}) => {
-  const { tournamentId } = useContext(TournamentContext); // Access tournamentId from context
+const ShowAppliedTeams = ({ updateTournamentStep }) => {
+  const { tournamentId } = useContext(TournamentContext);
   const [teams, setTeams] = useState([]);
   const [isEditing, setIsEditing] = useState(false);
   const [editIndex, setEditIndex] = useState(null);
@@ -15,29 +15,37 @@ const ShowAppliedTeams = ({updateTournamentStep}) => {
   const [error, setError] = useState(null);
 
   useEffect(() => {
-    console.log("Tournament ID in ShowAppliedTeams:", tournamentId); // Log the tournamentId to confirm it's coming from context
-  
     if (!tournamentId) {
-      setError("Tournament ID is not available.");
+      setError("Tournament ID is missing. Please select a tournament.");
       setLoading(false);
       return;
     }
-  
+
     const fetchAppliedTeams = async () => {
       try {
-        const fetchedTeams = await adminApi.getAppliedTeams(tournamentId); // Call the API method from adminApi
-        setTeams(fetchedTeams); // Set teams from the API response
-        setLoading(false);
+        setLoading(true);
+        setError(null); // Reset error before fetching
+
+        const fetchedTeams = await adminApi.getAppliedTeams(tournamentId);
+        setTeams(fetchedTeams || []); 
       } catch (err) {
         console.error("Error fetching applied teams:", err);
-        setError("Failed to fetch applied teams.");
+        setError("Failed to fetch applied teams. Please try again.");
+      } finally {
         setLoading(false);
       }
     };
-  
+
     fetchAppliedTeams();
   }, [tournamentId]);
-  
+
+  const retryFetchingTeams = () => {
+    setError(null);
+    setLoading(true);
+    setTimeout(() => {
+      fetchAppliedTeams();
+    }, 500); // Simulating a slight delay before retry
+  };
 
   const handleEdit = (index) => {
     setEditIndex(index);
@@ -73,10 +81,8 @@ const ShowAppliedTeams = ({updateTournamentStep}) => {
 
   const handleProceedToGrouping = () => {
     if (isSaved) {
-      console.log("Teams being passed to GroupTeams:", teams);
-
       setShowGrouping("group");
-      updateTournamentStep(tournamentId,3);
+      updateTournamentStep(tournamentId, 3);
     } else {
       alert("Please save the teams before proceeding to the next step.");
     }
@@ -87,11 +93,25 @@ const ShowAppliedTeams = ({updateTournamentStep}) => {
   }
 
   if (loading) {
-    return <div>Loading...</div>;
+    return (
+      <div className="flex justify-center items-center min-h-screen">
+        <div className="animate-spin rounded-full h-16 w-16 border-t-4 border-blue-500"></div>
+      </div>
+    );
   }
 
   if (error) {
-    return <div>Error: {error}</div>;
+    return (
+      <div className="flex flex-col items-center justify-center min-h-screen text-center">
+        <p className="text-lg font-semibold text-red-600">{error}</p>
+        <button
+          onClick={retryFetchingTeams}
+          className="mt-4 px-6 py-3 bg-red-500 text-white rounded-lg shadow-md hover:bg-red-600 transition-all"
+        >
+          Retry
+        </button>
+      </div>
+    );
   }
 
   return (
@@ -100,65 +120,75 @@ const ShowAppliedTeams = ({updateTournamentStep}) => {
         Manage Your Teams
       </h1>
 
-      <div className="flex justify-center mb-8">
-        <div className="bg-gradient-to-r from-blue-500 to-teal-500 text-white rounded-lg px-8 py-4 shadow-md flex items-center">
-          <span className="text-xl font-semibold">
-            {teams.length} / 32 Teams Applied
-          </span>
+      {teams.length === 0 ? (
+        <div className="flex flex-col items-center justify-center min-h-[50vh] text-center">
+          <p className="text-xl font-semibold text-gray-600">
+            No teams have applied for this tournament yet.
+          </p>
         </div>
-      </div>
-
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-        {teams.map((team, index) => (
-          <div
-            key={index}
-            className="p-6 bg-gradient-to-b from-white via-gray-100 to-gray-200 rounded-lg shadow-md flex justify-between items-center hover:shadow-lg transition-all"
-          >
-            <div className="flex items-center space-x-4">
-              <img
-                src={team.logo}
-                alt={team.team_name}
-                className="w-10 h-10 rounded-full object-cover"
-              />
-              <span className="text-lg font-semibold text-gray-800">
-                {team.team_name}
+      ) : (
+        <>
+          <div className="flex justify-center mb-8">
+            <div className="bg-gradient-to-r from-blue-500 to-teal-500 text-white rounded-lg px-8 py-4 shadow-md flex items-center">
+              <span className="text-xl font-semibold">
+                {teams.length} / 32 Teams Applied
               </span>
             </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+            {teams.map((team, index) => (
+              <div
+                key={index}
+                className="p-6 bg-gradient-to-b from-white via-gray-100 to-gray-200 rounded-lg shadow-md flex justify-between items-center hover:shadow-lg transition-all"
+              >
+                <div className="flex items-center space-x-4">
+                  <img
+                    src={team.logo}
+                    alt={team.team_name}
+                    className="w-10 h-10 rounded-full object-cover"
+                  />
+                  <span className="text-lg font-semibold text-gray-800">
+                    {team.team_name}
+                  </span>
+                </div>
+                <button
+                  onClick={() => handleEdit(index)}
+                  className="px-4 py-2 bg-gradient-to-r from-blue-600 to-blue-800 text-white rounded-lg shadow-md hover:from-blue-500 hover:to-blue-700 transition-all"
+                >
+                  Edit
+                </button>
+              </div>
+            ))}
+          </div>
+
+          <div className="mt-12 text-center space-y-6">
             <button
-              onClick={() => handleEdit(index)}
-              className="px-4 py-2 bg-gradient-to-r from-blue-600 to-blue-800 text-white rounded-lg shadow-md hover:from-blue-500 hover:to-blue-700 transition-all"
+              onClick={handleSaveTeams}
+              className={`px-8 py-4 rounded-lg shadow-md text-white text-xl font-semibold transition-all ${
+                teams.length !== 32
+                  ? "bg-gray-400 cursor-not-allowed"
+                  : "bg-gradient-to-r from-blue-600 to-blue-800 hover:from-blue-500 hover:to-blue-700"
+              }`}
+              disabled={teams.length !== 32}
             >
-              Edit
+              Save Teams
+            </button>
+
+            <button
+              onClick={handleProceedToGrouping}
+              className={`px-8 py-4 rounded-lg shadow-md text-white text-xl font-semibold transition-all ${
+                isSaved
+                  ? "bg-gradient-to-r from-purple-600 to-purple-800 hover:from-purple-500 hover:to-purple-700"
+                  : "bg-gray-400 cursor-not-allowed"
+              }`}
+              disabled={!isSaved}
+            >
+              Proceed to Grouping
             </button>
           </div>
-        ))}
-      </div>
-
-      <div className="mt-12 text-center space-y-6">
-        <button
-          onClick={handleSaveTeams}
-          className={`px-8 py-4 rounded-lg shadow-md text-white text-xl font-semibold transition-all ${
-            teams.length !== 32
-              ? "bg-gray-400 cursor-not-allowed"
-              : "bg-gradient-to-r from-blue-600 to-blue-800 hover:from-blue-500 hover:to-blue-700"
-          }`}
-          disabled={teams.length !== 32}
-        >
-          Save Teams
-        </button>
-
-        <button
-          onClick={handleProceedToGrouping}
-          className={`px-8 py-4 rounded-lg shadow-md text-white text-xl font-semibold transition-all ${
-            isSaved
-              ? "bg-gradient-to-r from-purple-600 to-purple-800 hover:from-purple-500 hover:to-purple-700"
-              : "bg-gray-400 cursor-not-allowed"
-          }`}
-          disabled={!isSaved}
-        >
-          Proceed to Grouping
-        </button>
-      </div>
+        </>
+      )}
 
       {isEditing && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center">
