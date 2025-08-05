@@ -1,14 +1,14 @@
 const db = require('../dbconfigure'); // Import database configuration
 
 // Function to add a new team
-const addTeam = (teamName, adminId, callback) => {
+const addTeam = async (teamName, adminId, connection) => {
     const sql = 'INSERT INTO teams (team_name, admin_id) VALUES (?, ?)';
-    db.query(sql, [teamName, adminId], (err, result) => {
-        if (err) {
-            return callback(err, null);
-        }
-        callback(null, result); // Return the result of the insertion
-    });
+    try {
+        const [result] = await connection.query(sql, [teamName, adminId]);
+        return result; // Return result to confirm team creation
+    } catch (err) {
+        throw new Error('Error adding team: ' + err.message);
+    }
 };
 
 // Function to retrieve a team by ID
