@@ -1,344 +1,136 @@
-import React, { useContext, useEffect, useState } from "react";
-import { TournamentContext } from "../../contexts/TournamentContext";
-import tournamentApi from "../../api/tournamentApi";
-import adminApi from "../../api/adminApi";
-import ShowAppliedTeams from "../AdminDashboard/ShowAppliedTeams";
-import GroupTeams from "../AdminDashboard/GroupTeams";
-import ScheduleFirstRound from "../AdminDashboard/ScheduleFirstRound";
-import MatchDateTime from "../AdminDashboard/MatchDateTime";
-import ShowMatchSequence from "../AdminDashboard/ShowMatchSeuquence";
+// src/components/OrganizerFlow/OrganizerDashboard.jsx
+import React, { useState, useEffect } from "react";
+import tournamentApi from "../../api/tournamentApi1";
 
-const Organizer = () => {
-  const { tournamentId, setTournamentId } = useContext(TournamentContext);
-  console.log("Tournament ID from context:", tournamentId); // Log the tournament ID from context
-
-  const [tournaments, setTournaments] = useState([]);
-  const [selectedTournament, setSelectedTournament] = useState(null);
-  const [isFormOpen, setIsFormOpen] = useState(false);
-  const [formData, setFormData] = useState({ name: "", banner: null });
-  const [error, setError] = useState("");
-  const [viewTeamsTournamentId, setViewTeamsTournamentId] = useState(null);
-  const [activeStep, setActiveStep] = useState(1);
+export default function OrganizerDashboard({ onViewTeams }) {
+  const [assignedTournaments, setAssignedTournaments] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [formData, setFormData] = useState({
+    id: null,
+    name: "",
+    banner: null,
+    venue: "",
+    mode: "create",
+  });
+  const [showForm, setShowForm] = useState(false);
 
   useEffect(() => {
-    const fetchTournaments = async () => {
-      try {
-        const fetchedTournaments = await tournamentApi.getAssignedTournaments();
-        setTournaments(fetchedTournaments.tournaments || []);
-
-        if (!selectedTournament && fetchedTournaments.tournaments.length > 0) {
-          setSelectedTournament(fetchedTournaments.tournaments[0]);
-          setTournamentId(fetchedTournaments.tournaments[0].tournamentId);
-          setActiveStep(fetchedTournaments.tournaments[0].current_step || 1);
-        }
-      } catch (error) {
-        console.error("Error fetching tournaments:", error);
-        setError("Failed to fetch tournaments. Please try again later.");
-      }
-    };
-
     fetchTournaments();
   }, []);
 
-  const openForm = (tournament) => {
-    if (!tournament) {
-      console.error("No tournament selected");
-      return;
+  const fetchTournaments = async () => {
+    setLoading(true);
+    try {
+      const data = await tournamentApi.getTournamentsByOrganizer();
+      setAssignedTournaments(data || []);
+    } catch (err) {
+      console.error(err);
+      alert("Failed to load tournaments");
+    } finally {
+      setLoading(false);
     }
-
-    handleTournamentSelection(tournament);
-    setIsFormOpen(true);
   };
 
-  const handleFormChange = (e) => {
-    const { name, value, files } = e.target;
-    if (name === "banner") {
-      setFormData({ ...formData, banner: files[0] });
-    } else {
-      setFormData({ ...formData, [name]: value });
-    }
+  const handleSetup = (t) => {
+    setFormData({
+      id: t.schedule_id,
+      name: "",
+      banner: null,
+      venue: "",
+      mode: "create",
+    });
+    setShowForm(true);
+  };
+
+  const handleEdit = (t) => {
+    setFormData({
+      id: t.tournament_id,
+      name: t.name || "",
+      banner: null,
+      venue: t.venue || "",
+      mode: "edit",
+    });
+    setShowForm(true);
   };
 
   const handleFormSubmit = async (e) => {
     e.preventDefault();
-
-    if (!selectedTournament) return;
-
-    if (!formData.name || !formData.banner) {
-      setError("Both tournament name and banner are required.");
-      return;
-    }
-
-    const updatedData = new FormData();
-    updatedData.append("name", formData.name);
-    updatedData.append("banner", formData.banner);
+    const payload = new FormData();
+    payload.append("tournament_id", formData.id);
+    payload.append("name", formData.name);
+    payload.append("venue", formData.venue);
+    if (formData.banner) payload.append("banner_image", formData.banner);
 
     try {
-      const response = await tournamentApi.tournamentOrganizer(updatedData);
-
-      setTournaments((prevTournaments) =>
-        prevTournaments.map((tournament) =>
-          tournament.tournamentId === selectedTournament.tournamentId
-            ? {
-                ...tournament,
-                ...response.updatedFields,
-                invitationsSent: true, // Ensure invitationsSent is updated
-                current_step: 1, // Ensure step is updated
-              }
-            : tournament
-        )
-      );
-
-      // Update selectedTournament and tournamentId state
-      setSelectedTournament((prev) => ({
-        ...prev,
-        invitationsSent: true,
-        current_step: 1,
-      }));
-
-      setTournamentId(selectedTournament.tournamentId);
-      setIsFormOpen(false);
-      setError("");
-    } catch (error) {
-      console.error("Error updating tournament:", error);
-      setError("Failed to update tournament details. Please try again.");
+      if (formData.mode === "create") {
+        await tournamentApi.createTournamentFromSchedule(payload);
+        alert("Tournament created successfully!");
+      } else {
+        await tournamentApi.updateTournament(payload);
+        alert("Tournament updated successfully!");
+      }
+      setShowForm(false);
+      fetchTournaments();
+    } catch (err) {
+      console.error(err);
+      alert("Failed to save tournament");
     }
   };
 
-  const handleSendInvitations = async (tournament) => {
-    if (!tournament.name || !tournament.banner) {
-      setError(
-        "Please update the tournament details before sending invitations."
-      );
-      return;
-    }
-
-    try {
-      const updatedData = new FormData();
-      updatedData.append("name", tournament.name);
-      updatedData.append("banner", tournament.banner);
-
-      const response = await tournamentApi.tournamentOrganizer(updatedData);
-
-      setTournaments((prevTournaments) =>
-        prevTournaments.map((t) =>
-          t.tournamentId === tournament.tournamentId
-            ? { ...t, ...response.updatedFields, invitationsSent: true }
-            : t
-        )
-      );
-
-      alert(`Invitations sent for ${tournament.name}`);
-    } catch (error) {
-      console.error("Error sending invitations:", error);
-      setError("Failed to send invitations. Please try again later.");
-    }
-  };
-
-  const handleTournamentSelection = (tournament) => {
-    if (!tournament) return;
-    setSelectedTournament(tournament);
-    setTournamentId(tournament.tournamentId);
-    setActiveStep(tournament.current_step || 1);
-  };
-
-  const viewAppliedTeams = () => {
-    if (!selectedTournament) {
-      setError("No tournament selected. Please select a tournament.");
-      return;
-    }
-    setViewTeamsTournamentId(selectedTournament.tournamentId);
-    setActiveStep(2);
-    updateTournamentStep(selectedTournament.tournamentId, 2);
-  };
-
-  const goToGroupTeams = () => {
-    setActiveStep(3);
-    updateTournamentStep(selectedTournament.tournamentId, 3);
-  };
-
-  const goToScheduleFirstRound = () => {
-    setActiveStep(4);
-    updateTournamentStep(selectedTournament.tournamentId, 4);
-  };
-
-  const goToMatchDateTime = () => {
-    console.log("Going to Match DateTime step");
-    setActiveStep(5);
-    updateTournamentStep(selectedTournament.tournamentId, 5);
-  };
-
-  const goToShowMatchSequence = () => {
-    setActiveStep(6);
-    updateTournamentStep(selectedTournament.tournamentId, 6);
-  };
-
-  const updateTournamentStep = async (tournamentId, currentStep) => {
-    try {
-      await adminApi.updateTournamentStep(tournamentId, currentStep);
-    } catch (error) {
-      console.error("Error updating tournament step:", error);
-      setError("Failed to update tournament step. Please try again later.");
-    }
-  };
-
-  useEffect(() => {
-    console.log("Updated Tournament ID from context:", tournamentId); // This should log each time tournamentId is updated
-  }, [tournamentId]); // Dependency array ensures this runs when tournamentId changes
+  if (loading) return <p className="text-center">Loading tournaments...</p>;
 
   return (
-    <div className="p-6 bg-gray-100 min-h-screen">
-      <div className="mb-8">
-        <h2 className="text-2xl font-semibold mb-4">Assigned Tournaments</h2>
-        {error && <p className="text-red-600 mb-4">{error}</p>}
-
-        {activeStep === 1 && ( // Ensure "Continue" is shown only at step 1
-          <>
-            {selectedTournament?.current_step === 1 &&
-            !selectedTournament?.invitationsSent ? (
-              <>
-                {selectedTournament && (
-                  <div className="mb-4 p-4 bg-white shadow-md rounded-lg">
-                    <p>
-                      <strong>Start Date:</strong>{" "}
-                      {new Date(
-                        selectedTournament.startDate
-                      ).toLocaleDateString()}
-                    </p>
-                    <p>
-                      <strong>End Date:</strong>{" "}
-                      {new Date(
-                        selectedTournament.endDate
-                      ).toLocaleDateString()}
-                    </p>
-                    <p>
-                      <strong>Organizing Team:</strong>{" "}
-                      {selectedTournament.organizingTeam}
-                    </p>
-                    <p>
-                      <strong>Status:</strong> {selectedTournament.status}
-                    </p>
-                  </div>
-                )}
-                <button
-                  className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
-                  onClick={() => openForm(selectedTournament)}
-                >
-                  Update Details
-                </button>
-                <button
-                  className="px-4 py-2 bg-gray-400 text-white rounded-md hover:bg-gray-500"
-                  onClick={() => handleSendInvitations(selectedTournament)}
-                  disabled={
-                    !selectedTournament.name || !selectedTournament.banner
-                  }
-                >
-                  Send Invitations
-                </button>
-              </>
-            ) : (
-              <button
-                className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700"
-                onClick={viewAppliedTeams}
+    <div className="p-6">
+      <h2 className="text-3xl font-bold mb-6 text-center">Your Tournaments</h2>
+      {assignedTournaments.length === 0 ? (
+        <p className="text-gray-500 text-center">No tournaments assigned.</p>
+      ) : (
+        <div className="space-y-6">
+          {assignedTournaments.map((t) => {
+            const start = new Date(t.start_date);
+            const end = new Date(t.end_date);
+            return (
+              <div
+                key={t.schedule_id}
+                className="bg-white p-6 rounded-lg shadow flex justify-between"
               >
-                Continue
-              </button>
-            )}
-          </>
-        )}
-      </div>
-
-      {isFormOpen && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center">
-          <div className="bg-white rounded-lg p-6 w-full max-w-md">
-            <h3 className="text-lg font-bold mb-4">Update Tournament</h3>
-            <form onSubmit={handleFormSubmit} className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium">
-                  Tournament Name
-                </label>
-                <input
-                  type="text"
-                  name="name"
-                  value={formData.name}
-                  onChange={handleFormChange}
-                  className="w-full mt-1 p-2 border rounded-md"
-                  placeholder="Enter tournament name"
-                />
+                <div>
+                  <h3 className="text-lg font-bold">{t.name || "(Not Set Yet)"}</h3>
+                  <p>{start.toLocaleDateString()} → {end.toLocaleDateString()}</p>
+                  <span className={`px-2 py-1 rounded text-white ${
+                    t.schedule_status === "pending" ? "bg-yellow-500" : "bg-green-600"
+                  }`}>{t.schedule_status}</span>
+                </div>
+                <div className="flex gap-3">
+                  {t.schedule_status === "pending" ? (
+                    <button onClick={() => handleSetup(t)} className="bg-green-600 px-4 py-2 text-white rounded">Setup</button>
+                  ) : (
+                    <>
+                      <button onClick={() => handleEdit(t)} className="bg-blue-600 px-4 py-2 text-white rounded">Edit</button>
+                      <button onClick={() => onViewTeams(t.tournament_id)} className="bg-purple-600 px-4 py-2 text-white rounded">View Teams</button>
+                    </>
+                  )}
+                </div>
               </div>
-
-              <div>
-                <label className="block text-sm font-medium">
-                  Banner Image
-                </label>
-                <input
-                  type="file"
-                  name="banner"
-                  accept="image/*"
-                  onChange={handleFormChange}
-                  className="w-full mt-1"
-                />
-              </div>
-
-              <div className="flex justify-end space-x-4">
-                <button
-                  type="button"
-                  className="px-4 py-2 bg-gray-500 text-white rounded-md hover:bg-gray-600"
-                  onClick={() => setIsFormOpen(false)}
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
-                >
-                  Save Changes
-                </button>
-              </div>
-            </form>
-          </div>
+            );
+          })}
         </div>
       )}
-
-      {activeStep === 2 && (
-        <ShowAppliedTeams
-          onSave={goToGroupTeams}
-          updateTournamentStep={updateTournamentStep}
-        />
-      )}
-      {activeStep === 3 && selectedTournament && (
-        <GroupTeams
-          tournamentId={selectedTournament.tournamentId}
-          onSave={goToScheduleFirstRound}
-          updateTournamentStep={updateTournamentStep}
-        />
-      )}
-      {activeStep === 4 && selectedTournament && (
-        <ScheduleFirstRound
-          tournamentId={selectedTournament.tournamentId}
-          onSave={goToMatchDateTime}
-          updateTournamentStep={updateTournamentStep}
-        />
-      )}
-
-      {activeStep === 5 && selectedTournament && (
-        <MatchDateTime
-          tournamentId={selectedTournament.tournamentId}
-          updateTournamentStep={updateTournamentStep}
-        />
-      )}
-
-      {activeStep === 6 && selectedTournament && (
-        <>
-          {console.log(
-            "Rendering ShowMatchSequence with ID:",
-            selectedTournament.tournamentId
-          )}
-          <ShowMatchSequence tournamentId={selectedTournament.tournamentId} />
-        </>
+      {showForm && (
+        <div className="fixed inset-0 bg-black/50 flex justify-center items-center">
+          <form onSubmit={handleFormSubmit} className="bg-white p-6 rounded max-w-lg w-full space-y-4">
+            <input type="text" value={formData.name} onChange={e=>setFormData({...formData,name:e.target.value})} placeholder="Name" required className="border p-2 w-full"/>
+            <input type="text" value={formData.venue} onChange={e=>setFormData({...formData,venue:e.target.value})} placeholder="Venue" required className="border p-2 w-full"/>
+            <input type="file" onChange={e=>setFormData({...formData,banner:e.target.files[0]})} className="w-full"/>
+            <div className="flex justify-end gap-3">
+              <button type="button" onClick={()=>setShowForm(false)}>Cancel</button>
+              <button type="submit" className="bg-blue-600 text-white px-4 py-2 rounded">
+                {formData.mode === "create" ? "Save & Open" : "Update"}
+              </button>
+            </div>
+          </form>
+        </div>
       )}
     </div>
   );
-};
-
-export default Organizer;
+}

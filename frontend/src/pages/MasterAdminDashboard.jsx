@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import Sidebar from '../components/MasterAdminDashboard/Sidebar';
 import TeamRequests from '../components/MasterAdminDashboard/TeamRequests';
 import AllTeams from '../components/MasterAdminDashboard/AllTeams';
-import OrganizeTournament from '../components/MasterAdminDashboard/OrganizeTournament';
+import TournamentScheduler from '../components/MasterAdminDashboard/TournamentScheduler';
 
 const MasterAdminDashboard = () => {
   const [activeSection, setActiveSection] = useState('profile'); // Default to 'profile'
@@ -27,7 +27,7 @@ const MasterAdminDashboard = () => {
             {activeSection === 'profile' && <div>Profile Section</div>}
             {activeSection === 'all-teams' && <AllTeams />}
             {activeSection === 'rankings' && <div>Rankings Section</div>}
-            {activeSection === 'tournamentManager' && <OrganizeTournament />}
+            {activeSection === 'tournamentManager' && <TournamentScheduler />}
             {activeSection === 'managePlayers' && <div>Manage Players Section</div>}
             {activeSection === 'logout' && <div>You have logged out.</div>}
           </motion.div>
