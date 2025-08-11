@@ -1,0 +1,93 @@
+// src/api/tournamentApi.js
+import axiosInstance from "./axiosConfig";
+
+const tournamentApi = {
+  async getAllTentativeSchedules() {
+    const res = await axiosInstance.get("/master/tournament/tentative-schedule");
+    return res.data;
+  },
+
+  async createTentativeSchedule(payload) {
+    const res = await axiosInstance.post("/master/tournament/tentative-schedule", payload);
+    return res.data;
+  },
+
+   async getTournamentsByOrganizer() {
+    try {
+      const res = await axiosInstance.get("/tournament"); // GET /api/tournament
+      return res.data;
+    } catch (error) {
+      console.error("Error fetching tournaments by organizer:", error);
+      throw error;
+    }
+  },
+
+   async createTournament(payload) {
+    try {
+      const res = await axiosInstance.post("/tournament", payload, {
+        headers: { "Content-Type": "multipart/form-data" }, 
+      });
+      return res.data;
+    } catch (error) {
+      console.error("Error creating tournament:", error);
+      throw error;
+    }
+  },
+
+   async getOpenTournaments() {
+    try {
+      const token = localStorage.getItem("authToken");
+      const response = await axiosInstance.get(`/admin/tournament/apply`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+      console.log("Open Tournaments API Response:", response.data);
+      return response.data;
+    } catch (error) {
+      console.error("Error fetching open tournaments:", error.response || error.message);
+      return [];
+    }
+  },
+
+   async applyForTournament({ tournament_id, team_id }) {
+    try {
+      const token = localStorage.getItem("authToken");
+      const response = await axiosInstance.post(
+        "/admin/tournament/apply",
+        { tournament_id, team_id },
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+      return response.data;
+    } catch (error) {
+      // Propagate API or validation errors for UI display
+      throw error.response?.data || { error: error.message };
+    }
+  },
+
+async getAppliedTeams(tournamentId) {
+  try {
+    const token = localStorage.getItem("authToken");
+    const res = await axiosInstance.get(
+      `/tournament/tournaments/${tournamentId}/applied-teams`, // ✅ Dynamic ID
+      {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      }
+    );
+    return res.data;
+  } catch (error) {
+    console.error("Error fetching applied teams:", error);
+    throw error.response?.data || { error: error.message };
+  }
+}
+
+
+};
+
+export default tournamentApi;

@@ -58,6 +58,15 @@ app.use('/api/admin', adminRoute);
 const teamRoute = require('./routes/teamRoute');
 app.use('/api/team', teamRoute);
 
+const tournamentRoute = require('./routes/tournamentRoute');
+app.use('/api/tournament', tournamentRoute);
+
+const tournamentParticipantsRoutes = require('./routes/tournamentParticipantsRoutes');
+app.use('/api/admin/tournament', tournamentParticipantsRoutes);
+
+const mastertournamentRoute = require('./routes/tentativeTournamentScheduleRoutes');
+app.use('/api/master/tournament', mastertournamentRoute);
+
 const matchRoute = require('./routes/matchRoute');
 app.use('/api/match', matchRoute);
 

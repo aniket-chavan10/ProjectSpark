@@ -1,7 +1,7 @@
 import axiosInstance from "./axiosConfig";
 
 const teamApi = {
-  // Fetch all teams
+
   getAllTeams: async () => {
     try {
       const response = await axiosInstance.get("/team/all-teams");
@@ -9,7 +9,7 @@ const teamApi = {
       return response.data; // Return the teams data
     } catch (error) {
       console.error("Error fetching all teams:", error);
-      throw error; // Rethrow the error to handle it in the component
+      throw error; 
     }
   },
 };

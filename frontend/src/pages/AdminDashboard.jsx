@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
+
+// Components
 import Sidebar from '../components/AdminDashboard/Sidebar';
 import Dashboard from '../components/AdminDashboard/Dashboard';
 import Profile from '../components/AdminDashboard/Profile';
@@ -8,48 +10,55 @@ import ManagePlayingXI from '../components/AdminDashboard/ManagePlayingXI';
 import AddNewPlayer from '../components/AdminDashboard/AddNewPlayer';
 import Alerts from '../components/AdminDashboard/Alerts';
 import ViewPlayers from '../components/AdminDashboard/ViewPlayers';
-import Organizer from '../components/AdminDashboard/Organizer';
 import Invitation from '../components/AdminDashboard/Invitation';
+
+import OrganizerDashboard from '../components/AdminDashboard/Organizer/OrganizerFlow';
+import ApplyTournament from '../components/AdminDashboard/ApplyTournament';
+import AppliedTeams from '../components/AdminDashboard/ViewAppliedTeams'; // new
 
 const AdminDashboard = () => {
   const [activeSection, setActiveSection] = useState('dashboard');
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [selectedTournamentId, setSelectedTournamentId] = useState(null);
 
   const navigate = useNavigate();
 
   const toggleSidebar = () => setIsSidebarOpen(!isSidebarOpen);
+  const handleLogout = () => navigate('/');
 
-
-  const handleLogout = () => {
-    navigate('/'); // Redirect to login/home page
-  };
-
-  const handleSectionClick = (sectionId) => {
+  const handleSectionClick = (sectionId, extraData) => {
     if (sectionId === 'logout') {
       handleLogout();
     } else {
-      setActiveSection(sectionId);
-      if (window.innerWidth < 768) {
-        toggleSidebar(); // Close sidebar on mobile after clicking a section
+      if (sectionId === 'appliedTeams' && extraData?.tournamentId) {
+        setSelectedTournamentId(extraData.tournamentId);
       }
+      setActiveSection(sectionId);
+      if (window.innerWidth < 768) toggleSidebar();
     }
   };
 
-  // Define the components to render based on activeSection
   const sectionComponents = {
     dashboard: <Dashboard />,
-    organizer: <Organizer />,
+    organize: (
+      <OrganizerDashboard
+        onViewTeams={(tid) =>
+          handleSectionClick('appliedTeams', { tournamentId: tid })
+        }
+      />
+    ),
+    apply: <ApplyTournament />,
     invitations: <Invitation />,
     profile: <Profile />,
     playingXI: <ManagePlayingXI />,
     addPlayer: <AddNewPlayer />,
     viewPlayers: <ViewPlayers />,
     alerts: <Alerts />,
+    appliedTeams: <AppliedTeams tournamentId={selectedTournamentId} />,
   };
 
   return (
     <div className="flex min-h-screen bg-gray-100">
-      {/* Sidebar */}
       <Sidebar
         activeSection={activeSection}
         handleSectionClick={handleSectionClick}
@@ -57,7 +66,6 @@ const AdminDashboard = () => {
         isSidebarOpen={isSidebarOpen}
       />
 
-      {/* Hamburger Button for Mobile */}
       <motion.button
         whileHover={{ scale: 1.1 }}
         whileTap={{ scale: 0.9 }}
@@ -67,13 +75,11 @@ const AdminDashboard = () => {
         ☰
       </motion.button>
 
-      {/* Main Content */}
       <motion.div
-        className={`flex-1 transition-all duration-300 ${isSidebarOpen ? 'ml-64' : 'ml-0'} md:ml-64`}
-        style={{
-          height: '100vh',
-          overflowY: 'auto',
-        }}
+        className={`flex-1 transition-all duration-300 ${
+          isSidebarOpen ? 'ml-64' : 'ml-0'
+        } md:ml-64`}
+        style={{ height: '100vh', overflowY: 'auto' }}
       >
         <AnimatePresence mode="wait">
           <motion.div
