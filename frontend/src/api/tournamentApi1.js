@@ -85,7 +85,104 @@ async getAppliedTeams(tournamentId) {
     console.error("Error fetching applied teams:", error);
     throw error.response?.data || { error: error.message };
   }
-}
+},
+async assignTournamentGroups(tournamentId, assignments) {
+  try {
+    const res = await axiosInstance.post(
+      `/tournament/tournaments/${tournamentId}/group`,
+      { assignments }, // sending JSON payload
+      {
+        headers: { "Content-Type": "application/json" },
+      }
+    );
+    return res.data; // contains message + result
+  } catch (error) {
+    console.error("Error assigning tournament groups:", error);
+    throw error;
+  }
+},
+async getGroupsWithTeams(tournamentId) {
+  try {
+    const token = localStorage.getItem("authToken"); // get auth token from localStorage
+    const res = await axiosInstance.get(
+      `/tournament/${tournamentId}/groups-with-teams`, // ✅ new backend route
+      {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      }
+    );
+    return res.data; // already in {group_name, teams[]} format
+  } catch (error) {
+    console.error("Error fetching groups with teams:", error);
+    throw error.response?.data || { error: error.message };
+  }
+},
+async generateKnockoutSchedule(tournamentId, matches) {
+    try {
+      const token = localStorage.getItem("authToken");
+      const res = await axiosInstance.post(
+        `/tournament/tournaments/${tournamentId}/generate-knockout-schedule`,
+        { matches }, // request body
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+      return res.data; // contains message + saved matches
+    } catch (error) {
+      console.error("Error generating knockout schedule:", error);
+      throw error.response?.data || { error: error.message };
+    }
+  },
+   async getTournamentProgress(tournamentId) {
+    try {
+      const token = localStorage.getItem("authToken");
+      const res = await axiosInstance.get(
+        `/tournament/tournaments/${tournamentId}/progress`,
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      return res.data.progress;
+    } catch (error) {
+      console.error("Error fetching progress:", error);
+      throw error.response?.data || { error: error.message };
+    }
+  },
+
+  async updateTournamentProgress(tournamentId, updates) {
+    try {
+      const token = localStorage.getItem("authToken");
+      const res = await axiosInstance.post(
+        `/tournament/tournaments/${tournamentId}/progress`,
+        updates,
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      return res.data.progress;
+    } catch (error) {
+      console.error("Error updating progress:", error);
+      throw error.response?.data || { error: error.message };
+    }
+  },
+   async getScheduledMatches(tournamentId) {
+    try {
+      const token = localStorage.getItem("authToken");
+      const res = await axiosInstance.get(
+        `/tournament/tournaments/${tournamentId}/scheduled-matches`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+      return res.data.matches; // array of matches
+    } catch (error) {
+      console.error("Error fetching scheduled matches:", error);
+      throw error.response?.data || { error: error.message };
+    }
+  },
+
+
 
 
 };

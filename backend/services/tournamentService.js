@@ -155,3 +155,282 @@ exports.getOpenTournaments = async () => {
   const [rows] = await db.query(sql, [formattedNow]);
   return rows;
 };
+
+
+exports.assignGroups = async (tournamentId, organizerAdminId, assignments) => {
+  if (!Array.isArray(assignments) || !assignments.length) {
+    throw new Error('Assignments must be a non-empty array.');
+  }
+
+  // Validate that these teams exist in the given tournament
+  const teamIds = assignments.map(a => a.team_id);
+  const [existing] = await db.query(
+    `SELECT team_id FROM tournament_participants WHERE tournament_id = ? AND team_id IN (?)`,
+    [tournamentId, teamIds]
+  );
+
+  if (existing.length !== assignments.length) {
+    throw new Error('Some teams are not part of this tournament.');
+  }
+
+  // Update each team’s group_name
+  for (let { team_id, group_name } of assignments) {
+    if (!['A', 'B', 'C', 'D'].includes(group_name)) {
+      throw new Error(`Invalid group name: ${group_name}`);
+    }
+
+    await db.query(
+      `UPDATE tournament_participants SET group_name = ? WHERE tournament_id = ? AND team_id = ?`,
+      [group_name, tournamentId, team_id]
+    );
+  }
+
+  return { updated: assignments.length };
+};
+
+
+
+exports.scheduleKnockoutMatches = async (tournamentId, inputMatches) => {
+  const connection = await db.getConnection();
+  try {
+    await connection.beginTransaction();
+
+    // Fetch tournament details: start_date, end_date, venue
+    const [tournamentRows] = await connection.query(
+      `SELECT start_date, end_date, venue FROM tournaments WHERE id = ?`,
+      [tournamentId]
+    );
+    if (!tournamentRows.length) throw new Error("Tournament not found");
+    const { start_date, end_date, venue: tournamentVenue } = tournamentRows[0];
+
+    // Clear existing matches
+    await connection.query(`DELETE FROM tournament_matches WHERE tournament_id = ?`, [tournamentId]);
+
+    const matchIdMap = {}; // map match_no → db id
+
+    // Step 1: Insert matches 
+    for (const match of inputMatches) {
+      let team1Id = null;
+      let team2Id = null;
+
+      if (match.team1Id != null && !isNaN(match.team1Id)) team1Id = Number(match.team1Id);
+      if (match.team2Id != null && !isNaN(match.team2Id)) team2Id = Number(match.team2Id);
+
+      // Validate and clamp match_date within tournament start and end date
+      let matchDate = null;
+      if (match.match_date) {
+        const d = new Date(match.match_date);
+        const start = new Date(start_date);
+        const end = new Date(end_date);
+
+        if (d < start) {
+          matchDate = start_date;
+        } else if (d > end) {
+          matchDate = end_date;
+        } else {
+          matchDate = match.match_date;
+        }
+      }
+
+      // Prepare full datetime for match_time
+      let matchTimeFull = null;
+      if (matchTimeIsFullISO(match.match_time)) {
+        // if time is already ISO datetime (e.g. from frontend)
+        matchTimeFull = match.match_time;
+      } else if (match.match_time && matchDate) {
+        // Compose datetime from date + time like 'YYYY-MM-DD HH:mm:ss'
+        matchTimeFull = `${matchDate} ${match.match_time}:00`;
+      }
+
+      // Use venue from tournament if not provided per match
+      const matchVenue = match.venue && match.venue.trim() !== '' ? match.venue : tournamentVenue;
+
+      const [res] = await connection.query(
+        `INSERT INTO tournament_matches
+         (match_no, tournament_id, round_number, group_name,
+          team1_id, team2_id, match_date, match_time, venue,
+          dependent_match1_id, dependent_match2_id, status)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, NULL, 'scheduled')`,
+        [
+          match.match_no,
+          tournamentId,
+          match.round,
+          match.group || null,
+          team1Id,
+          team2Id,
+          matchDate || null,
+          matchTimeFull || null,
+          matchVenue || null,
+        ]
+      );
+
+      matchIdMap[match.match_no] = res.insertId;
+    }
+
+    // Step 2: Update dependencies
+    for (const match of inputMatches) {
+      let dep1Id = null;
+      let dep2Id = null;
+
+      if (typeof match.team1Id === 'string' && match.team1Id.toLowerCase().startsWith('winner of match')) {
+        const depMatchNo = parseInt(match.team1Id.replace(/\D/g, ''), 10);
+        dep1Id = matchIdMap[depMatchNo];
+      }
+      if (typeof match.team2Id === 'string' && match.team2Id.toLowerCase().startsWith('winner of match')) {
+        const depMatchNo = parseInt(match.team2Id.replace(/\D/g, ''), 10);
+        dep2Id = matchIdMap[depMatchNo];
+      }
+
+      if (dep1Id || dep2Id) {
+        await connection.query(
+          `UPDATE tournament_matches
+           SET dependent_match1_id = ?, dependent_match2_id = ?
+           WHERE tournament_id = ? AND match_no = ?`,
+          [dep1Id, dep2Id, tournamentId, match.match_no]
+        );
+      }
+    }
+
+    await connection.commit();
+
+    const [saved] = await connection.query(
+      `SELECT * FROM tournament_matches WHERE tournament_id = ? ORDER BY match_no ASC`,
+      [tournamentId]
+    );
+    return saved;
+
+  } catch (error) {
+    await connection.rollback();
+    throw error;
+  } finally {
+    connection.release();
+  }
+};
+
+// Utility helper: check if match_time is full ISO datetime string
+function matchTimeIsFullISO(timeStr) {
+  if (!timeStr) return false;
+  // Quick check for YYYY-MM-DD part (ISO format)
+  return /^\d{4}-\d{2}-\d{2}/.test(timeStr);
+}
+
+
+
+exports.getScheduledMatchesByTournament = async (tournamentId) => {
+  const [rows] = await db.query(
+    `SELECT
+       id,
+       match_no,
+       tournament_id,
+       round_number,
+       group_name,
+       team1_id,
+       team2_id,
+       match_date,
+       match_time,
+       venue,
+       winner_team_id,
+       status,
+       dependent_match1_id,
+       dependent_match2_id,
+       created_at,
+       updated_at
+     FROM tournament_matches
+     WHERE tournament_id = ?
+     ORDER BY match_no ASC`,
+    [tournamentId]
+  );
+  return rows;
+};
+
+exports.getGroupsWithTeamsForOrganizer = async (organizerAdminId, tournamentId) => {
+  // Verify tournament ownership
+  const [tournRows] = await db.query(
+    `SELECT id FROM tournaments 
+     WHERE id = ? AND organizer_admin_id = ?`,
+    [tournamentId, organizerAdminId]
+  );
+
+  if (!tournRows.length) {
+    throw new Error("Tournament not found or access denied");
+  }
+
+  // Fetch all teams with assigned groups
+  const [rows] = await db.query(
+    `SELECT 
+       tp.team_id,
+       tp.group_name,
+       tm.team_name,
+       tm.logo
+     FROM tournament_participants tp
+     JOIN teams tm ON tp.team_id = tm.id
+     WHERE tp.tournament_id = ?
+     ORDER BY tp.group_name ASC, tm.team_name ASC`,
+    [tournamentId]
+  );
+
+  // Group into { group_name, teams: [ {id, name, logo} ] }
+  const groupsMap = {};
+  for (const r of rows) {
+    if (!groupsMap[r.group_name]) {
+      groupsMap[r.group_name] = { group_name: r.group_name, teams: [] };
+    }
+    groupsMap[r.group_name].teams.push({
+      id: r.team_id,
+      name: r.team_name,
+      logo: r.logo
+    });
+  }
+
+  // Always return array of groups (even if empty)
+  return Object.values(groupsMap);
+};
+
+// services/tournamentService.js
+
+exports.createOrUpdateTournamentProgress = async (tournamentId, progressUpdates) => {
+  // Convert live_match_state to JSON string if needed
+  if ("live_match_state" in progressUpdates) {
+    let val = progressUpdates.live_match_state;
+    // If it's not already a valid JSON string, convert
+    if (typeof val !== "string" || !/^\s*(\{|\[|")/.test(val.trim())) {
+      progressUpdates.live_match_state = JSON.stringify(val);
+    }
+  }
+
+  const columns = Object.keys(progressUpdates)
+    .filter(k => k !== "tournament_id" && k !== "progress_id");
+  const setClause = columns.map(k => `${k} = ?`).join(",");
+
+  // Try update if exists
+  const [res] = await db.query(
+    `UPDATE tournament_progress SET ${setClause}, last_updated = NOW()
+     WHERE tournament_id = ?`,
+    [...columns.map(k => progressUpdates[k]), tournamentId]
+  );
+
+  // If no rows updated (new), insert
+  if (res.affectedRows === 0) {
+    const allFields = ["tournament_id", ...columns];
+    await db.query(
+      `INSERT INTO tournament_progress (${allFields.join(",")}, last_updated)
+       VALUES (${[...allFields.map(() => "?"), "NOW()"].join(",")})`,
+      [tournamentId, ...columns.map(k => progressUpdates[k])]
+    );
+  }
+
+  // Return latest
+  const [rows] = await db.query(
+    `SELECT * FROM tournament_progress WHERE tournament_id = ?`,
+    [tournamentId]
+  );
+  return rows[0];
+};
+
+exports.getTournamentProgress = async (tournamentId) => {
+  const [rows] = await db.query(
+    `SELECT * FROM tournament_progress WHERE tournament_id = ?`,
+    [tournamentId]
+  );
+  return rows || null;
+};

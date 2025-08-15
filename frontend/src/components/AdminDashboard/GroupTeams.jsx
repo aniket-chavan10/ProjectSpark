@@ -1,40 +1,19 @@
-import React, { useState, useEffect, useContext } from "react";
+import React, { useState, useEffect } from "react";
 import ManualGrouping from "./ManualGrouping";
 import BulkGrouping from "./BulkGrouping";
 import RandomGrouping from "./RandomGrouping";
 import ScheduleFirstRound from "./ScheduleFirstRound";
-import adminApi from "../../api/adminApi";
-import { TournamentContext } from "../../contexts/TournamentContext";
 
-const GroupTeams = ({ updateTournamentStep }) => {
-  const { tournamentId } = useContext(TournamentContext);
+export default function GroupTeams({ teams = [], onCreateGroups, onContinue }) {
   const [groupingMode, setGroupingMode] = useState("manual");
   const [groupedTeams, setGroupedTeams] = useState([]);
   const [showSchedule, setShowSchedule] = useState(false);
-  const [loading, setLoading] = useState(true);
+
   const [savedTeams, setSavedTeams] = useState([]);
 
   useEffect(() => {
-    if (tournamentId) {
-      setLoading(true);
-      adminApi
-        .getAppliedTeams(tournamentId)
-        .then((teams) => {
-          setSavedTeams(Array.isArray(teams) ? teams : []);
-          setLoading(false);
-        })
-        .catch((error) => {
-          console.error("Error fetching applied teams:", error);
-          setLoading(false);
-        });
-    }
-  }, [tournamentId]);
-
-  useEffect(() => {
-    if (!showSchedule) {
-      setGroupingMode("manual"); // Ensure manual grouping is the default mode
-    }
-  }, [showSchedule]);
+    setSavedTeams(teams);
+  }, [teams]);
 
   const handleGroupingChange = (mode) => {
     setGroupingMode(mode);
@@ -42,10 +21,9 @@ const GroupTeams = ({ updateTournamentStep }) => {
   };
 
   const saveGroupAssignments = (assignments) => {
-    setGroupedTeams(Array.isArray(assignments) ? assignments : []);
-    setGroupingMode(null);
+    setGroupedTeams(assignments || []);
+    onCreateGroups(assignments); // save via parent call
     setShowSchedule(true);
-    updateTournamentStep(tournamentId, 4);
   };
 
   return (
@@ -84,21 +62,15 @@ const GroupTeams = ({ updateTournamentStep }) => {
         <RandomGrouping savedTeams={savedTeams} onSaveGroups={saveGroupAssignments} />
       )}
 
-      {showSchedule && !loading && groupedTeams.length > 0 && (
-        <ScheduleFirstRound groupedTeams={groupedTeams} />
+      {showSchedule && groupedTeams.length > 0 && (
+        <ScheduleFirstRound groupedTeams={groupedTeams} onContinue={onContinue} />
       )}
 
-      {loading && (
-        <div className="text-center text-white text-xl">Loading...</div>
-      )}
-
-      {!loading && savedTeams.length === 0 && (
+      {!savedTeams.length && (
         <div className="text-center text-white text-xl">
           No teams available for grouping.
         </div>
       )}
     </div>
   );
-};
-
-export default GroupTeams;
+}

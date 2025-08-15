@@ -143,18 +143,23 @@ exports.getAppliedTeams = async (req, res) => {
 
 
 
-
-exports.autoGroupTournamentParticipants = async (req, res) => {
+exports.assignTournamentGroups = async (req, res) => {
   try {
     const tournamentId = req.params.tournamentId;
-    const organizer_admin_id = req.user.id; // from auth middleware
+    const organizerAdminId = req.user.id; // from authentication middleware
+    const { assignments } = req.body; // e.g., [{ team_id: 1, group_name: 'A' }, {...}]
 
-    const assignments = await tournamentService.autoAssignGroups(tournamentId, organizer_admin_id);
+    if (!assignments) {
+      return res.status(400).json({ error: 'Assignments are required' });
+    }
 
-    res.json({
-      message: 'Groups assigned successfully',
+    const result = await tournamentService.assignGroups(
+      tournamentId,
+      organizerAdminId,
       assignments
-    });
+    );
+
+    res.status(200).json({ message: 'Groups assigned successfully', result });
   } catch (error) {
     console.error('Error assigning groups:', error);
     res.status(400).json({ error: error.message });
@@ -162,41 +167,14 @@ exports.autoGroupTournamentParticipants = async (req, res) => {
 };
 
 
-exports.manualGroupTournamentParticipants = async (req, res) => {
-  try {
-    const tournamentId = req.params.tournamentId;
-    const organizer_admin_id = req.user.id; // from authentication middleware
-    
-    const groupAssignments = req.body.assignments; 
- 
-
-    if (!Array.isArray(groupAssignments)) {
-      return res.status(400).json({ error: 'Assignments must be an array.' });
-    }
-
-    const updatedAssignments = await tournamentService.manualAssignGroups(
-      tournamentId,
-      organizer_admin_id,
-      groupAssignments
-    );
-
-    res.json({
-      message: 'Groups assigned manually successfully',
-      assignments: updatedAssignments,
-    });
-  } catch (error) {
-    console.error('Error assigning groups manually:', error);
-    res.status(400).json({ error: error.message });
-  }
-};
 
 
 exports.scheduleKnockoutMatches = async (req, res) => {
   try {
     const tournamentId = parseInt(req.params.tournamentId, 10);
-    const { matches } = req.body;
+    const matches = req.body.matches;
 
-    if (!tournamentId || !matches || !Array.isArray(matches)) {
+    if (!tournamentId || !Array.isArray(matches) || matches.length === 0) {
       return res.status(400).json({ error: "Tournament ID and matches array are required" });
     }
 
@@ -209,5 +187,72 @@ exports.scheduleKnockoutMatches = async (req, res) => {
   } catch (error) {
     console.error("Error scheduling knockout matches:", error);
     res.status(500).json({ error: error.message || "Internal Server Error" });
+  }
+};
+
+exports.getScheduledMatches = async (req, res) => {
+  try {
+    const tournamentId = parseInt(req.params.tournamentId, 10);
+    if (!tournamentId) {
+      return res.status(400).json({ error: "tournamentId parameter is required" });
+    }
+
+    const matches = await tournamentService.getScheduledMatchesByTournament(tournamentId);
+    res.json({ matches });
+  } catch (error) {
+    console.error("Error fetching scheduled matches:", error);
+    res.status(500).json({ error: error.message || "Internal server error" });
+  }
+};
+
+// controllers/tournamentController.js
+
+exports.getGroupsWithTeams = async (req, res) => {
+  try {
+    const organizerAdminId = req.user.id; // assuming JWT middleware sets req.user
+    const { tournament_id } = req.params;
+
+    if (!tournament_id) {
+      return res.status(400).json({ error: "tournament_id is required" });
+    }
+
+    const groups = await tournamentService.getGroupsWithTeamsForOrganizer(
+      organizerAdminId,
+      tournament_id
+    );
+
+    res.json(groups);
+  } catch (err) {
+    console.error("Error in getGroupsWithTeams:", err);
+    res.status(400).json({ error: err.message });
+  }
+};
+
+
+
+exports.updateTournamentProgress = async (req, res) => {
+  try {
+    const { tournamentId } = req.params;
+    const updates = req.body;
+    if (!tournamentId) return res.status(400).json({ error: "tournament_id missing" });
+
+    const result = await tournamentService.createOrUpdateTournamentProgress(tournamentId, updates);
+    res.json({ success: true, progress: result });
+  } catch (err) {
+    console.error("progress update error", err);
+    res.status(500).json({ error: err.message });
+  }
+};
+
+exports.getTournamentProgress = async (req, res) => {
+  try {
+    const { tournamentId } = req.params;
+    if (!tournamentId) return res.status(400).json({ error: "tournament_id missing" });
+
+    const result = await tournamentService.getTournamentProgress(tournamentId);
+    res.json({ progress: result });
+  } catch (err) {
+    console.error("progress fetch error", err);
+    res.status(500).json({ error: err.message });
   }
 };
