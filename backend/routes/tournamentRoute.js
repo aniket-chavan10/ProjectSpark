@@ -5,17 +5,16 @@ const verifyAdminToken = require("../middlewares/authMiddleware"); // Auth middl
 const multer = require("multer");
 const upload = multer();
 
-
 router.post(
   "/",
   verifyAdminToken,
-  upload.single("banner_image"), 
+  upload.single("banner_image"),
   tournamentController.createTournamentFromSchedule
 );
 
 router.get(
   "/",
-  verifyAdminToken, 
+  verifyAdminToken,
   tournamentController.getTournamentsByOrganizer
 );
 
@@ -43,7 +42,6 @@ router.delete(
   tournamentController.deleteTournament
 );
 
-
 router.get(
   "/tournaments/:tournament_id/applied-teams",
   verifyAdminToken,
@@ -52,23 +50,29 @@ router.get(
 
 // Auto-assign groups
 router.post(
-  "/tournaments/:tournamentId/auto-group",
+  "/tournaments/:tournamentId/group",
   verifyAdminToken,
-  tournamentController.autoGroupTournamentParticipants
-);
-
-// Manual group assignment
-router.post(
-  "/tournaments/:tournamentId/manual-group",
-  verifyAdminToken,
-  tournamentController.manualGroupTournamentParticipants
+  tournamentController.assignTournamentGroups
 );
 
 // Generate knockout schedule
 router.post(
   "/tournaments/:tournamentId/generate-knockout-schedule",
-  verifyAdminToken,
   tournamentController.scheduleKnockoutMatches
 );
+
+router.get(
+  "/tournaments/:tournamentId/scheduled-matches",
+  verifyAdminToken, // ensure authorized access
+  tournamentController.getScheduledMatches
+);
+
+router.get(
+  "/:tournament_id/groups-with-teams",verifyAdminToken, tournamentController.getGroupsWithTeams
+);
+
+
+router.get("/tournaments/:tournamentId/progress", verifyAdminToken, tournamentController.getTournamentProgress);
+router.post("/tournaments/:tournamentId/progress", verifyAdminToken, tournamentController.updateTournamentProgress);
 
 module.exports = router;
