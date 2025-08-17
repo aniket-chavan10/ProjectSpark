@@ -22,7 +22,7 @@ const tournamentApi = {
     }
   },
 
-   async createTournament(payload) {
+   async createTournamentFromSchedule(payload) {
     try {
       const res = await axiosInstance.post("/tournament", payload, {
         headers: { "Content-Type": "multipart/form-data" }, 
