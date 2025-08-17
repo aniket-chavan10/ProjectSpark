@@ -5,7 +5,7 @@ import GroupCreation from "../GroupTeams";
 import ViewAssignedGroups from "../ViewAssignedGroups";
 import ScheduleCreation from "../ScheduleFirstRound";
 import api from "../../../api/tournamentApi1";
-import MatchCard from "../MatchCard"; // Update the path accordingly
+import MatchCard from "../MatchCard";
 
 export default function OrganizerFlow() {
   const [step, setStep] = useState(1);
@@ -27,118 +27,142 @@ export default function OrganizerFlow() {
     { id: 5, label: "Start", icon: "🚀" },
   ];
 
+  // Fetch tournament progress and set step accordingly (with debug logs)
   const fetchProgress = async (tournamentId) => {
     try {
       let result = await api.getTournamentProgress(tournamentId);
-      if (Array.isArray(result)) {
-        result = result[0] || {};
-      }
+      if (Array.isArray(result)) result = result[0] || {};
       setProgress(result);
 
+      console.log("Progress result:", result);
+
+      // Use exact key names from API response
       const matchesStarted = Number(result?.matches_started) || 0;
       const scheduleCreated = Number(result?.schedule_created) || 0;
       const groupsCreated = Number(result?.groups_created) || 0;
       const teamsCreated = Number(result?.teams_created) || 0;
 
-      if (matchesStarted) setStep(5);
-      else if (scheduleCreated) setStep(4);
-      else if (groupsCreated) setStep(3);
-      else if (teamsCreated) setStep(2);
-      else setStep(2);
-    } catch (err) {
+      console.log(
+        `Parsed progress - matchesStarted: ${matchesStarted}, scheduleCreated: ${scheduleCreated}, groupsCreated: ${groupsCreated}, teamsCreated: ${teamsCreated}`
+      );
+
+      if (matchesStarted) {
+        console.log("Setting step to 5 because matchesStarted is true");
+        setStep(5);
+      } else if (scheduleCreated) {
+        console.log("Setting step to 5 because scheduleCreated is true");
+        setStep(5);
+      } else if (groupsCreated) {
+        console.log("Setting step to 3 because groupsCreated is true");
+        setStep(3);
+      } else if (teamsCreated) {
+        console.log("Setting step to 2 because teamsCreated is true");
+        setStep(2);
+      } else {
+        console.log("Setting step to 1 as default");
+        setStep(1);
+      }
+    } catch (error) {
+      console.error("Error fetching progress:", error);
       setProgress(null);
       setStep(1);
     }
   };
 
+  // Update progress in backend
   const updateProgressStep = async (key, value = true) => {
     if (!selectedTournamentId) return;
     try {
       const result = await api.updateTournamentProgress(selectedTournamentId, { [key]: value });
       setProgress(result);
-    } catch (err) {
-      // handle error if necessary
+    } catch {
+      // optionally log error here
     }
   };
 
+  // Fetch tournaments assigned to organizer
   const fetchTournaments = async () => {
     setLoading(true);
     try {
       const res = await api.getTournamentsByOrganizer();
-      const list = Array.isArray(res)
-        ? res
-        : Array.isArray(res.data)
-        ? res.data
-        : [];
+      const list = Array.isArray(res) ? res : Array.isArray(res.data) ? res.data : [];
       setTournaments(list);
-      console.log("Fetched Tournaments: ", list);
     } catch (err) {
       console.error("Error fetching tournaments", err);
     }
     setLoading(false);
   };
 
-  useEffect(() => {
-    if (selectedTournamentId && tournaments.length > 0) {
-      const tournament = tournaments.find((t) => String(t.tournament_id || t.id) === String(selectedTournamentId));
-      if (tournament) {
-        setTournamentDates({
-          start_date: tournament.start_date || null,
-          end_date: tournament.end_date || null,
-        });
-        console.log("Tournament dates set:", tournament.start_date, tournament.end_date);
-      } else {
-        setTournamentDates({ start_date: null, end_date: null });
-        console.warn("Tournament not found in list for selected ID", selectedTournamentId);
-      }
-    } else {
-      setTournamentDates({ start_date: null, end_date: null });
-    }
-  }, [selectedTournamentId, tournaments]);
-
+  // Fetch applied teams for a tournament
   const fetchAppliedTeams = async (tournamentId) => {
     if (!tournamentId) return;
     setLoading(true);
     try {
       const res = await api.getAppliedTeams(tournamentId);
-      setAppliedTeams(
-        Array.isArray(res)
-          ? res
-          : Array.isArray(res.data)
-          ? res.data
-          : []
-      );
+      console.log("Applied Teams Response:", res);
+      const list = Array.isArray(res) ? res : Array.isArray(res.data) ? res.data : [];
+      setAppliedTeams(list);
     } catch (err) {
       console.error("Error fetching applied teams", err);
+      setAppliedTeams([]);
     }
     setLoading(false);
   };
 
+  // Fetch groups with teams for schedule step
   const fetchGroupsForSchedule = async () => {
-    if (!selectedTournamentId) return;
+    if (!selectedTournamentId) return [];
     try {
       const data = await api.getGroupsWithTeams(selectedTournamentId);
       setGroups(data);
+      return data;
     } catch (err) {
-      console.error("Failed to fetch groups for schedule", err);
+      console.error("Failed fetching groups", err);
+      setGroups([]);
+      return [];
     }
   };
 
-  const enrichMatchesWithTeams = (matches, groups) => {
-    const allTeams = groups.flatMap((group) => group.teams || []);
+  // Enrich matches data with team info or placeholder text
+  const enrichMatchesWithTeamsAndPlaceholders = (matches, groups) => {
+    const allTeams = groups.flatMap((g) => g.teams || []);
     const teamLookup = allTeams.reduce((acc, team) => {
       acc[String(team.id)] = team;
       return acc;
     }, {});
 
-    return matches.map((match) => ({
-      ...match,
-      team1: teamLookup[String(match.team1_id)] || null,
-      team2: teamLookup[String(match.team2_id)] || null,
-    }));
+    const matchIdToMatchNo = matches.reduce((acc, m) => {
+      acc[m.id] = m.match_no;
+      return acc;
+    }, {});
+
+    return matches.map((match) => {
+      const team1 = teamLookup[String(match.team1_id)];
+      const team1Name = team1?.name
+        ? team1.name
+        : match.dependent_match1_id
+        ? `Winner of Match ${matchIdToMatchNo[match.dependent_match1_id] || "?"}`
+        : "TBD";
+
+      const team2 = teamLookup[String(match.team2_id)];
+      const team2Name = team2?.name
+        ? team2.name
+        : match.dependent_match2_id
+        ? `Winner of Match ${matchIdToMatchNo[match.dependent_match2_id] || "?"}`
+        : "TBD";
+
+      return {
+        ...match,
+        team1: team1 || null,
+        team1DisplayName: team1Name,
+        team2: team2 || null,
+        team2DisplayName: team2Name,
+      };
+    });
   };
 
-  const fetchScheduledMatches = async () => {
+  // Fetch scheduled matches and enrich them
+  const fetchScheduledMatches = async (groupsData) => {
     if (!selectedTournamentId) return;
     setLoading(true);
     try {
@@ -146,10 +170,8 @@ export default function OrganizerFlow() {
       const matches = Array.isArray(matchesResponse)
         ? matchesResponse
         : matchesResponse.matches || [];
-      console.log("Fetched Scheduled Matches:", matches);
 
-      // Enrich matches with team info
-      const enrichedMatches = enrichMatchesWithTeams(matches, groups);
+      const enrichedMatches = enrichMatchesWithTeamsAndPlaceholders(matches, groupsData || groups);
       setScheduledMatches(enrichedMatches);
     } catch (err) {
       console.error("Error fetching scheduled matches", err);
@@ -158,13 +180,51 @@ export default function OrganizerFlow() {
     setLoading(false);
   };
 
+  // Effect to fetch schedule matches when step is 5
+  useEffect(() => {
+    if (step === 5 && selectedTournamentId) {
+      (async () => {
+        const groupsData = await fetchGroupsForSchedule();
+        await fetchScheduledMatches(groupsData);
+      })();
+    }
+  }, [step, selectedTournamentId]);
+
+  // Effect to update tournament dates when selected tournament or tournaments list changes
+  useEffect(() => {
+    if (selectedTournamentId && tournaments.length) {
+      const tournament = tournaments.find(
+        (t) => String(t.tournament_id || t.id) === String(selectedTournamentId)
+      );
+      if (tournament) {
+        setTournamentDates({
+          start_date: tournament.start_date || null,
+          end_date: tournament.end_date || null,
+        });
+      } else {
+        setTournamentDates({ start_date: null, end_date: null });
+      }
+    } else {
+      setTournamentDates({ start_date: null, end_date: null });
+    }
+  }, [selectedTournamentId, tournaments]);
+
+  // When a new tournament is created, select it and move to step 2
+  const onTournamentCreated = async (newTournamentId) => {
+    if (!newTournamentId) return;
+    setSelectedTournamentId(newTournamentId);
+    await fetchProgress(newTournamentId);
+    setStep(2);
+  };
+
+  // When "View Teams" clicked, load teams and progress, do NOT override step set by fetchProgress
   const goToAppliedTeams = async (tournamentId) => {
     setSelectedTournamentId(tournamentId);
     try {
       await fetchAppliedTeams(tournamentId);
       await fetchProgress(tournamentId);
-    } catch (error) {
-      console.error("Error navigating to applied teams", error);
+      // Removed setStep(2) to allow fetchProgress to control step accurately
+    } catch {
       setStep(1);
     }
   };
@@ -224,23 +284,6 @@ export default function OrganizerFlow() {
     fetchTournaments();
   }, []);
 
-  useEffect(() => {
-    if (step === 4 && selectedTournamentId && groups.length === 0) {
-      fetchGroupsForSchedule();
-    }
-  }, [step, selectedTournamentId, groups.length]);
-
-  useEffect(() => {
-    console.log(
-      "Step changed:", step,
-      "Selected Tournament:", selectedTournamentId,
-      "Tournament Dates:", tournamentDates
-    );
-    if (step === 5 && selectedTournamentId) {
-      fetchScheduledMatches();
-    }
-  }, [step, selectedTournamentId, tournamentDates]);
-
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
       {/* Progress Bar */}
@@ -251,7 +294,7 @@ export default function OrganizerFlow() {
             <div
               className="absolute top-6 left-0 h-0.5 bg-gradient-to-r from-blue-500 to-blue-600 z-0 transition-all duration-500 ease-in-out"
               style={{ width: `${((step - 1) / (steps.length - 1)) * 100}%` }}
-            ></div>
+            />
             {steps.map((stepItem) => {
               const status = getStepStatus(stepItem.id);
               return (
@@ -322,6 +365,7 @@ export default function OrganizerFlow() {
                 tournaments={tournaments}
                 onViewTeams={goToAppliedTeams}
                 onRefresh={fetchTournaments}
+                onTournamentCreated={onTournamentCreated}
               />
             )}
 
@@ -358,14 +402,11 @@ export default function OrganizerFlow() {
                 ) : scheduledMatches.length === 0 ? (
                   <p className="text-center text-gray-600">No scheduled matches found.</p>
                 ) : (
-                  <>
-                    {console.log("Rendering matches:", scheduledMatches)}
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                      {scheduledMatches.map((match) => (
-                        <MatchCard key={match.match_no} match={match} onStart={handleStartMatch} />
-                      ))}
-                    </div>
-                  </>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    {scheduledMatches.map((match) => (
+                      <MatchCard key={match.match_no} match={match} onStart={handleStartMatch} />
+                    ))}
+                  </div>
                 )}
               </div>
             )}

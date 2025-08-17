@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from "react";
 
-// ✅ Static knockout structure with no IDs for placeholders
+// Static knockout structure for matches
 const initialMatches = [
   { match_no: 1, group: "A", round: 1 },
   { match_no: 2, group: "A", round: 1 },
@@ -35,10 +35,10 @@ const initialMatches = [
   { match_no: 31, round: 5, team1Id: "winner of match 29", team2Id: "winner of match 30" },
 ];
 
-// Helper to add days (n) to a date string 'YYYY-MM-DD'
+// Helper to add days (n) to date string in 'YYYY-MM-DD' format
 const addDays = (dateStr, n) => {
   if (!dateStr) return "";
-  let date = new Date(dateStr);
+  const date = new Date(dateStr);
   if (isNaN(date.getTime())) return "";
   date.setDate(date.getDate() + n);
   const yyyy = date.getFullYear();
@@ -58,34 +58,34 @@ const isoToDateString = (isoStr) => {
   return `${yyyy}-${mm}-${dd}`;
 };
 
-// 🔹 Helper: get available teams list by ID, filtering out selected opponent and other used teams
+// Safely get available teams for selection per group and match
 const getAvailableTeams = (matches, groups, groupName, matchNo, currentSelection, opponentSelection) => {
+  if (!Array.isArray(groups)) return [];
   const groupObj = groups.find((g) => g.group_name === groupName);
-  if (!groupObj) return [];
+  if (!groupObj || !Array.isArray(groupObj.teams)) return [];
 
-  // Convert team IDs to strings for safety
   const allTeams = groupObj.teams.map((t) => ({ ...t, id: String(t.id) }));
 
-  // Collect all used team IDs in this group, round 1, except the current match
+  // Used teams in group round 1 matches except current match
   const usedInGroup = matches
     .filter((m) => m.group === groupName && m.round === 1 && m.match_no !== matchNo)
     .flatMap((m) => [m.team1Id, m.team2Id])
     .filter(Boolean)
     .map(String);
 
-  // Exclude opponent's selected team and used teams, except current selection to allow edit
+  // Exclude opponent selection and other used teams but allow current selection
   const toExclude = new Set([...usedInGroup, String(opponentSelection)].filter(Boolean));
 
   return allTeams.filter((t) => !toExclude.has(String(t.id)) || String(t.id) === String(currentSelection));
 };
 
-// 🔹 Subcomponent for a Single Match Card
+// Single match card component
 const MatchCard = ({ match, matches, groups, updateMatch }) => {
   const isRound1 = match.round === 1;
 
   return (
     <div className="bg-white p-4 rounded-lg border shadow-sm hover:shadow-lg transition">
-      {/* Header */}
+      {/* Match Header */}
       <h3 className="font-bold mb-3 flex justify-between">
         <span>
           Match {match.match_no}
@@ -94,10 +94,10 @@ const MatchCard = ({ match, matches, groups, updateMatch }) => {
         <span className="text-xs bg-gray-100 px-2 py-1 rounded">Round {match.round}</span>
       </h3>
 
-      {/* Teams */}
+      {/* Team selectors or placeholders */}
       {isRound1 ? (
         <div className="flex space-x-2 mb-3">
-          {/* Team 1 */}
+          {/* Team 1 Selector */}
           <select
             className="flex-1 border rounded p-2"
             value={match.team1Id || ""}
@@ -111,7 +111,7 @@ const MatchCard = ({ match, matches, groups, updateMatch }) => {
             ))}
           </select>
 
-          {/* Team 2 */}
+          {/* Team 2 Selector */}
           <select
             className="flex-1 border rounded p-2"
             value={match.team2Id || ""}
@@ -133,7 +133,7 @@ const MatchCard = ({ match, matches, groups, updateMatch }) => {
         </div>
       )}
 
-      {/* Date & Time */}
+      {/* Date & Time inputs */}
       <div className="flex space-x-2 mb-2">
         <input
           type="date"
@@ -148,22 +148,16 @@ const MatchCard = ({ match, matches, groups, updateMatch }) => {
           onChange={(e) => updateMatch(match.match_no, { match_time: e.target.value })}
         />
       </div>
-
-      {/* Venue removed as requested */}
     </div>
   );
 };
 
-// 🔹 Main component
+// Main KnockoutScheduler component
 export default function KnockoutScheduler({ groups, schedule, onCreateSchedule, tournamentStartDate, tournamentEndDate }) {
-  // Prepare and convert tournament dates to proper yyyy-MM-dd format
   const startDate = isoToDateString(tournamentStartDate);
   const endDate = isoToDateString(tournamentEndDate);
 
-  // Generate default dates assignment:
-  // - First 10 matches → startDate
-  // - Next 10 matches → startDate + 1 day
-  // - Last 11 matches → endDate
+  // Generates default dates for matches if no schedule provided
   const generateDefaultDates = () => {
     const day1 = startDate;
     const day2 = addDays(day1, 1);
@@ -171,26 +165,23 @@ export default function KnockoutScheduler({ groups, schedule, onCreateSchedule, 
 
     return initialMatches.map((m, idx) => ({
       ...m,
-      match_date:
-        schedule?.[idx]?.match_date ||
-        (idx < 10 ? day1 : idx < 20 ? day2 : day3),
+      match_date: schedule?.[idx]?.match_date || (idx < 10 ? day1 : idx < 20 ? day2 : day3),
       match_time: schedule?.[idx]?.match_time || "",
       venue: schedule?.[idx]?.venue || "",
-      team1Id: m.round === 1 ? (schedule?.[idx]?.team1Id || "") : String(m.team1Id || ""),
-      team2Id: m.round === 1 ? (schedule?.[idx]?.team2Id || "") : String(m.team2Id || ""),
+      team1Id: m.round === 1 ? schedule?.[idx]?.team1Id || "" : String(m.team1Id || ""),
+      team2Id: m.round === 1 ? schedule?.[idx]?.team2Id || "" : String(m.team2Id || ""),
     }));
   };
 
-  // Memoize initial state considering schedule and tournament dates
   const initialState = useMemo(() => {
     if (schedule && schedule.length) {
-      return schedule.map((m, idx) => ({
+      return schedule.map((m) => ({
         ...m,
         match_date: m.match_date || "",
         match_time: m.match_time || "",
         venue: m.venue || "",
-        team1Id: m.round === 1 ? (m.team1Id || "") : String(m.team1Id || ""),
-        team2Id: m.round === 1 ? (m.team2Id || "") : String(m.team2Id || ""),
+        team1Id: m.round === 1 ? m.team1Id || "" : String(m.team1Id || ""),
+        team2Id: m.round === 1 ? m.team2Id || "" : String(m.team2Id || ""),
       }));
     } else {
       return generateDefaultDates();
@@ -199,12 +190,12 @@ export default function KnockoutScheduler({ groups, schedule, onCreateSchedule, 
 
   const [matches, setMatches] = useState(initialState);
 
-  // Update match detail function
+  // Update individual match data
   const updateMatch = (match_no, updates) => {
     setMatches((prev) => prev.map((m) => (m.match_no === match_no ? { ...m, ...updates } : m)));
   };
 
-  // Handler for saving schedule
+  // Handler to save schedule; checks all round 1 matches have both teams
   const handleSubmit = () => {
     const incomplete = matches.some((m) => m.round === 1 && (!m.team1Id || !m.team2Id));
     if (incomplete) {
