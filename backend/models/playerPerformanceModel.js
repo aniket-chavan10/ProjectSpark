@@ -38,3 +38,71 @@ exports.updatePerformanceOnBall = async (conn, data) => {
     );
   }
 };
+
+const safe = (val) => (val === undefined ? null : val);
+
+exports.revertPerformanceOnBall = async (conn, lastBall) => {
+  const {
+    batsman_id: batsmanId,
+    bowler_id: bowlerId,
+    runs_scored: runsScored = 0,
+    is_wicket: isWicket,
+    legal_delivery: legalDelivery,
+    extras = 0,
+    match_id: matchId,
+  } = lastBall;
+
+  if (legalDelivery) {
+    await conn.execute(
+      `UPDATE player_performance SET 
+         runs_scored = runs_scored - ?,
+         balls_faced = GREATEST(balls_faced - 1, 0),
+         fours = GREATEST(fours - ?, 0),
+         sixes = GREATEST(sixes - ?, 0)
+       WHERE player_id = ? AND match_id = ?`,
+      [
+        safe(runsScored),
+        runsScored === 4 ? 1 : 0,
+        runsScored === 6 ? 1 : 0,
+        safe(batsmanId),
+        safe(matchId),
+      ]
+    );
+
+    await conn.execute(
+      `UPDATE player_performance SET 
+         total_runs_conceded = GREATEST(total_runs_conceded - ?, 0),
+         overs_bowled = GREATEST(overs_bowled - 0.1, 0),
+         wickets_taken = GREATEST(wickets_taken - ?, 0)
+       WHERE player_id = ? AND match_id = ?`,
+      [safe(runsScored + extras), isWicket ? 1 : 0, safe(bowlerId), safe(matchId)]
+    );
+  }
+};
+
+
+
+
+
+
+
+exports.getPerformanceStatsByMatch = async (conn, matchId) => {
+  const [rows] = await conn.execute(
+    `SELECT 
+       player_id,
+       runs_scored,
+       balls_faced,
+       fours,
+       sixes,
+       strike_rate,
+       total_runs_conceded,
+       wickets_taken,
+       overs_bowled,
+       maiden_overs,
+       economy_rate
+     FROM player_performance
+     WHERE match_id = ?`,
+    [matchId]
+  );
+  return rows;
+};

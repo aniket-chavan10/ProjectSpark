@@ -3,6 +3,6 @@ const router = express.Router();
 const liveScoreController = require("../controllers/liveScoreController");
 
 // GET live scoreboard data for a match (both innings)
-router.get("/:matchId/live-score", liveScoreController.getLiveScore);
+router.get("/:matchId/scoreboard", liveScoreController.getLiveScore);
 
 module.exports = router;

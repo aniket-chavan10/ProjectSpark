@@ -1,14 +1,66 @@
-const { rotateStrike } = require("../utils/strikeUtils");
 const {
-  getNextBallPosition,
-  checkAndUnsetBowlerIfOverCompleted,
-} = require("../utils/overUtils");
+  isLegalDelivery,
+  calculateTotalRuns,
+  shouldRotateStrike,
+  getPartnershipRuns,
+} = require("../utils/cricketRules/cricketRules");
+
 const playerPerfModel = require("../models/playerPerformanceModel");
 const playerStatsModel = require("../models/playerStatsModel");
 
-exports.registerBallEvent = async (conn, inputData) => {
-  // Gracefully handle transaction, wrap this code in your own withTransaction if needed
+// Helper updates for ball and over count
+function updateBallAndOverCount(prevBallsInOver, prevOvers, legalDelivery) {
+  let newBalls = prevBallsInOver;
+  let newOvers = parseFloat(prevOvers || 0);
+  if (legalDelivery) {
+    newBalls += 1;
+    // If 6th legal ball bowled, increment over count and reset ballsInOver
+    if (newBalls === 6) {
+      newOvers += 1;
+      newBalls = 0;
+    }
+  }
+  return { newBallsInOver: newBalls, newOvers };
+}
 
+// Correct over completion logic: over is complete when ballsInOver === 0 right after incrementing from 6
+function isOverComplete(prevBallsInOver, legalDelivery) {
+  // Over becomes complete when legal delivery is bowled and balls reach 6
+  return legalDelivery && prevBallsInOver + 1 === 6;
+}
+
+
+async function updateDependentMatchesCascading(conn, matchRowId, winnerTeamId) {
+  const queue = [{ matchRowId, winnerTeamId }];
+
+  while (queue.length > 0) {
+    const { matchRowId: currentId, winnerTeamId: currentWinner } = queue.shift();
+
+    // Update immediate dependents with current winner_team_id in the correct side (team1_id or team2_id)
+    await conn.execute(
+      `UPDATE tournament_matches SET team1_id = ? WHERE dependent_match1_id = ?`,
+      [currentWinner, currentId]
+    );
+    await conn.execute(
+      `UPDATE tournament_matches SET team2_id = ? WHERE dependent_match2_id = ?`,
+      [currentWinner, currentId]
+    );
+
+    // Fetch all immediate dependents by matching on dependent_match1_id or dependent_match2_id equals current row id
+    const [dependentMatches] = await conn.execute(
+      `SELECT id, match_id, winner_team_id, status FROM tournament_matches
+       WHERE dependent_match1_id = ? OR dependent_match2_id = ?`,
+      [currentId, currentId]
+    );
+
+    // Enqueue all dependents to cascade further updates
+    for (const dm of dependentMatches) {
+      queue.push({ matchRowId: dm.id, winnerTeamId: currentWinner });
+    }
+  }
+}
+
+exports.registerBallEvent = async (conn, inputData) => {
   const {
     inningId,
     matchId,
@@ -21,7 +73,6 @@ exports.registerBallEvent = async (conn, inputData) => {
     fielderId = null,
     extras = 0,
     extraType = null,
-    legalDelivery = true,
     isRetiredHurt = 0,
     shotType = null,
     ballOutcome = null,
@@ -30,335 +81,497 @@ exports.registerBallEvent = async (conn, inputData) => {
   } = inputData;
 
   const MAX_WICKETS = 10;
+  const strikerDismissalTypes = ["bowled", "caught", "lbw", "stumped"];
+  const normalizedWicketType = wicketType ? wicketType.toLowerCase() : null;
 
-  // Fetch match info
+  // Fetch match details, including overs and target
   const [[matchRow]] = await conn.execute(
-    `SELECT total_overs, target_score FROM matches WHERE match_id = ? LIMIT 1`,
+    `SELECT total_overs, team1_id, team2_id, target_score, status FROM matches WHERE match_id = ? LIMIT 1`,
     [matchId]
   );
   if (!matchRow) throw new Error("Match not found");
   const MAX_OVERS = matchRow.total_overs || 5;
+  const matchTargetScore = matchRow.target_score; // May be null for first innings
+  const matchStatus = matchRow.status; // e.g. 'live', 'completed'
 
-  // Fetch live scorecard
+  // Fetch live scorecard for the inning
   const [[live]] = await conn.execute(
-    `SELECT on_strike_batsman_id, non_striker_batsman_id, current_score,
-            current_wickets, legal_balls_in_over, legal_over_count, bowler_id,
-            batsman1_id, batsman2_id
-      FROM live_scorecards WHERE inning_id = ? LIMIT 1`,
+    `SELECT on_strike_batsman_id, non_striker_batsman_id, batsman1_id, batsman2_id, current_score,
+      current_wickets, legal_balls_in_over, legal_over_count, bowler_id
+    FROM live_scorecards WHERE inning_id = ? LIMIT 1`,
     [inningId]
   );
   if (!live) throw new Error("No live scorecard found for inning");
   if (!live.bowler_id) throw new Error("No bowler assigned");
-  if (live.on_strike_batsman_id !== batsmanId)
-    throw new Error("Striker mismatch: on_strike_batsman_id !== batsmanId");
 
-  // Check innings end status before processing ball
-  const oversCompleted = Math.floor(parseFloat(live.legal_over_count || 0));
-  if (live.current_wickets >= MAX_WICKETS || oversCompleted >= MAX_OVERS) {
+  // Validate wicket & striker consistency
+  if (
+    isWicket &&
+    !isRetiredHurt &&
+    strikerDismissalTypes.includes(normalizedWicketType) &&
+    live.on_strike_batsman_id !== batsmanId
+  ) {
+    throw new Error("Striker mismatch for dismissal type " + wicketType);
+  }
+  if (isWicket && normalizedWicketType === "run out") {
+    if (!dismissedPlayerId)
+      throw new Error("Dismissed player id must be provided for run out");
+    if (!fielderId) throw new Error("Fielder id must be provided for run out wicket");
+  }
+  if (
+    isWicket &&
+    !isRetiredHurt &&
+    strikerDismissalTypes.includes(normalizedWicketType) &&
+    dismissedPlayerId !== batsmanId
+  ) {
+    throw new Error(`Dismissed player must be striker (batsmanId) for wicket type ${wicketType}`);
+  }
+
+  // Prevent balls after innings completed
+  if (
+    live.current_wickets >= MAX_WICKETS ||
+    parseFloat(live.legal_over_count || 0) >= MAX_OVERS
+  ) {
     throw new Error("Innings is over. No further balls allowed.");
   }
 
-  // Get next ball position
-  const { overNumber, ballNumber } = await getNextBallPosition(conn, inningId);
+  // Get or create the current active over
+  const currentOver = await getCurrentActiveOver(conn, inningId, matchId, bowlerId);
+  if (currentOver.bowler_id !== bowlerId)
+    throw new Error("Bowler ID mismatch for current active over");
 
-  // Fetch innings info for this match to determine innings number
-  const [[currentInning]] = await conn.execute(
-    `SELECT innings_number FROM innings WHERE inning_id = ? LIMIT 1`,
-    [inningId]
+  const currentOverId = currentOver.over_id;
+  const currentOverNumber = currentOver.over_number;
+
+  // Next ball number and legal delivery
+  const [[{ nextBallNumber }]] = await conn.execute(
+    `SELECT COALESCE(MAX(ball_number), 0) + 1 AS nextBallNumber FROM balls WHERE over_id = ?`,
+    [currentOverId]
   );
-  if (!currentInning) throw new Error("Inning not found");
-  const currentInningsNumber = currentInning.innings_number;
+  const ballNumber = nextBallNumber;
+  const legalDelivery = isLegalDelivery(extraType);
 
-  // Fetch first innings total_runs (to set target score when first innings ends)
-  const [[firstInnings]] = await conn.execute(
-    `SELECT inning_id, total_runs, wickets FROM innings WHERE match_id = ? AND innings_number = 1 LIMIT 1`,
-    [matchId]
-  );
-  if (!firstInnings) throw new Error("First innings not found");
-
-  // Check if first innings already ended (either wickets = MAX_WICKETS or overs bowled)
-  const [[firstInningsBalls]] = await conn.execute(
-    `SELECT balls_bowled FROM innings WHERE inning_id = ? LIMIT 1`,
-    [firstInnings.inning_id]
-  );
-  if (!firstInningsBalls) throw new Error("First innings balls bowled info missing");
-
-  const firstInningsOversCompleted = Math.floor(firstInningsBalls.balls_bowled / 6);
-  const firstInningsBallsThisOver = firstInningsBalls.balls_bowled % 6;
-  const firstInningsFullOvers = firstInningsOversCompleted + (firstInningsBallsThisOver > 0 ? 1 : 0);
-  const firstInningsIsEnded = firstInnings.wickets >= MAX_WICKETS || firstInningsFullOvers >= MAX_OVERS;
-
-  // If first innings ended and target_score not set for either innings, set target score for both innings records (first innings target_score = null, second innings target_score = first innings total + 1)
-  if (firstInningsIsEnded) {
-    // Fetch second innings record for this match (if exists)
-    const [[secondInnings]] = await conn.execute(
-      `SELECT inning_id, target_score FROM innings WHERE match_id = ? AND innings_number = 2 LIMIT 1`,
-      [matchId]
-    );
-
-    // Update first innings target_score to null explicitly if not set (good for clarity)
-    if (firstInnings.total_runs !== null) {
-      await conn.execute(
-        `UPDATE innings SET target_score = NULL WHERE inning_id = ? AND (target_score IS NULL OR target_score != NULL)`,
-        [firstInnings.inning_id]
-      );
-    }
-
-    // Update second innings target_score if not set or different
-    const calculatedTarget = firstInnings.total_runs + 1;
-    if (secondInnings) {
-      if (secondInnings.target_score !== calculatedTarget) {
-        await conn.execute(
-          `UPDATE innings SET target_score = ? WHERE inning_id = ?`,
-          [calculatedTarget, secondInnings.inning_id]
-        );
-      }
-    } else {
-      // Optional: If second innings record not created yet, no action here; it should be created before play starts
+  // Adjust extras
+  let actualExtras = extras;
+  if (extraType) {
+    const lowerExtra = extraType.toLowerCase();
+    if ((lowerExtra === "wide" || lowerExtra === "no-ball") && extras === 0) {
+      actualExtras = 1;
     }
   }
 
-  // Insert the current ball record with inputData fields
+  // Total runs this ball
+  const totalRunsThisBall = calculateTotalRuns(runsScored, actualExtras);
+
+  // Insert ball
   await conn.execute(
     `INSERT INTO balls (
-      inning_id, over_number, ball_number, batsman_id, bowler_id, runs_scored,
+      inning_id, over_id, over_number, ball_number,
+      batsman_id, bowler_id, runs_scored,
       is_wicket, wicket_type, dismissed_player_id, fielder_id,
       extras, extra_type, legal_delivery, is_retired_hurt,
       shot_type, ball_outcome, wagon_wheel_region
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       inningId,
-      overNumber,
+      currentOverId,
+      currentOverNumber,
       ballNumber,
       batsmanId,
       bowlerId,
       runsScored,
       isWicket,
-      wicketType ?? null,
-      dismissedPlayerId ?? null,
-      fielderId ?? null,
-      extras ?? 0,
-      extraType ?? null,
+      wicketType,
+      dismissedPlayerId,
+      fielderId,
+      actualExtras,
+      extraType,
       legalDelivery ? 1 : 0,
-      isRetiredHurt ?? 0,
-      shotType ?? null,
-      ballOutcome ?? null,
-      wagonWheelRegion ?? null,
+      isRetiredHurt,
+      shotType,
+      ballOutcome,
+      wagonWheelRegion,
     ]
   );
 
-  // Calculate updated scores and wickets
-  const newScore = live.current_score + runsScored + extras;
+  // Update running totals
+  const newScore = live.current_score + totalRunsThisBall;
   const newWickets = isWicket && !isRetiredHurt ? live.current_wickets + 1 : live.current_wickets;
+  const overIsComplete = isOverComplete(live.legal_balls_in_over, legalDelivery);
 
-  // Calculate ball and over increments accurately
-  let newLegalBalls = live.legal_balls_in_over;
-  let legalOvers = parseFloat(live.legal_over_count || 0);
-  if (legalDelivery) {
-    newLegalBalls = (live.legal_balls_in_over + 1) % 6;
-    legalOvers += 0.1;
-    if (newLegalBalls === 0) legalOvers = Math.round((legalOvers + 0.4) * 10) / 10;
-  }
+  const { newBallsInOver, newOvers } = updateBallAndOverCount(
+    live.legal_balls_in_over,
+    live.legal_over_count,
+    legalDelivery
+  );
 
-  // Fetch current balls_bowled from innings to keep count accurate
+  // Fetch innings for balls bowled and status
   const [[inningsRow]] = await conn.execute(
-    `SELECT balls_bowled FROM innings WHERE inning_id = ? LIMIT 1`,
+    `SELECT balls_bowled, total_runs, wickets, status, innings_number, team_id FROM innings WHERE inning_id = ? LIMIT 1`,
     [inningId]
   );
   if (!inningsRow) throw new Error("Innings not found");
+
   let newBallsBowled = inningsRow.balls_bowled || 0;
   if (legalDelivery) newBallsBowled += 1;
 
-  // Current strike holders IDs
+  // Update batsman positions
   let strikerId = live.on_strike_batsman_id;
   let nonStrikerId = live.non_striker_batsman_id;
+  let batsman1Id = live.batsman1_id;
+  let batsman2Id = live.batsman2_id;
 
-  const strikerOut = isWicket && !isRetiredHurt && dismissedPlayerId === strikerId;
-  const nonStrikerOut = isWicket && !isRetiredHurt && dismissedPlayerId === nonStrikerId;
-  const retiredHurtStriker = isRetiredHurt && dismissedPlayerId === strikerId;
-  const retiredHurtNonStriker = isRetiredHurt && dismissedPlayerId === nonStrikerId;
-
-  const isLastBall = legalDelivery && newLegalBalls === 0;
-
-  // Handle wicket & assign new batsman if available
-  if (isWicket && !isRetiredHurt) {
-    if (strikerOut) strikerId = null;
-    if (nonStrikerOut) nonStrikerId = null;
-
-    if (newBatsmanId) {
-      if (strikerOut) {
-        strikerId = newBatsmanId;
-      } else if (nonStrikerOut) {
-        nonStrikerId = newBatsmanId;
-      } else {
-        if (!strikerId) strikerId = newBatsmanId;
-        else if (!nonStrikerId) nonStrikerId = newBatsmanId;
-      }
-    } else {
-      throw new Error("New batsman ID must be provided on a wicket ball to assign incoming batsman");
-    }
-  }
-  if (retiredHurtStriker) strikerId = null;
-  if (retiredHurtNonStriker) nonStrikerId = null;
-
-  // Strike rotation logic
-  if (legalDelivery && !strikerOut && !retiredHurtStriker) {
-    ({ strikerId, nonStrikerId } = rotateStrike({
-      runsScored,
-      legalDelivery,
-      ballsInCurrentOver: ballNumber,
-      strikerId,
-      nonStrikerId,
-    }));
-  } else if (legalDelivery && (strikerOut || retiredHurtStriker)) {
-    const wicketTypeLower = (wicketType || "").toLowerCase();
-    const nonStrikerDismissalTypes = ["run out", "obstructing the field"];
-    let shouldRotate = false;
-
-    if (nonStrikerDismissalTypes.includes(wicketTypeLower) && dismissedPlayerId === nonStrikerId) {
-      shouldRotate = runsScored % 2 !== 0;
-    } else if (["caught", "stumped", "run out", "hit wicket"].includes(wicketTypeLower)) {
-      shouldRotate = isLastBall;
-    }
-
-    if (shouldRotate) {
-      [strikerId, nonStrikerId] = [nonStrikerId, strikerId === null ? null : nonStrikerId];
-    } else {
-      if (!strikerId && newBatsmanId) {
-        strikerId = newBatsmanId;
-      } else if (!strikerId) {
-        strikerId = null;
-      }
-    }
-  }
-
-  // Calculate current run rate
-  const currentRunRate = newBallsBowled > 0 ? newScore / (newBallsBowled / 6) : 0;
-
-  // Determine target score (from innings table) for use in required run rate calculation
-  // Fetch current inning target score in case it was set earlier by innings-end process
-  const [[thisInningData]] = await conn.execute(
-    `SELECT target_score FROM innings WHERE inning_id = ? LIMIT 1`,
-    [inningId]
-  );
-  const targetScore = thisInningData ? thisInningData.target_score : null;
-
-  // Calculate required run rate if target score is set and applicable
-  let requiredRunRate = null;
-  if (targetScore !== null && targetScore > newScore && newBallsBowled > 0) {
-    const ballsRemaining = MAX_OVERS * 6 - newBallsBowled;
-    if (ballsRemaining > 0) {
-      requiredRunRate = ((targetScore - newScore) * 6) / ballsRemaining;
-    }
-  }
-
-  // Update live_scorecards with latest scores and strike info
-  await conn.execute(
-    `UPDATE live_scorecards
-       SET current_score = ?, current_wickets = ?, legal_balls_in_over = ?,
-           legal_over_count = ?, current_overs = ?, on_strike_batsman_id = ?,
-           non_striker_batsman_id = ?, partnership_runs = partnership_runs + ?,
-           last_updated = CURRENT_TIMESTAMP
-       WHERE inning_id = ?`,
-    [
-      newScore,
-      newWickets,
-      newLegalBalls,
-      legalOvers.toFixed(1),
-      `${overNumber}.${ballNumber}`,
-      strikerId,
-      nonStrikerId,
-      runsScored,
-      inningId,
-    ]
-  );
-
-  // Reset bowler if over completed
-  if (legalDelivery) {
-    await checkAndUnsetBowlerIfOverCompleted(conn, inningId, overNumber);
-  }
-
-  // Update last wicket info and clean out dismissed player from live scorecards if wicket happened
   if (isWicket && !isRetiredHurt && dismissedPlayerId) {
+    if (dismissedPlayerId === strikerId) strikerId = null;
+    if (dismissedPlayerId === nonStrikerId) nonStrikerId = null;
+    if (dismissedPlayerId === batsman1Id) batsman1Id = null;
+    else if (dismissedPlayerId === batsman2Id) batsman2Id = null;
+  } else if (shouldRotateStrike(runsScored, actualExtras, extraType, legalDelivery)) {
+    [strikerId, nonStrikerId] = [nonStrikerId, strikerId];
+  }
+
+  if (overIsComplete) {
+    [strikerId, nonStrikerId] = [nonStrikerId, strikerId];
+  }
+
+  const bowlerIdToUpdate = overIsComplete ? null : live.bowler_id;
+
+  // Determine innings completion
+  const inningsCompleted =
+    newWickets >= MAX_WICKETS || parseFloat(newOvers) >= MAX_OVERS;
+
+  // Determine if chasing team reached target (For innings > 1)
+  let matchCompleted = false;
+  let winnerTeamId = null;
+  let victoryMarginType = null;
+  let victoryMargin = null;
+
+  if (
+    inningsRow.innings_number > 1 &&
+    matchTargetScore !== null &&
+    newScore >= matchTargetScore
+  ) {
+    // Chasing team won by wickets remaining
+    matchCompleted = true;
+    winnerTeamId = inningsRow.team_id;
+    victoryMarginType = "wickets";
+    victoryMargin = MAX_WICKETS - newWickets;
+  }
+
+  // If innings completed by overs or wickets and not chasing team win, match might be over by runs
+  if (!matchCompleted && inningsCompleted && inningsRow.innings_number === 2) {
+    if (newScore < matchTargetScore) {
+      // Chasing team lost by runs
+      matchCompleted = true;
+      winnerTeamId = inningsRow.team_id === matchRow.team1_id ? matchRow.team2_id : matchRow.team1_id;
+      victoryMarginType = "runs";
+      victoryMargin = matchTargetScore - newScore - 1; // runs needed minus one scored
+    }
+  }
+
+  // Update innings status when completed
+  if (inningsCompleted && inningsRow.status !== "completed") {
     await conn.execute(
-      `UPDATE live_scorecards
-         SET 
-           on_strike_batsman_id = CASE WHEN on_strike_batsman_id = ? THEN NULL ELSE on_strike_batsman_id END,
-           non_striker_batsman_id = CASE WHEN non_striker_batsman_id = ? THEN NULL ELSE non_striker_batsman_id END,
-           batsman1_id = CASE WHEN batsman1_id = ? THEN NULL ELSE batsman1_id END,
-           batsman2_id = CASE WHEN batsman2_id = ? THEN NULL ELSE batsman2_id END,
-           last_wicket_player_id = ?, last_wicket_over = ?, last_wicket_description = ?
-         WHERE inning_id = ?`,
-      [
-        dismissedPlayerId,
-        dismissedPlayerId,
-        dismissedPlayerId,
-        dismissedPlayerId,
-        dismissedPlayerId,
-        `${overNumber}.${ballNumber}`,
-        wicketType || null,
-        inningId,
-      ]
+      `UPDATE innings SET status = 'completed' WHERE inning_id = ?`,
+      [inningId]
     );
   }
 
-  // Update innings table totals, extras, balls, and calculated rates (run_rate is not handled here because presumed updated elsewhere)
+  // Set target score for next innings (if not set and innings just completed first innings)
+  if (
+    inningsCompleted &&
+    inningsRow.innings_number === 1 &&
+    (!matchTargetScore || matchTargetScore === 0)
+  ) {
+    await conn.execute(
+      `UPDATE matches SET target_score = ? WHERE match_id = ?`,
+      [newScore + 1, matchId]
+    );
+  }
+
+  // Update live_scorecards table
   await conn.execute(
-    `UPDATE innings
-       SET total_runs = ?, wickets = ?, overs = ?, extras = extras + ?, balls_bowled = ?,
-           target_score = ?, required_run_rate = ?
-       WHERE inning_id = ?`,
+    `UPDATE live_scorecards SET
+      current_score = ?, current_wickets = ?, legal_balls_in_over = ?,
+      legal_over_count = ?, current_overs = ?, on_strike_batsman_id = ?,
+      non_striker_batsman_id = ?, batsman1_id = ?, batsman2_id = ?,
+      bowler_id = ?, partnership_runs = partnership_runs + ?,
+      last_updated = CURRENT_TIMESTAMP
+    WHERE inning_id = ?`,
     [
       newScore,
       newWickets,
-      `${overNumber}.${ballNumber}`,
-      extras,
-      newBallsBowled,
-      targetScore,
-      requiredRunRate !== null ? requiredRunRate.toFixed(2) : null,
+      newBallsInOver,
+      newOvers.toFixed(1),
+      `${currentOverNumber}.${ballNumber}`,
+      strikerId,
+      nonStrikerId,
+      batsman1Id,
+      batsman2Id,
+      bowlerIdToUpdate,
+      getPartnershipRuns(runsScored, actualExtras),
       inningId,
     ]
   );
 
-  // Update player performances and stats for this ball delivery
+  // Update innings summary with status
+  await conn.execute(
+    `UPDATE innings SET
+      total_runs = ?, wickets = ?, balls_bowled = ?, overs = ?, status = ?
+    WHERE inning_id = ?`,
+    [
+      newScore,
+      newWickets,
+      newBallsBowled,
+      newOvers.toFixed(1),
+      inningsCompleted ? "completed" : inningsRow.status,
+      inningId,
+    ]
+  );
+
+  // If match completed update matches table with winner and margin
+  if (matchCompleted && matchStatus !== "completed") {
+    await conn.execute(
+      `UPDATE matches SET
+        winner_team_id = ?, result = 'completed',
+        status = 'completed', victory_margin_type = ?, victory_margin = ?
+      WHERE match_id = ?`,
+      [winnerTeamId, victoryMarginType, victoryMargin, matchId]
+    );
+
+    // Update tournament_matches for the completed match itself
+    await conn.execute(
+      `UPDATE tournament_matches SET winner_team_id = ?, status = 'completed' WHERE match_id = ?`,
+      [winnerTeamId, matchId]
+    );
+
+    // Cascading update dependent matches recursively/iteratively
+    await updateDependentMatchesCascading(conn, matchId, winnerTeamId);
+  }
+
+  // Update performance and stats models
   await playerPerfModel.updatePerformanceOnBall(conn, {
-    matchId,
     batsmanId,
     bowlerId,
+    matchId,
     runsScored,
-    extras,
     isWicket,
+    wicketType: normalizedWicketType,
     dismissedPlayerId,
-    legalDelivery,
-    wicketType,
     fielderId,
+    legalDelivery,
+    extras: actualExtras,
   });
 
   await playerStatsModel.updateStatsOnBall(conn, {
     batsmanId,
     bowlerId,
+    matchId,
     runsScored,
-    extras,
     isWicket,
-    legalDelivery,
-    wicketType,
+    wicketType: normalizedWicketType,
+    dismissedPlayerId,
     fielderId,
+    legalDelivery,
+    extras: actualExtras,
   });
-
-  // Clear strike and bowler info on live_scorecards if innings ended (all wickets or overs)
-  const oversFloor = Math.floor(parseFloat(legalOvers.toFixed(1)));
-  if (newWickets >= MAX_WICKETS || oversFloor >= MAX_OVERS) {
-    await conn.execute(
-      `UPDATE live_scorecards
-         SET on_strike_batsman_id = NULL,
-             non_striker_batsman_id = NULL,
-             batsman1_id = NULL,
-             batsman2_id = NULL,
-             bowler_id = NULL
-         WHERE inning_id = ?`,
-      [inningId]
-    );
-  }
 
   return true;
 };
+
+exports.undoLastBallEvent = async (conn, inningId, matchId) => {
+  const safe = (val) => (val === undefined ? null : val);
+
+  // Step 1: Get the last ball for the inning (latest by over number and ball number)
+  const [[lastBall]] = await conn.execute(
+    `SELECT * FROM balls WHERE inning_id = ? ORDER BY over_number DESC, ball_number DESC LIMIT 1`,
+    [safe(inningId)]
+  );
+  if (!lastBall) throw new Error("No ball events to undo");
+
+  // Step 1.1: Fetch match_id for the inning if not present in lastBall
+  if (!lastBall.match_id) {
+    const [[inningRow]] = await conn.execute(
+      `SELECT match_id FROM innings WHERE inning_id = ? LIMIT 1`,
+      [safe(inningId)]
+    );
+    if (!inningRow) throw new Error("Innings not found to get match_id");
+    lastBall.match_id = inningRow.match_id;
+  }
+
+  const {
+    ball_id: ballId,
+    runs_scored: runsScored,
+    is_wicket: isWicket,
+    wicket_type: wicketType,
+    dismissed_player_id: dismissedPlayerId,
+    extras,
+    extra_type: extraType,
+    legal_delivery: legalDelivery,
+    over_number: overNumber,
+    ball_number: ballNumber,
+    batsman_id: batsmanId,
+    bowler_id: bowlerId,
+  } = lastBall;
+
+  // Step 2: Delete this last ball record
+  await conn.execute(`DELETE FROM balls WHERE ball_id = ?`, [safe(ballId)]);
+
+  // Step 3: Fetch live scorecard for inning
+  const [[live]] = await conn.execute(
+    `SELECT on_strike_batsman_id, non_striker_batsman_id, batsman1_id, batsman2_id, current_score,
+    current_wickets, legal_balls_in_over, legal_over_count, bowler_id, partnership_runs
+    FROM live_scorecards WHERE inning_id = ? LIMIT 1`,
+    [safe(inningId)]
+  );
+  if (!live) throw new Error("No live scorecard found for inning");
+
+  // Calculate total runs including extras to revert
+  const totalRunsThisBall = (runsScored || 0) + (extras || 0);
+
+  // Step 4: Revert live scorecard totals
+  const newScore = (live.current_score || 0) - totalRunsThisBall;
+  const newWickets = (live.current_wickets || 0) - (isWicket ? 1 : 0);
+
+  // Adjust balls and overs
+  let newBallsInOver = safe(live.legal_balls_in_over);
+  let newOvers = parseFloat(safe(live.legal_over_count)) || 0.0;
+
+  if (legalDelivery) {
+    if (newBallsInOver > 0) {
+      newBallsInOver -= 1;
+    } else if (newBallsInOver === 0 && newOvers > 0) {
+      newOvers -= 1;
+      newBallsInOver = 5; // Assuming standard 6-ball over
+    }
+  }
+
+  // Step 5: Fetch innings summary
+  const [[inningsRow]] = await conn.execute(
+    `SELECT balls_bowled, total_runs, wickets, status, innings_number, team_id FROM innings WHERE inning_id = ? LIMIT 1`,
+    [safe(inningId)]
+  );
+  if (!inningsRow) throw new Error("Innings not found");
+
+  let newBallsBowled = safe(inningsRow.balls_bowled);
+  if (legalDelivery && newBallsBowled > 0) {
+    newBallsBowled -= 1;
+  }
+
+  const newOversStr = newOvers.toFixed(1);
+  // If innings was marked completed but now rolling back, revert to live if needed
+  const newStatus = inningsRow.status === "completed" ? "live" : inningsRow.status;
+
+  // Step 6: Update live_scorecards
+  await conn.execute(
+    `UPDATE live_scorecards SET
+      current_score = ?, current_wickets = ?, legal_balls_in_over = ?, legal_over_count = ?,
+      current_overs = ? WHERE inning_id = ?`,
+    [
+      safe(newScore),
+      safe(newWickets),
+      safe(newBallsInOver),
+      safe(newOvers),
+      safe(`${overNumber}.${ballNumber - 1}`),
+      safe(inningId),
+    ]
+  );
+
+  // Step 7: Update innings table
+  await conn.execute(
+    `UPDATE innings SET
+      total_runs = ?, wickets = ?, balls_bowled = ?, overs = ?, status = ?
+      WHERE inning_id = ?`,
+    [safe(newScore), safe(newWickets), safe(newBallsBowled), safe(newOversStr), safe(newStatus), safe(inningId)]
+  );
+
+  // Step 8: Handle match completion rollback if needed
+  const [[matchRow]] = await conn.execute(
+    `SELECT target_score, status, winner_team_id FROM matches WHERE match_id = ? LIMIT 1`,
+    [safe(matchId)]
+  );
+  if (!matchRow) throw new Error("Match not found");
+
+  if (matchRow.status === "completed") {
+    // Roll back match status if applicable
+    await conn.execute(
+      `UPDATE matches SET winner_team_id = NULL, result = 'live', status = 'live', victory_margin_type = NULL, victory_margin = NULL WHERE match_id = ?`,
+      [safe(matchId)]
+    );
+    await conn.execute(
+      `UPDATE tournament_matches SET winner_team_id = NULL, status = 'live' WHERE match_id = ?`,
+      [safe(matchId)]
+    );
+  }
+
+  // TODO: revert batsman positions, partnerships, bowler stats if stored over last ball (requires history tracking)
+
+  // Step 9: Revert player performance and stats for this ball
+  await playerPerfModel.revertPerformanceOnBall(conn, lastBall);
+  await playerStatsModel.revertStatsOnBall(conn, lastBall);
+
+  return true;
+};
+
+exports.changeStriker = async (conn, inningId, newStrikerId) => {
+  // Fetch current live scorecard for the inning
+  const [[live]] = await conn.execute(
+    `SELECT on_strike_batsman_id, non_striker_batsman_id FROM live_scorecards WHERE inning_id = ? LIMIT 1`,
+    [inningId]
+  );
+  if (!live) throw new Error("Live scorecard not found for inning");
+
+  const currentStriker = live.on_strike_batsman_id;
+  const currentNonStriker = live.non_striker_batsman_id;
+
+  // If new striker is already on strike, do nothing
+  if (currentStriker === newStrikerId) return;
+
+  // Determine new non-striker (the old striker becomes non-striker)
+  let newNonStrikerId = currentNonStriker;
+  // If the new striker was the current non-striker, swap them
+  if (newStrikerId === currentNonStriker) {
+    newNonStrikerId = currentStriker;
+  }
+
+  await conn.execute(
+    `UPDATE live_scorecards SET on_strike_batsman_id = ?, non_striker_batsman_id = ? WHERE inning_id = ?`,
+    [newStrikerId, newNonStrikerId, inningId]
+  );
+
+  return true;
+};
+
+
+// Helper function
+async function getCurrentActiveOver(conn, inningId, matchId, bowlerId = null) {
+  const [[activeOver]] = await conn.execute(
+    `SELECT over_id, over_number, bowler_id, is_complete
+      FROM overs
+      WHERE inning_id = ? AND is_complete = FALSE
+      ORDER BY over_number DESC LIMIT 1`,
+    [inningId]
+  );
+  if (activeOver) return activeOver;
+
+  if (!bowlerId) throw new Error("No active over found and no bowler specified to start new over");
+
+  const [[{ maxOver }]] = await conn.execute(
+    `SELECT MAX(over_number) AS maxOver FROM overs WHERE inning_id = ?`,
+    [inningId]
+  );
+  const nextOverNumber = (maxOver || 0) + 1;
+  const [insertResult] = await conn.execute(
+    `INSERT INTO overs (inning_id, match_id, over_number, bowler_id, is_complete, start_timestamp)
+      VALUES (?, ?, ?, ?, FALSE, NOW())`,
+    [inningId, matchId, nextOverNumber, bowlerId]
+  );
+
+  return {
+    over_id: insertResult.insertId,
+    over_number: nextOverNumber,
+    bowler_id: bowlerId,
+    is_complete: false,
+  };
+}
+

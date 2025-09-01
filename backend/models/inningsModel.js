@@ -48,7 +48,7 @@ exports.updateInnings = async (conn, inningId, newScore, newWickets, overStr, ex
 exports.getInningsByMatch = async (conn, matchId) => {
   const [rows] = await conn.execute(
     `SELECT inning_id, team_id, total_runs, target_score, required_run_rate, wickets, overs, extras, innings_number,
-            run_rate, match_id, balls_bowled
+            run_rate, match_id, balls_bowled , status
      FROM innings WHERE match_id = ? ORDER BY innings_number`,
     [matchId]
   );

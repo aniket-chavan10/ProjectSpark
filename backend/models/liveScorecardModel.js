@@ -3,12 +3,13 @@ const db = require("../dbconfigure");
 exports.updateInitialPlayers = async ({ matchId, inningId, strikerId, nonStrikerId, bowlerId }) => {
   const [result] = await db.execute(
     `UPDATE live_scorecards
-     SET batsman1_id = ?, batsman2_id = ?, on_strike_batsman_id = ?, bowler_id = ?
+     SET batsman1_id = ?, batsman2_id = ?, on_strike_batsman_id = ?, non_striker_batsman_id = ?, bowler_id = ?
      WHERE match_id = ? AND inning_id = ?`,
-    [strikerId, nonStrikerId, strikerId, bowlerId, matchId, inningId]
+    [strikerId, nonStrikerId, strikerId, nonStrikerId, bowlerId, matchId, inningId]
   );
   return result;
 };
+
 
 exports.updateScorecardOnBall = async (data) => {
   const {

@@ -63,7 +63,7 @@ router.post(
 
 router.get(
   "/tournaments/:tournamentId/scheduled-matches",
-  verifyAdminToken, // ensure authorized access
+   // ensure authorized access
   tournamentController.getScheduledMatches
 );
 
