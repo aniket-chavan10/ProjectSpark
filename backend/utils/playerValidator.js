@@ -47,7 +47,7 @@ exports.validateInitialPlayers = async ({ matchId, inningId, strikerId, nonStrik
 
 exports.validateNewBatsman = async ({ matchId, inningId, newBatsmanId, end }) => {
   // Add DB checks as needed (e.g., player part of playing XI, not already out, etc)
-  if (!["striker", "non-striker"].includes(end)) throw new Error("Invalid end");
+  if (!["striker", "nonStriker"].includes(end)) throw new Error("Invalid end");
   // ... other validation logic
 };
 

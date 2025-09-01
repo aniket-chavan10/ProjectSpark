@@ -2,7 +2,7 @@ import React from "react";
 
 const MatchCard = ({ match, onStart }) => {
   const handleStart = () => {
-    const url = `http://localhost:5173/matches/details/${match.match_no}`;
+    const url = `http://localhost:5174/matches/details/${match.id}`;
     window.open(url, "_blank");
     onStart(match.match_no);
   };
@@ -42,7 +42,7 @@ const MatchCard = ({ match, onStart }) => {
       </div>
       {match.status === "completed" ? (
         <div className="text-center mt-4">
-          <p className="text-sm font-medium text-gray-700">Winner: <span className="text-green-600 font-bold">{match.winner || "N/A"}</span></p>
+          <p className="text-sm font-medium text-gray-700">Winner: <span className="text-green-600 font-bold">{match.winner_team_name || "N/A"}</span></p>
         </div>
       ) : (
         <div className="flex justify-center">

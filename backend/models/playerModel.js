@@ -13,3 +13,15 @@ exports.getPlayersByIds = async (conn, playerIds = []) => {
 
   return rows;
 };
+
+exports.getPlayersByTeam = async (conn, teamId) => {
+  const query = `
+    SELECT p.player_id, p.team_id, p.players_name, p.mobile_number, p.email, p.profile_picture, p.is_banned, p.banned_until
+    FROM players_core p
+    INNER JOIN teams_squad ts ON p.player_id = ts.player_id
+    WHERE ts.team_id = ? AND ts.is_playing = 1
+  `;
+
+  const [rows] = await conn.execute(query, [teamId]);
+  return rows;
+};

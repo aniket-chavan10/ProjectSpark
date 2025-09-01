@@ -316,33 +316,35 @@ function matchTimeIsFullISO(timeStr) {
 }
 
 
-
 exports.getScheduledMatchesByTournament = async (tournamentId) => {
   const [rows] = await db.query(
     `SELECT
-       id,
-       match_no,
-       tournament_id,
-       round_number,
-       group_name,
-       team1_id,
-       team2_id,
-       match_date,
-       match_time,
-       venue,
-       winner_team_id,
-       status,
-       dependent_match1_id,
-       dependent_match2_id,
-       created_at,
-       updated_at
-     FROM tournament_matches
-     WHERE tournament_id = ?
-     ORDER BY match_no ASC`,
+       tm.id,
+       tm.match_no,
+       tm.tournament_id,
+       tm.round_number,
+       tm.group_name,
+       tm.team1_id,
+       tm.team2_id,
+       tm.match_date,
+       tm.match_time,
+       tm.venue,
+       tm.winner_team_id,
+       t.team_name AS winner_team_name,
+       tm.status,
+       tm.dependent_match1_id,
+       tm.dependent_match2_id,
+       tm.created_at,
+       tm.updated_at
+     FROM tournament_matches tm
+     LEFT JOIN teams t ON tm.winner_team_id = t.id
+     WHERE tm.tournament_id = ?
+     ORDER BY tm.match_no ASC`,
     [tournamentId]
   );
   return rows;
 };
+
 
 exports.getGroupsWithTeamsForOrganizer = async (organizerAdminId, tournamentId) => {
   // Verify tournament ownership
