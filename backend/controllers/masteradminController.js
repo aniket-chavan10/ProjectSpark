@@ -19,7 +19,12 @@ const registerMasterAdmin = async (req, res) => {
     await addMasterAdmin(newAdmin);
     res.status(201).json({ message: "Master admin registered successfully" });
   } catch (error) {
-    res.status(500).json({ error: "Failed to register master admin", details: error.message });
+    res
+      .status(500)
+      .json({
+        error: "Failed to register master admin",
+        details: error.message,
+      });
   }
 };
 
@@ -28,7 +33,9 @@ const loginMasterAdmin = async (req, res) => {
   const { username, password } = req.body;
 
   if (!username || !password) {
-    return res.status(400).json({ error: "Username and password are required" });
+    return res
+      .status(400)
+      .json({ error: "Username and password are required" });
   }
 
   try {
@@ -56,7 +63,12 @@ const loginMasterAdmin = async (req, res) => {
 
     res.status(200).json({ token, role: "master-admin" });
   } catch (error) {
-    res.status(500).json({ error: "An error occurred during login", details: error.message });
+    res
+      .status(500)
+      .json({
+        error: "An error occurred during login",
+        details: error.message,
+      });
   }
 };
 
@@ -71,11 +83,12 @@ const getAllVillages = async (req, res) => {
 
     res.status(200).json(results);
   } catch (error) {
-    res.status(500).json({ error: "Error fetching villages", details: error.message });
+    res
+      .status(500)
+      .json({ error: "Error fetching villages", details: error.message });
   }
 };
 
-// Controller: Update Village Status
 const updateVillageStatus = async (req, res) => {
   const { status } = req.body;
   const villageId = req.params.id;
@@ -99,44 +112,52 @@ const updateVillageStatus = async (req, res) => {
     const villageName = village.village_name || "default";
     const teamName = village.team_name || `team_${villageName.toLowerCase()}`;
     const adminName = village.admin_name || `admin_${villageName.toLowerCase()}`;
-    const email = village.email || `admin_${villageName.toLowerCase()}@example.com`;
+    const email = village.email_address;  // Ensure this is not null
     const phone = village.phone || "0000000000";
 
-    if (status === "approved") {
-      const generatedPassword = `admin_${villageName.toLowerCase()}`;
-      const hashedPassword = bcrypt.hashSync(generatedPassword, 10);
+    if (!email) {
+      return res.status(400).json({ error: "Email is missing for this village" });
+    }
 
-      await db.getConnection(async (connection) => {
-        await connection.beginTransaction();
+    const connection = await db.getConnection();
+    await connection.beginTransaction();
 
-        try {
-          const [adminResult] = await addAdmin(adminName, email, hashedPassword, phone, teamName, connection);
-          const adminId = adminResult.insertId;
+    try {
+      if (status === "approved") {
+        const generatedPassword = `admin_${villageName.toLowerCase()}`;
+        const hashedPassword = bcrypt.hashSync(generatedPassword, 10);
 
-          await addTeam(teamName, adminId, connection);
+        // Insert admin first
+        const adminResult = await addAdmin(adminName, email, hashedPassword, phone, teamName, connection);
+        const adminId = adminResult.insertId;
 
-          await connection.query("UPDATE villages SET status = ? WHERE id = ?", [status, villageId]);
+        // Now insert the team with the adminId
+        await addTeam(teamName, adminId, connection);
 
-          await connection.commit();
-          res.status(200).json({
-            message: "Village approved successfully, admin and team created",
-            adminId,
-          });
-        } catch (error) {
-          await connection.rollback();
-          res.status(500).json({ error: "Failed to approve village", details: error.message });
-        } finally {
-          connection.release();
-        }
-      });
-    } else {
-      await db.query("UPDATE villages SET status = ? WHERE id = ?", [status, villageId]);
-      res.status(200).json({ message: "Village rejected successfully" });
+        // Update village status
+        await connection.query("UPDATE villages SET status = ? WHERE id = ?", [status, villageId]);
+        await connection.commit();
+        res.status(200).json({
+          message: "Village approved successfully, admin and team created",
+          adminId,
+        });
+      } else {
+        await connection.query("UPDATE villages SET status = ? WHERE id = ?", [status, villageId]);
+        await connection.commit();
+        res.status(200).json({ message: "Village rejected successfully" });
+      }
+    } catch (error) {
+      await connection.rollback();
+      res.status(500).json({ error: "Failed to update village status", details: error.message });
+    } finally {
+      connection.release();
     }
   } catch (error) {
     res.status(500).json({ error: "Error updating village status", details: error.message });
   }
 };
+
+
 
 module.exports = {
   registerMasterAdmin,

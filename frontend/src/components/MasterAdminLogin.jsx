@@ -34,7 +34,7 @@ const MasterAdminLogin = () => {
         console.log("Master Admin Login successful:", response.data);
 
         // Redirect to the master admin dashboard or other relevant page
-        navigate("/master-admin-dashboard");
+        navigate("/master-admin");
         alert("Master Admin Login successful!");
       }
     } catch (error) {

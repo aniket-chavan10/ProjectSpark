@@ -1,60 +1,44 @@
 import React, { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import PlayerCard from "./PlayerCard";
-import teamLogo from "../../../../backend/uploads/kohli.png";
-
-// Dummy data remains unchanged
-const playerData = {
-  picture: teamLogo,
-  firstName: "Virat",
-  lastName: "Kohli",
-  role: "Batter",
-  country: "India",
-  countryFlag: "https://flagcdn.com/w320/in.png",
-  stats: [
-    { title: "Matches", value: "254" },
-    { title: "Runs", value: "12000" },
-    { title: "Highest Score", value: "183" },
-  ],
-  profileLink: "/players/68176-virat-kohli-profile",
-};
-
-const batterData = [
-  { ...playerData, firstName: "Virat", lastName: "Kohli" },
-  { ...playerData, firstName: "Rohit", lastName: "Sharma" },
-];
-
-const bowlerData = [
-  {
-    ...playerData,
-    firstName: "Jasprit",
-    lastName: "Bumrah",
-    role: "Bowler",
-    stats: [
-      { title: "Matches", value: "50" },
-      { title: "Wickets", value: "100" },
-      { title: "Best Bowling", value: "5/15" },
-    ],
-    profileLink: "/players/68176-jasprit-bumrah-profile",
-  },
-  {
-    ...playerData,
-    firstName: "Mohammad",
-    lastName: "Shami",
-    role: "Bowler",
-    stats: [
-      { title: "Matches", value: "60" },
-      { title: "Wickets", value: "150" },
-      { title: "Best Bowling", value: "5/25" },
-    ],
-    profileLink: "/players/68176-mohammad-shami-profile",
-  },
-];
+import adminApi from "../../api/adminApi"; // Import the API function
 
 const ViewPlayers = () => {
-  // Existing state and effects unchanged
   const [activeFilter, setActiveFilter] = useState("All");
+  const [players, setPlayers] = useState([]);
   const [scrollPosition, setScrollPosition] = useState(0);
+
+  useEffect(() => {
+    const fetchPlayers = async () => {
+      try {
+        const fetchedPlayers = await adminApi.getPlayersByTeam();
+        console.log("Fetched Players:", fetchedPlayers); // Debugging
+
+        const formattedPlayers = fetchedPlayers.map((player) => ({
+          player_id: player.player_id,
+          picture: player.profile_picture, // Use directly since axiosInstance handles the base URL
+          firstName: player.full_name?.split(" ")[0] || "",
+          lastName: player.full_name?.split(" ")[1] || "",
+          role: player.role || "Batter", // Use API role if available
+          country: player.country || "India", // Use API country if available
+          countryFlag: "https://flagcdn.com/w320/in.png",
+          stats: [
+            { title: "Matches", value: player.matches || "0" },
+            { title: "Runs", value: player.runs || "0" },
+            { title: "Highest Score", value: player.highest_score || "0" },
+          ],
+          profileLink: "#",
+          bio: `Plays for ${player.team_name}`,
+        }));
+
+        setPlayers(formattedPlayers);
+      } catch (error) {
+        console.error("Error fetching players:", error);
+      }
+    };
+
+    fetchPlayers();
+  }, []);
 
   useEffect(() => {
     const handleScroll = () => setScrollPosition(window.scrollY);
@@ -62,19 +46,11 @@ const ViewPlayers = () => {
     return () => window.removeEventListener("scroll", handleScroll);
   }, []);
 
-  const logoScale = Math.min(1.5, 1 + scrollPosition / 1000);
-
-  let displayedPlayers = [];
-  if (activeFilter === "All") displayedPlayers = [...batterData, ...bowlerData];
-  else if (activeFilter === "Batters") displayedPlayers = batterData;
-  else displayedPlayers = bowlerData;
-
   return (
     <div className="min-h-screen bg-[#f4f4f4] flex flex-col">
-      {/* Updated Buttons Section */}
       <div className="bg-white py-3 z-10">
         <div className="flex justify-center space-x-5">
-          {["All", "Batters", "Bowlers"].map((filter) => (
+          {["All"].map((filter) => (
             <motion.button
               key={filter}
               type="button"
@@ -91,26 +67,14 @@ const ViewPlayers = () => {
               onClick={() => setActiveFilter(filter)}
             >
               {filter}
-              {activeFilter === filter && (
-                <motion.div
-                  className="absolute inset-0 bg-white/10 rounded-full"
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: [0, 0.2, 0] }}
-                  transition={{ duration: 1.5, repeat: Infinity }}
-                />
-              )}
             </motion.button>
           ))}
         </div>
       </div>
 
-      {/* Rest of the code remains exactly the same */}
-      <div className="flex-1 overflow-y-auto px-4 py-6 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-8" style={{ marginTop: "20px" }}>
-        {displayedPlayers.map((player, index) => (
-          <div
-            key={index}
-            className="bg-white rounded-lg shadow-xl overflow-hidden p-4 transition-transform duration-300 ease-in-out hover:scale-105"
-          >
+      <div className="flex-1 overflow-y-auto px-4 py-6 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-8">
+        {players.map((player, index) => (
+          <div key={index} className="bg-white rounded-lg shadow-xl overflow-hidden p-4 transition-transform duration-300 ease-in-out hover:scale-105">
             <PlayerCard player={player} />
           </div>
         ))}

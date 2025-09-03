@@ -1,17 +1,24 @@
 const db = require('../dbconfigure'); // Import database configuration
 const bcrypt = require('bcryptjs'); // Import bcrypt for hashing passwords
 
-// Function to add a new admin
-const addAdmin = (adminName, email, password, phone, teamName, callback) => {
-    console.log({ adminName, email, password, phone, teamName }); // Log the parameters
+const addAdmin = async (adminName, email, password, phone, teamName, connection) => {
+    const checkSql = 'SELECT * FROM admins WHERE team_name = ?';
+    const [existingTeam] = await connection.query(checkSql, [teamName]);
+
+    if (existingTeam.length > 0) {
+        throw new Error(`Team name "${teamName}" already exists.`);
+    }
+
     const sql = 'INSERT INTO admins (admin_name, email, password, phone, team_name) VALUES (?, ?, ?, ?, ?)';
-    db.query(sql, [adminName, email, password, phone, teamName], (err, result) => {
-        if (err) {
-            return callback(err, null);
-        }
-        callback(null, result); // Return the result of the insertion
-    });
+    try {
+        const [result] = await connection.query(sql, [adminName, email, password, phone, teamName]);
+        return result; // Return the result to get the insertId
+    } catch (err) {
+        throw new Error('Error adding admin: ' + err.message);
+    }
 };
+
+
 
 
 // Function to retrieve an admin by ID

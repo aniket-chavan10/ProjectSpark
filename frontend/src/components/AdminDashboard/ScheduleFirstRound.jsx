@@ -1,317 +1,224 @@
-import React, { useState, useEffect, useContext } from "react";
-import { FaTrash } from "react-icons/fa";
+import React, { useState, useMemo } from "react";
 
+// Static knockout structure for matches
+const initialMatches = [
+  { match_no: 1, group: "A", round: 1 },
+  { match_no: 2, group: "A", round: 1 },
+  { match_no: 3, group: "A", round: 2, team1Id: "winner of match 1", team2Id: "winner of match 2" },
+  { match_no: 4, group: "A", round: 1 },
+  { match_no: 5, group: "A", round: 1 },
+  { match_no: 6, group: "A", round: 2, team1Id: "winner of match 4", team2Id: "winner of match 5" },
+  { match_no: 7, group: "A", round: 3, team1Id: "winner of match 3", team2Id: "winner of match 6" },
+  { match_no: 8, group: "B", round: 1 },
+  { match_no: 9, group: "B", round: 1 },
+  { match_no: 10, group: "B", round: 2, team1Id: "winner of match 8", team2Id: "winner of match 9" },
+  { match_no: 11, group: "B", round: 1 },
+  { match_no: 12, group: "B", round: 1 },
+  { match_no: 13, group: "B", round: 2, team1Id: "winner of match 11", team2Id: "winner of match 12" },
+  { match_no: 14, group: "B", round: 3, team1Id: "winner of match 10", team2Id: "winner of match 13" },
+  { match_no: 15, group: "C", round: 1 },
+  { match_no: 16, group: "C", round: 1 },
+  { match_no: 17, group: "C", round: 2, team1Id: "winner of match 15", team2Id: "winner of match 16" },
+  { match_no: 18, group: "C", round: 1 },
+  { match_no: 19, group: "C", round: 1 },
+  { match_no: 20, group: "C", round: 2, team1Id: "winner of match 18", team2Id: "winner of match 19" },
+  { match_no: 21, group: "C", round: 3, team1Id: "winner of match 17", team2Id: "winner of match 20" },
+  { match_no: 22, group: "D", round: 1 },
+  { match_no: 23, group: "D", round: 1 },
+  { match_no: 24, group: "D", round: 2, team1Id: "winner of match 22", team2Id: "winner of match 23" },
+  { match_no: 25, group: "D", round: 1 },
+  { match_no: 26, group: "D", round: 1 },
+  { match_no: 27, group: "D", round: 2, team1Id: "winner of match 25", team2Id: "winner of match 26" },
+  { match_no: 28, group: "D", round: 3, team1Id: "winner of match 24", team2Id: "winner of match 27" },
+  { match_no: 29, round: 4, team1Id: "winner of match 7", team2Id: "winner of match 21" },
+  { match_no: 30, round: 4, team1Id: "winner of match 14", team2Id: "winner of match 28" },
+  { match_no: 31, round: 5, team1Id: "winner of match 29", team2Id: "winner of match 30" },
+];
 
-import adminApi from "../../api/adminApi";
-import { TournamentContext } from "../../contexts/TournamentContext";
-import MatchDateTime from "./MatchDateTime";
+// Helper to add days (n) to date string in 'YYYY-MM-DD' format
+const addDays = (dateStr, n) => {
+  if (!dateStr) return "";
+  const date = new Date(dateStr);
+  if (isNaN(date.getTime())) return "";
+  date.setDate(date.getDate() + n);
+  const yyyy = date.getFullYear();
+  const mm = String(date.getMonth() + 1).padStart(2, "0");
+  const dd = String(date.getDate()).padStart(2, "0");
+  return `${yyyy}-${mm}-${dd}`;
+};
 
-const ScheduleFirstRound = ({ updateTournamentStep}) => {
-  const { tournamentId } = useContext(TournamentContext);
-  const groups = ["A", "B", "C", "D"];
+// Convert ISO date string to 'YYYY-MM-DD'
+const isoToDateString = (isoStr) => {
+  if (!isoStr) return "";
+  const d = new Date(isoStr);
+  if (isNaN(d.getTime())) return "";
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  const dd = String(d.getDate()).padStart(2, "0");
+  return `${yyyy}-${mm}-${dd}`;
+};
 
-  // Match numbers assigned for each group
-  const matchNumbersByGroup = {
-    A: [1, 2, 4, 5],
-    B: [8, 9, 11, 12],
-    C: [15, 16, 18, 19],
-    D: [22, 23, 25, 26],
-  };
+// Safely get available teams for selection per group and match
+const getAvailableTeams = (matches, groups, groupName, matchNo, currentSelection, opponentSelection) => {
+  if (!Array.isArray(groups)) return [];
+  const groupObj = groups.find((g) => g.group_name === groupName);
+  if (!groupObj || !Array.isArray(groupObj.teams)) return [];
 
-  const [groupTeams, setGroupTeams] = useState([]);
-  const [groupMatches, setGroupMatches] = useState([]);
-  const [selectedMatch, setSelectedMatch] = useState({
-    groupIndex: null,
-    matchIndex: null,
-  });
-  const [isScheduleVisible, setIsScheduleVisible] = useState(true);
-  const [isConfirmationModalOpen, setIsConfirmationModalOpen] = useState(false);
-  const [successMessage, setSuccessMessage] = useState("");
-  const [isMatchDateTimeVisible, setIsMatchDateTimeVisible] = useState(false);
+  const allTeams = groupObj.teams.map((t) => ({ ...t, id: String(t.id) }));
 
-  useEffect(() => {
-    const fetchGroupedTeams = async () => {
-      try {
-        const { groupsAssignedTeams } = await adminApi.getGroupsAssignedTeams(
-          tournamentId
-        );
-        const initialGroupTeams = groups.map(
-          (group) => groupsAssignedTeams[group] || []
-        );
-        setGroupTeams(initialGroupTeams);
+  // Used teams in group round 1 matches except current match
+  const usedInGroup = matches
+    .filter((m) => m.group === groupName && m.round === 1 && m.match_no !== matchNo)
+    .flatMap((m) => [m.team1Id, m.team2Id])
+    .filter(Boolean)
+    .map(String);
 
-        // Initialize matches with specific match numbers for each group
-        const initializedMatches = groups.map((group) =>
-          matchNumbersByGroup[group].map((matchNo) => ({
-            match_no: matchNo,
-            name: `Match ${matchNo}`,
-            slots: [null, null],
-          }))
-        );
+  // Exclude opponent selection and other used teams but allow current selection
+  const toExclude = new Set([...usedInGroup, String(opponentSelection)].filter(Boolean));
 
-        setGroupMatches(initializedMatches);
-      } catch (error) {
-        console.error("Error fetching grouped teams:", error.message);
-      }
-    };
+  return allTeams.filter((t) => !toExclude.has(String(t.id)) || String(t.id) === String(currentSelection));
+};
 
-    fetchGroupedTeams();
-  }, [tournamentId]);
-
-  const handleAssignTeam = (groupIndex, teamIndex) => {
-    const { matchIndex } = selectedMatch;
-
-    if (matchIndex === null || groupIndex !== selectedMatch.groupIndex) {
-      alert("Please select a match in the current group first.");
-      return;
-    }
-
-    const match = groupMatches[groupIndex][matchIndex];
-    if (match.slots[0] && match.slots[1]) {
-      alert("This match already has two teams assigned.");
-      return;
-    }
-
-    const team = groupTeams[groupIndex][teamIndex];
-    const updatedMatches = [...groupMatches];
-    const updatedTeams = [...groupTeams];
-
-    // Assign the team to the first empty slot
-    if (!match.slots[0]) {
-      updatedMatches[groupIndex][matchIndex].slots[0] = {
-        team_name: team.team_name,
-        team_id: team.id,
-      };
-    } else {
-      updatedMatches[groupIndex][matchIndex].slots[1] = {
-        team_name: team.team_name,
-        team_id: team.id,
-      };
-    }
-
-    // Remove team from available teams
-    updatedTeams[groupIndex].splice(teamIndex, 1);
-
-    setGroupMatches(updatedMatches);
-    setGroupTeams(updatedTeams);
-  };
-  const handleRandomAssign = (groupIndex) => {
-    const shuffledTeams = [...groupTeams[groupIndex]].sort(() => Math.random() - 0.5);
-    const updatedMatches = [...groupMatches];
-    const updatedTeams = [...groupTeams];
-  
-    // Assign teams to the first available slot in the group's matches
-    for (let match of updatedMatches[groupIndex]) {
-      for (let i = 0; i < match.slots.length; i++) {
-        if (!match.slots[i] && shuffledTeams.length > 0) {
-          const team = shuffledTeams.shift();
-          match.slots[i] = {
-            team_name: team.team_name,
-            team_id: team.id,
-          };
-        }
-      }
-    }
-  
-    // Update remaining teams
-    updatedTeams[groupIndex] = shuffledTeams;
-  
-    setGroupMatches(updatedMatches);
-    setGroupTeams(updatedTeams);
-  };
-  
-  const handleRemoveTeam = (groupIndex, matchIndex, slotIndex) => {
-    const updatedMatches = [...groupMatches];
-    const updatedTeams = [...groupTeams];
-
-    // Add the removed team back to available teams
-    const removedTeam = updatedMatches[groupIndex][matchIndex].slots[slotIndex];
-    if (removedTeam) {
-      updatedTeams[groupIndex].push({
-        team_name: removedTeam.team_name,
-        id: removedTeam.team_id,
-      });
-    }
-
-    // Clear the slot
-    updatedMatches[groupIndex][matchIndex].slots[slotIndex] = null;
-
-    setGroupMatches(updatedMatches);
-    setGroupTeams(updatedTeams);
-  };
-
-  const handleSave = async () => {
-    if (
-      groupMatches.every((matches) =>
-        matches.every((match) => match.slots.every((slot) => slot !== null))
-      )
-    ) {
-      setIsConfirmationModalOpen(true);
-      
-    } else {
-      alert("Please ensure all matches have both teams assigned.");
-    }
-  };
-
-  const confirmSave = async () => {
-    try {
-      updateTournamentStep(tournamentId, 6);
-      const matches = groupMatches.flatMap((group, groupIndex) =>
-        group.map((match) => ({
-          group: groups[groupIndex],
-          match_no: match.match_no,
-          team1Id: match.slots[0]?.team_id || null,
-          team2Id: match.slots[1]?.team_id || null,
-          venue: "TBD",
-        }))
-      );
-
-      await adminApi.scheduleTournamentMatches(tournamentId, matches);
-      setSuccessMessage("Tournament matches scheduled successfully!");
-    
-      setIsMatchDateTimeVisible(true);
-      setIsScheduleVisible(false);
-    } catch (error) {
-      console.error("Error scheduling matches:", error);
-      setSuccessMessage("Error scheduling matches. Please try again.");
-    } finally {
-      setIsConfirmationModalOpen(false);
-    }
-  };
+// Single match card component
+const MatchCard = ({ match, matches, groups, updateMatch }) => {
+  const isRound1 = match.round === 1;
 
   return (
-    <div className="p-8 bg-gray-100 min-h-screen flex flex-col">
-      {isScheduleVisible && (
-        <>
-          <h1 className="text-4xl font-bold text-gray-800 mb-8 text-center">
-            Schedule Group Matches
-          </h1>
-          <div className="grid grid-cols-2 gap-8">
-            {groups.map((group, groupIndex) => (
-              <div key={group} className="p-6 bg-white rounded-lg shadow">
-              <h2 className="text-xl font-bold text-gray-800 mb-4">Group {group}</h2>
-            
-              <button
-                onClick={() => handleRandomAssign(groupIndex)}
-                className="mb-4 px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
-              >
-                Random Assign
-              </button>
-            
-              <h3 className="text-lg font-medium text-gray-700 mb-2">Available Teams:</h3>
-              <ul className="mb-4 max-h-40 overflow-y-auto border border-gray-300 rounded-lg p-2">
-                {groupTeams[groupIndex]?.map((team, teamIndex) => (
-                  <li
-                    key={team.id}
-                    className="text-gray-600 flex items-center justify-between mb-2 p-1 bg-gray-50 rounded hover:bg-gray-100"
-                  >
-                    {team.team_name}
-                    <button
-                      onClick={() => handleAssignTeam(groupIndex, teamIndex)}
-                      className="px-2 py-1 bg-blue-500 text-white rounded hover:bg-blue-600 text-sm"
-                    >
-                      Assign
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            
-              <h3 className="text-lg font-medium text-gray-700 mb-4">Matches:</h3>
-              <div className="grid gap-4">
-                {groupMatches[groupIndex]?.map((match, matchIndex) => (
-                  <div
-                    key={matchIndex}
-                    className={`p-4 rounded-lg flex justify-between items-center cursor-pointer ${
-                      selectedMatch.groupIndex === groupIndex &&
-                      selectedMatch.matchIndex === matchIndex
-                        ? "bg-yellow-100"
-                        : match.slots.every((slot) => slot !== null)
-                        ? "bg-green-100"
-                        : "bg-gray-100"
-                    }`}
-                    onClick={() => setSelectedMatch({ groupIndex, matchIndex })}
-                  >
-                    <div>
-                      <strong>{match.name}</strong>
-                    </div>
-                    <div className="flex gap-2">
-                      {match.slots.map((slot, slotIndex) => (
-                        <span
-                          key={slotIndex}
-                          className="flex items-center gap-2"
-                        >
-                          <span
-                            className={`px-2 py-1 ${
-                              slot ? "bg-green-200" : "bg-gray-300"
-                            } text-sm rounded-lg`}
-                          >
-                            {slot?.team_name || `Slot ${slotIndex + 1}`}
-                          </span>
-                          {slot && (
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleRemoveTeam(
-                                  groupIndex,
-                                  matchIndex,
-                                  slotIndex
-                                );
-                              }}
-                              className="text-red-500 hover:text-red-600"
-                            >
-                              <FaTrash />
-                            </button>
-                          )}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-            
-            ))}
-          </div>
+    <div className="bg-white p-4 rounded-lg border shadow-sm hover:shadow-lg transition">
+      {/* Match Header */}
+      <h3 className="font-bold mb-3 flex justify-between">
+        <span>
+          Match {match.match_no}
+          {match.group && <span className="ml-2 text-gray-500">Group {match.group}</span>}
+        </span>
+        <span className="text-xs bg-gray-100 px-2 py-1 rounded">Round {match.round}</span>
+      </h3>
 
-          <button
-            onClick={handleSave}
-            className="mt-8 w-full py-2 px-4 bg-green-500 text-white rounded hover:bg-green-600"
+      {/* Team selectors or placeholders */}
+      {isRound1 ? (
+        <div className="flex space-x-2 mb-3">
+          {/* Team 1 Selector */}
+          <select
+            className="flex-1 border rounded p-2"
+            value={match.team1Id || ""}
+            onChange={(e) => updateMatch(match.match_no, { team1Id: e.target.value })}
           >
-            Save Round 1 Matches
-          </button>
-        </>
-      )}
+            <option value="">Select Team 1</option>
+            {getAvailableTeams(matches, groups, match.group, match.match_no, match.team1Id, match.team2Id).map((t) => (
+              <option key={t.id} value={t.id}>
+                {t.name}
+              </option>
+            ))}
+          </select>
 
-      {isConfirmationModalOpen && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white p-6 rounded-lg shadow-lg w-96">
-            <h3 className="text-xl font-semibold mb-4 text-gray-800">
-              Confirm Save
-            </h3>
-            <p className="text-gray-600 mb-6">
-              Are you sure you want to save the match schedule?
-            </p>
-            <div className="flex justify-end space-x-4">
-              <button
-                onClick={() => setIsConfirmationModalOpen(false)}
-                className="px-4 py-2 bg-gray-300 text-gray-800 rounded hover:bg-gray-400"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={confirmSave}
-                className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
-              >
-                Confirm
-              </button>
-            </div>
-          </div>
+          {/* Team 2 Selector */}
+          <select
+            className="flex-1 border rounded p-2"
+            value={match.team2Id || ""}
+            onChange={(e) => updateMatch(match.match_no, { team2Id: e.target.value })}
+          >
+            <option value="">Select Team 2</option>
+            {getAvailableTeams(matches, groups, match.group, match.match_no, match.team2Id, match.team1Id).map((t) => (
+              <option key={t.id} value={t.id}>
+                {t.name}
+              </option>
+            ))}
+          </select>
+        </div>
+      ) : (
+        <div className="flex items-center mb-3 space-x-2">
+          <span className="px-2 py-1 bg-gray-200 rounded text-sm">{match.team1Id}</span>
+          <span>vs</span>
+          <span className="px-2 py-1 bg-gray-200 rounded text-sm">{match.team2Id}</span>
         </div>
       )}
 
-      {isMatchDateTimeVisible && <MatchDateTime tournamentId={tournamentId}/>}
+      {/* Date & Time inputs */}
+      <div className="flex space-x-2 mb-2">
+        <input
+          type="date"
+          className="flex-1 border rounded p-2"
+          value={match.match_date || ""}
+          onChange={(e) => updateMatch(match.match_no, { match_date: e.target.value })}
+        />
+        <input
+          type="time"
+          className="flex-1 border rounded p-2"
+          value={match.match_time || ""}
+          onChange={(e) => updateMatch(match.match_no, { match_time: e.target.value })}
+        />
+      </div>
     </div>
   );
 };
 
-export default ScheduleFirstRound;
+// Main KnockoutScheduler component
+export default function KnockoutScheduler({ groups, schedule, onCreateSchedule, tournamentStartDate, tournamentEndDate }) {
+  const startDate = isoToDateString(tournamentStartDate);
+  const endDate = isoToDateString(tournamentEndDate);
+
+  // Generates default dates for matches if no schedule provided
+  const generateDefaultDates = () => {
+    const day1 = startDate;
+    const day2 = addDays(day1, 1);
+    const day3 = endDate;
+
+    return initialMatches.map((m, idx) => ({
+      ...m,
+      match_date: schedule?.[idx]?.match_date || (idx < 10 ? day1 : idx < 20 ? day2 : day3),
+      match_time: schedule?.[idx]?.match_time || "",
+      venue: schedule?.[idx]?.venue || "",
+      team1Id: m.round === 1 ? schedule?.[idx]?.team1Id || "" : String(m.team1Id || ""),
+      team2Id: m.round === 1 ? schedule?.[idx]?.team2Id || "" : String(m.team2Id || ""),
+    }));
+  };
+
+  const initialState = useMemo(() => {
+    if (schedule && schedule.length) {
+      return schedule.map((m) => ({
+        ...m,
+        match_date: m.match_date || "",
+        match_time: m.match_time || "",
+        venue: m.venue || "",
+        team1Id: m.round === 1 ? m.team1Id || "" : String(m.team1Id || ""),
+        team2Id: m.round === 1 ? m.team2Id || "" : String(m.team2Id || ""),
+      }));
+    } else {
+      return generateDefaultDates();
+    }
+  }, [schedule, tournamentStartDate, tournamentEndDate]);
+
+  const [matches, setMatches] = useState(initialState);
+
+  // Update individual match data
+  const updateMatch = (match_no, updates) => {
+    setMatches((prev) => prev.map((m) => (m.match_no === match_no ? { ...m, ...updates } : m)));
+  };
+
+  // Handler to save schedule; checks all round 1 matches have both teams
+  const handleSubmit = () => {
+    const incomplete = matches.some((m) => m.round === 1 && (!m.team1Id || !m.team2Id));
+    if (incomplete) {
+      alert("Please select all teams for round 1 matches before saving.");
+      return;
+    }
+    onCreateSchedule(matches);
+  };
+
+  return (
+    <div className="p-6">
+      <h1 className="text-3xl font-bold mb-6">🏆 Knockout Tournament Scheduler</h1>
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+        {matches
+          .slice()
+          .sort((a, b) => a.match_no - b.match_no)
+          .map((match) => (
+            <MatchCard key={match.match_no} match={match} matches={matches} groups={groups} updateMatch={updateMatch} />
+          ))}
+      </div>
+      <button onClick={handleSubmit} className="px-6 py-3 mt-6 bg-green-600 hover:bg-green-700 text-white rounded-lg shadow">
+        💾 Save Schedule
+      </button>
+    </div>
+  );
+}

@@ -2,7 +2,7 @@ import React from "react";
 import { Navigate, Outlet } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
 
-const ProtectedRoute = ({ allowedRoles, redirectTo = "/sign-in" }) => {
+const ProtectedRoute = ({ allowedRoles, redirectTo = "/master-admin" }) => {
   const { auth } = useAuth();
 
   console.log("Auth Context:", auth);
@@ -15,7 +15,7 @@ const ProtectedRoute = ({ allowedRoles, redirectTo = "/sign-in" }) => {
 
   if (!allowedRoles.includes(auth.role)) {
     console.log(`Role ${auth.role} is not allowed. Redirecting.`);
-    return <Navigate to="/sign-in" />;
+    return <Navigate to="/master-admin" />;
   }
 
   return <Outlet />;

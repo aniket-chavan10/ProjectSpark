@@ -1,30 +1,78 @@
 const express = require("express");
 const router = express.Router();
-const {
-  addTournament,
-  getAllTournaments,
-  getTournamentById,
-  updateTournament,
-  deleteTournament,
-} = require("../controllers/tournamentController");
+const tournamentController = require("../controllers/tournamentController");
+const verifyAdminToken = require("../middlewares/authMiddleware"); // Auth middleware
+const multer = require("multer");
+const upload = multer();
 
-const verifyAdminToken = require("../middlewares/authMiddleware");
+router.post(
+  "/",
+  verifyAdminToken,
+  upload.single("banner_image"),
+  tournamentController.createTournamentFromSchedule
+);
 
-// Route to add a new tournament (Master Admin only)
-router.post("/add", addTournament);
+router.get(
+  "/",
+  verifyAdminToken,
+  tournamentController.getTournamentsByOrganizer
+);
 
-// Route to get all tournaments
-router.get("/all", getAllTournaments);
+router.get(
+  "/admin/tournament",
+  verifyAdminToken,
+  tournamentController.getOpenTournaments
+);
 
-// Route to get a specific tournament by ID
-router.get("/:id", getTournamentById);
+router.get(
+  "/:tournamentId",
+  verifyAdminToken,
+  tournamentController.getTournamentById
+);
 
-// Route to update a tournament (Organizer Admin)
-router.put("/update/:id", updateTournament);
+router.put(
+  "/:tournamentId",
+  verifyAdminToken,
+  tournamentController.updateTournament
+);
 
-// Route to delete a tournament
-router.delete("/delete/:id", deleteTournament);
+router.delete(
+  "/:tournamentId",
+  verifyAdminToken,
+  tournamentController.deleteTournament
+);
+
+router.get(
+  "/tournaments/:tournament_id/applied-teams",
+  verifyAdminToken,
+  tournamentController.getAppliedTeams
+);
+
+// Auto-assign groups
+router.post(
+  "/tournaments/:tournamentId/group",
+  verifyAdminToken,
+  tournamentController.assignTournamentGroups
+);
+
+// Generate knockout schedule
+router.post(
+  "/tournaments/:tournamentId/generate-knockout-schedule",
+  tournamentController.scheduleKnockoutMatches
+);
+
+router.get(
+  "/tournaments/:tournamentId/scheduled-matches",
+   // ensure authorized access
+  tournamentController.getScheduledMatches
+);
+
+router.get(
+  "/:tournament_id/groups-with-teams",verifyAdminToken, tournamentController.getGroupsWithTeams
+);
 
 
+router.get("/tournaments/:tournamentId/progress", verifyAdminToken, tournamentController.getTournamentProgress);
+router.post("/tournaments/:tournamentId/progress", verifyAdminToken, tournamentController.updateTournamentProgress);
 
 module.exports = router;

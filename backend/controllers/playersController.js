@@ -5,7 +5,7 @@ const crypto = require("crypto");
 const nodemailer = require("nodemailer");
 
 const {
-  addPlayerCore,
+  addPlayer,
   getAllPlayersCore,
   getPlayerCoreById,
   updatePlayerCore,
@@ -36,81 +36,29 @@ const createPlayer = async (req, res) => {
     const adminId = decoded.id;
     if (!adminId) return res.status(400).json({ error: "Invalid token" });
 
-    // Get a connection from the pool
-    const connection = await db.getConnection();
-    try {
-      // Fetch team name for the admin
-      const [adminResult] = await connection.query(
-        "SELECT team_name FROM admins WHERE id = ?",
-        [adminId]
-      );
+    // Add player using the addPlayer model function
+    const { playerId, generatedPassword } = await addPlayer(playerData, adminId, file);
 
-      if (adminResult.length === 0) {
-        return res.status(404).json({ error: "Admin not found" });
-      }
+    // Send email with credentials
+    const transporter = nodemailer.createTransport({
+      service: "Gmail",
+      auth: {
+        user: process.env.EMAIL_USER,
+        pass: process.env.EMAIL_PASS,
+      },
+    });
 
-      const teamName = adminResult[0].team_name;
-      if (!teamName) {
-        return res
-          .status(400)
-          .json({ error: "Admin is not associated with any team" });
-      }
+    await transporter.sendMail({
+      from: process.env.EMAIL_USER,
+      to: playerData.email,
+      subject: "Welcome to the Jaoli Cricket Association",
+      text: `Hi ${playerData.full_name},\n\nYou have been added to the Cricket Association system.\nLogin Credentials:\nEmail: ${playerData.email}\nPassword: ${generatedPassword}\n\nBest,\nJaoli Cricket Association`,
+    });
 
-      // Generate password and hash it
-      const generatedPassword = crypto.randomBytes(8).toString("hex");
-      const hashedPassword = await bcrypt.hash(generatedPassword, 10);
-
-      // Prepare player data
-      playerData.team_name = teamName;
-      playerData.password = hashedPassword;
-      playerData.profile_picture = file?.path || null;
-      playerData.is_banned = playerData.is_banned || false;
-      playerData.banned_until = playerData.banned_until || null;
-
-      // Insert player into database
-      const [result] = await connection.query(
-        `
-        INSERT INTO players_core 
-        (full_name, mobile_number, email, profile_picture, password, is_banned, banned_until, team_name) 
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-        `,
-        [
-          playerData.full_name,
-          playerData.mobile_number,
-          playerData.email,
-          playerData.profile_picture,
-          playerData.password,
-          playerData.is_banned,
-          playerData.banned_until,
-          playerData.team_name,
-        ]
-      );
-
-      // Send email with credentials
-      const transporter = nodemailer.createTransport({
-        service: "Gmail",
-        auth: {
-          user: process.env.EMAIL_USER,
-          pass: process.env.EMAIL_PASS,
-        },
-      });
-
-      await transporter.sendMail({
-        from: process.env.EMAIL_USER,
-        to: playerData.email,
-        subject: "Welcome to the Jaoli Cricket Association",
-        text: `Hi ${playerData.full_name},\n\nYou have been added to the Cricket Association system.\nLogin Credentials:\nEmail: ${playerData.email}\nPassword: ${generatedPassword}\n\nBest,\nJaoli Cricket Association`,
-      });
-
-      res
-        .status(201)
-        .json({
-          message: "Player added and email sent",
-          playerId: result.insertId,
-        });
-    } finally {
-      connection.release(); // Always release the connection
-    }
+    res.status(201).json({
+      message: "Player added and email sent",
+      playerId,
+    });
   } catch (error) {
     console.error("Error creating player:", error);
     res.status(500).json({
@@ -119,6 +67,7 @@ const createPlayer = async (req, res) => {
     });
   }
 };
+
 
 const playerLogin = async (req, res) => {
   const { email, password } = req.body;
@@ -278,7 +227,7 @@ const getPlayersByTeam = async (req, res) => {
 
       // Fetch players for the corresponding team
       const [players] = await connection.query(
-        "SELECT * FROM players_core WHERE team_name = ?",
+        "SELECT * FROM players_core WHERE team_id = ?",
         [teamName]
       );
 

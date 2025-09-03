@@ -34,12 +34,10 @@ function App() {
             />
           </Route>
 
-          <Route element={<ProtectedRoute allowedRoles={["master-admin"]} />}>
             <Route
-              path="/master-admin-dashboard"
+              path="/master-admin"
               element={<MasterAdminDashboard />}
             />
-          </Route>
 
           <Route element={<ProtectedRoute allowedRoles={["player"]} />}>
             <Route path="/player-dashboard" element={<PlayerDashboard />} />
