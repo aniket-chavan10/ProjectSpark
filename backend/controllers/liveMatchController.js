@@ -155,6 +155,7 @@ exports.setNewBatsman = async (req, res) => {
     conn = await dbPool.getConnection();
     await conn.beginTransaction();
 
+    // Validate new batsman (assuming this throws if invalid)
     await playerValidator.validateNewBatsman({
       matchId,
       inningId,
@@ -162,6 +163,7 @@ exports.setNewBatsman = async (req, res) => {
       end,
     });
 
+    // Update batsman, last wicket player, reset awaiting_new_batsman flag in transaction
     await liveMatchService.setNewBatsman({
       matchId,
       inningId,
@@ -169,10 +171,8 @@ exports.setNewBatsman = async (req, res) => {
       end,
     });
 
-    const liveScoreData = await liveScoreService.getLiveScoreboard(
-      conn,
-      matchId
-    );
+    // Fetch updated live scoreboard data after update
+    const liveScoreData = await liveScoreService.getLiveScoreboard(conn, matchId);
 
     await conn.commit();
 
@@ -189,9 +189,7 @@ exports.setNewBatsman = async (req, res) => {
       console.warn("Socket.io instance not found on app");
     }
 
-    res
-      .status(200)
-      .json({ message: "New batsman set successfully", data: liveScoreData });
+    res.status(200).json({ message: "New batsman set successfully", data: liveScoreData });
   } catch (err) {
     if (conn) await conn.rollback();
     console.error("Error setting new batsman:", err.message);
@@ -200,6 +198,7 @@ exports.setNewBatsman = async (req, res) => {
     if (conn) conn.release();
   }
 };
+
 
 exports.setNewBowler = async (req, res) => {
   let conn;

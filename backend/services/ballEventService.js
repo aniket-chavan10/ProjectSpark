@@ -77,7 +77,7 @@ exports.registerBallEvent = async (conn, inputData) => {
     shotType = null,
     ballOutcome = null,
     wagonWheelRegion = null,
-    newBatsmanId = null,
+    newBatsmanId = null, // No use here, separate method handles new batsman
   } = inputData;
 
   const MAX_WICKETS = 10;
@@ -97,7 +97,8 @@ exports.registerBallEvent = async (conn, inputData) => {
   // Fetch live scorecard for the inning
   const [[live]] = await conn.execute(
     `SELECT on_strike_batsman_id, non_striker_batsman_id, batsman1_id, batsman2_id, current_score,
-      current_wickets, legal_balls_in_over, legal_over_count, bowler_id
+      current_wickets, legal_balls_in_over, legal_over_count, bowler_id,
+      last_wicket_player_id, last_wicket_over, last_wicket_description, awaiting_new_batsman
     FROM live_scorecards WHERE inning_id = ? LIMIT 1`,
     [inningId]
   );
@@ -114,8 +115,7 @@ exports.registerBallEvent = async (conn, inputData) => {
     throw new Error("Striker mismatch for dismissal type " + wicketType);
   }
   if (isWicket && normalizedWicketType === "run out") {
-    if (!dismissedPlayerId)
-      throw new Error("Dismissed player id must be provided for run out");
+    if (!dismissedPlayerId) throw new Error("Dismissed player id must be provided for run out");
     if (!fielderId) throw new Error("Fielder id must be provided for run out wicket");
   }
   if (
@@ -137,8 +137,7 @@ exports.registerBallEvent = async (conn, inputData) => {
 
   // Get or create the current active over
   const currentOver = await getCurrentActiveOver(conn, inningId, matchId, bowlerId);
-  if (currentOver.bowler_id !== bowlerId)
-    throw new Error("Bowler ID mismatch for current active over");
+  if (currentOver.bowler_id !== bowlerId) throw new Error("Bowler ID mismatch for current active over");
 
   const currentOverId = currentOver.over_id;
   const currentOverNumber = currentOver.over_number;
@@ -199,6 +198,8 @@ exports.registerBallEvent = async (conn, inputData) => {
   const newWickets = isWicket && !isRetiredHurt ? live.current_wickets + 1 : live.current_wickets;
   const overIsComplete = isOverComplete(live.legal_balls_in_over, legalDelivery);
 
+  const awaitingNewBatsmanFlag = isWicket && !isRetiredHurt ? 1 : 0;
+
   const { newBallsInOver, newOvers } = updateBallAndOverCount(
     live.legal_balls_in_over,
     live.legal_over_count,
@@ -215,19 +216,18 @@ exports.registerBallEvent = async (conn, inputData) => {
   let newBallsBowled = inningsRow.balls_bowled || 0;
   if (legalDelivery) newBallsBowled += 1;
 
-  // Update batsman positions
+  // Update batsman positions - no null assignments here for dismissed batsman
   let strikerId = live.on_strike_batsman_id;
   let nonStrikerId = live.non_striker_batsman_id;
   let batsman1Id = live.batsman1_id;
   let batsman2Id = live.batsman2_id;
 
-  if (isWicket && !isRetiredHurt && dismissedPlayerId) {
-    if (dismissedPlayerId === strikerId) strikerId = null;
-    if (dismissedPlayerId === nonStrikerId) nonStrikerId = null;
-    if (dismissedPlayerId === batsman1Id) batsman1Id = null;
-    else if (dismissedPlayerId === batsman2Id) batsman2Id = null;
-  } else if (shouldRotateStrike(runsScored, actualExtras, extraType, legalDelivery)) {
-    [strikerId, nonStrikerId] = [nonStrikerId, strikerId];
+  // Remove null assignment for dismissed batsman here - let separate method handle new batsman set
+  if (!isWicket || isRetiredHurt) {
+    // Handle strike rotation only when no wicket or retired hurt
+    if (shouldRotateStrike(runsScored, actualExtras, extraType, legalDelivery)) {
+      [strikerId, nonStrikerId] = [nonStrikerId, strikerId];
+    }
   }
 
   if (overIsComplete) {
@@ -240,7 +240,7 @@ exports.registerBallEvent = async (conn, inputData) => {
   const inningsCompleted =
     newWickets >= MAX_WICKETS || parseFloat(newOvers) >= MAX_OVERS;
 
-  // Determine if chasing team reached target (For innings > 1)
+  // Determine if chasing team reached target (for innings > 1)
   let matchCompleted = false;
   let winnerTeamId = null;
   let victoryMarginType = null;
@@ -263,7 +263,8 @@ exports.registerBallEvent = async (conn, inputData) => {
     if (newScore < matchTargetScore) {
       // Chasing team lost by runs
       matchCompleted = true;
-      winnerTeamId = inningsRow.team_id === matchRow.team1_id ? matchRow.team2_id : matchRow.team1_id;
+      winnerTeamId =
+        inningsRow.team_id === matchRow.team1_id ? matchRow.team2_id : matchRow.team1_id;
       victoryMarginType = "runs";
       victoryMargin = matchTargetScore - newScore - 1; // runs needed minus one scored
     }
@@ -289,32 +290,56 @@ exports.registerBallEvent = async (conn, inputData) => {
     );
   }
 
-  // Update live_scorecards table
-  await conn.execute(
-    `UPDATE live_scorecards SET
-      current_score = ?, current_wickets = ?, legal_balls_in_over = ?,
-      legal_over_count = ?, current_overs = ?, on_strike_batsman_id = ?,
-      non_striker_batsman_id = ?, batsman1_id = ?, batsman2_id = ?,
-      bowler_id = ?, partnership_runs = partnership_runs + ?,
-      last_updated = CURRENT_TIMESTAMP
-    WHERE inning_id = ?`,
-    [
-      newScore,
-      newWickets,
-      newBallsInOver,
-      newOvers.toFixed(1),
-      `${currentOverNumber}.${ballNumber}`,
-      strikerId,
-      nonStrikerId,
-      batsman1Id,
-      batsman2Id,
-      bowlerIdToUpdate,
-      getPartnershipRuns(runsScored, actualExtras),
-      inningId,
-    ]
-  );
+  // Prepare last wicket info for live scorecard update
+  const lastWicketPlayerId = isWicket && !isRetiredHurt && dismissedPlayerId ? dismissedPlayerId : live.last_wicket_player_id;
+  const lastWicketOver = isWicket && !isRetiredHurt ? `${currentOverNumber}.${ballNumber}` : live.last_wicket_over;
+  const lastWicketDescription = isWicket && !isRetiredHurt ? wicketType : live.last_wicket_description;
 
-  // Update innings summary with status
+  // Ensure safe values to avoid undefined in update query
+  const safeLastWicketPlayerId = lastWicketPlayerId === undefined ? null : lastWicketPlayerId;
+  const safeLastWicketOver = lastWicketOver === undefined ? null : lastWicketOver;
+  const safeLastWicketDescription = lastWicketDescription === undefined ? null : lastWicketDescription;
+
+  const safeStrikerId = strikerId === undefined ? null : strikerId;
+  const safeNonStrikerId = nonStrikerId === undefined ? null : nonStrikerId;
+  const safeBatsman1Id = batsman1Id === undefined ? null : batsman1Id;
+  const safeBatsman2Id = batsman2Id === undefined ? null : batsman2Id;
+  const safeBowlerId = bowlerIdToUpdate === undefined ? null : bowlerIdToUpdate;
+
+  // Update live_scorecards table
+await conn.execute(
+  `UPDATE live_scorecards SET
+    current_score = ?, current_wickets = ?, legal_balls_in_over = ?,
+    legal_over_count = ?, current_overs = ?, on_strike_batsman_id = ?,
+    non_striker_batsman_id = ?, batsman1_id = ?, batsman2_id = ?,
+    bowler_id = ?, partnership_runs = partnership_runs + ?,
+    last_wicket_player_id = ?, last_wicket_over = ?, last_wicket_description = ?,
+    awaiting_new_batsman = ?, is_bowler_over_complete = ?, awaiting_new_bowler = ?,
+    last_updated = CURRENT_TIMESTAMP
+  WHERE inning_id = ?`,
+  [
+    newScore,
+    newWickets,
+    newBallsInOver,
+    newOvers.toFixed(1),
+    `${currentOverNumber}.${ballNumber}`,
+    safeStrikerId,
+    safeNonStrikerId,
+    safeBatsman1Id,
+    safeBatsman2Id,
+    bowlerIdToUpdate,
+    getPartnershipRuns(runsScored, actualExtras),
+    safeLastWicketPlayerId,
+    safeLastWicketOver,
+    safeLastWicketDescription,
+    awaitingNewBatsmanFlag,
+    overIsComplete ? 1 : 0,      // is_bowler_over_complete flag
+    overIsComplete ? 1 : 0,      // awaiting_new_bowler flag
+    inningId,
+  ]
+);
+
+  // Update innings summary with status and stats
   await conn.execute(
     `UPDATE innings SET
       total_runs = ?, wickets = ?, balls_bowled = ?, overs = ?, status = ?
@@ -378,6 +403,7 @@ exports.registerBallEvent = async (conn, inputData) => {
 
   return true;
 };
+
 
 exports.undoLastBallEvent = async (conn, inningId, matchId) => {
   const safe = (val) => (val === undefined ? null : val);
