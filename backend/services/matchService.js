@@ -1,48 +1,50 @@
-const matchModel = require("../models/matchModel");
-const inningsModel = require("../models/inningsModel");
-const scorecardModel = require("../models/scorecardModel");
 const { withTransaction } = require("../utils/db-transaction");
-const db = require("../dbconfigure");
+const { ScoringError } = require("../utils/errors");
 
 exports.setToss = async (matchId, tossWinnerId, tossDecision) => {
   return withTransaction(async (conn) => {
-    // 1. Fetch tournament match details from tournament_matches by matchId
+    const decision = typeof tossDecision === "string" ? tossDecision.trim().toLowerCase() : "";
+    if (decision !== "bat" && decision !== "bowl") {
+      throw new ScoringError("tossDecision must be 'bat' or 'bowl'");
+    }
+
+    // 1. Fetch tournament match details (locked, so a double tap cannot create two matches)
     const [tournamentMatches] = await conn.execute(
-      `SELECT id, tournament_id, match_no, team1_id, team2_id, venue
-       FROM tournament_matches WHERE id = ?`,
+      `SELECT id, tournament_id, match_no, team1_id, team2_id, venue, match_id
+       FROM tournament_matches WHERE id = ? FOR UPDATE`,
       [matchId]
     );
 
     const tournamentMatch = tournamentMatches[0];
-    if (!tournamentMatch) throw new Error("Tournament match not found");
+    if (!tournamentMatch) throw new ScoringError("Tournament match not found", 404);
 
     const { team1_id, team2_id, tournament_id, match_no, venue } = tournamentMatch;
 
+    if (tournamentMatch.match_id) throw new ScoringError("Toss has already been recorded for this match", 409);
+    if (!team1_id || !team2_id) throw new ScoringError("Both teams of this match are not decided yet", 409);
+
     // 2. Validate toss winner is one of the teams
-    if (![team1_id, team2_id].includes(parseInt(tossWinnerId))) {
-      throw new Error("Invalid toss winner");
+    const winnerId = parseInt(tossWinnerId, 10);
+    if (![team1_id, team2_id].includes(winnerId)) {
+      throw new ScoringError("Invalid toss winner");
     }
 
     // 3. Determine batting and bowling team ids
-    const battingTeamId =
-      tossDecision === "bat" ? tossWinnerId : tossWinnerId == team1_id ? team2_id : team1_id;
-    const bowlingTeamId = battingTeamId == team1_id ? team2_id : team1_id;
+    const battingTeamId = decision === "bat" ? winnerId : winnerId === team1_id ? team2_id : team1_id;
+    const bowlingTeamId = battingTeamId === team1_id ? team2_id : team1_id;
 
     // 4. Insert new row in matches table with toss information and initial status
     const [insertResult] = await conn.execute(
       `INSERT INTO matches
        (tournament_id, match_no, team1_id, team2_id, date, venue, toss_winner_id, toss_decision, status)
        VALUES (?, ?, ?, ?, NOW(), ?, ?, ?, 'live')`,
-      [tournament_id, match_no, team1_id, team2_id, venue, tossWinnerId, tossDecision]
+      [tournament_id, match_no, team1_id, team2_id, venue, winnerId, decision]
     );
 
     const newMatchId = insertResult.insertId;
 
-    // New step: Update tournament_matches with new match_id
-    await conn.execute(
-      `UPDATE tournament_matches SET match_id = ? WHERE id = ?`,
-      [newMatchId, matchId]
-    );
+    // Link the fixture to the live match
+    await conn.execute(`UPDATE tournament_matches SET match_id = ?, status = 'live' WHERE id = ?`, [newMatchId, matchId]);
 
     // 5. Create innings - 1st (batting) and 2nd (bowling)
     const [battingInning] = await conn.execute(
@@ -58,14 +60,16 @@ exports.setToss = async (matchId, tossWinnerId, tossDecision) => {
     const bowlingInningId = bowlingInning.insertId;
 
     // 6. Create scorecards for both teams for their innings
-    await conn.execute(
-      `INSERT INTO live_scorecards (team_id, inning_id, match_id) VALUES (?, ?, ?)`,
-      [battingTeamId, battingInningId, newMatchId]
-    );
-    await conn.execute(
-      `INSERT INTO live_scorecards (team_id, inning_id, match_id) VALUES (?, ?, ?)`,
-      [bowlingTeamId, bowlingInningId, newMatchId]
-    );
+    await conn.execute(`INSERT INTO live_scorecards (team_id, inning_id, match_id) VALUES (?, ?, ?)`, [
+      battingTeamId,
+      battingInningId,
+      newMatchId,
+    ]);
+    await conn.execute(`INSERT INTO live_scorecards (team_id, inning_id, match_id) VALUES (?, ?, ?)`, [
+      bowlingTeamId,
+      bowlingInningId,
+      newMatchId,
+    ]);
 
     // 7. Return relevant info to frontend
     return {
@@ -77,4 +81,3 @@ exports.setToss = async (matchId, tossWinnerId, tossDecision) => {
     };
   });
 };
-

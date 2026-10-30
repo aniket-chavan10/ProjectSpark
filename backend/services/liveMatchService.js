@@ -1,6 +1,7 @@
 // services/liveMatchService.js
 const liveScorecardModel = require("../models/liveScorecardModel");
 const { withTransaction } = require("../utils/db-transaction");
+const { ScoringError } = require("../utils/errors");
 
 exports.setInitialPlayers = async ({ matchId, inningId, strikerId, nonStrikerId, bowlerId }) => {
   return liveScorecardModel.updateInitialPlayers({
@@ -14,112 +15,81 @@ exports.setInitialPlayers = async ({ matchId, inningId, strikerId, nonStrikerId,
 
 exports.setNewBatsman = async ({ matchId, inningId, newBatsmanId, end }) => {
   if (typeof end !== "string") {
-    throw new Error("Invalid end: Must be a string");
+    throw new ScoringError("Invalid end: Must be a string");
   }
 
   const normalizedEnd = end.trim().toLowerCase();
   if (normalizedEnd !== "striker" && normalizedEnd !== "nonstriker") {
-    throw new Error("Invalid end: Must be 'striker' or 'nonStriker'");
+    throw new ScoringError("Invalid end: Must be 'striker' or 'nonStriker'");
   }
 
   return withTransaction(async (conn) => {
-    // Fetch current live scorecard batsman state
     const [[current]] = await conn.execute(
       `SELECT on_strike_batsman_id, non_striker_batsman_id, batsman1_id, batsman2_id
        FROM live_scorecards
-       WHERE inning_id = ? AND match_id = ? LIMIT 1`,
+       WHERE inning_id = ? AND match_id = ? LIMIT 1 FOR UPDATE`,
       [inningId, matchId]
     );
-
-    if (!current) throw new Error("Live scorecard not found");
+    if (!current) throw new ScoringError("Live scorecard not found", 404);
 
     const isStriker = normalizedEnd === "striker";
+    const targetEnd = isStriker ? current.on_strike_batsman_id : current.non_striker_batsman_id;
+    const otherEnd = isStriker ? current.non_striker_batsman_id : current.on_strike_batsman_id;
 
-    // Identify current striker and non-striker batsmen IDs and the new batsman slot
-    let onStrikeId = current.on_strike_batsman_id;
-    let nonStrikeId = current.non_striker_batsman_id;
-    let batsman1Id = current.batsman1_id;
-    let batsman2Id = current.batsman2_id;
-
-    // We must replace the batsman at the specified positions with newBatsmanId,
-    // but keep the other batsman IDs unchanged
-
-    if (isStriker) {
-      // Replace striker IDs
-      onStrikeId = newBatsmanId;
-
-      // Replace batsman1_id or batsman2_id depending on which slot holds the current striker
-      if (batsman1Id === current.on_strike_batsman_id) {
-        batsman1Id = newBatsmanId;
-      } else if (batsman2Id === current.on_strike_batsman_id) {
-        batsman2Id = newBatsmanId;
-      } else {
-        // Safety: if none matched, assign newBatsmanId to batsman1_id by default
-        batsman1Id = newBatsmanId;
-      }
-    } else {
-      // Replace non-striker IDs
-      nonStrikeId = newBatsmanId;
-
-      // Replace batsman1_id or batsman2_id depending on which slot holds the current non-striker
-      if (batsman1Id === current.non_striker_batsman_id) {
-        batsman1Id = newBatsmanId;
-      } else if (batsman2Id === current.non_striker_batsman_id) {
-        batsman2Id = newBatsmanId;
-      } else {
-        // Safety: if none matched, assign newBatsmanId to batsman2_id by default
-        batsman2Id = newBatsmanId;
-      }
+    // Only a vacant end can take a new batsman, so a batsman at the crease is never overwritten.
+    if (targetEnd) {
+      throw new ScoringError(`The ${isStriker ? "striker" : "non-striker"} end is not vacant`, 409);
+    }
+    if (otherEnd && Number(otherEnd) === Number(newBatsmanId)) {
+      throw new ScoringError("That batsman is already at the other end", 409);
     }
 
-    const sql = `
-      UPDATE live_scorecards SET
+    // The new batsman takes the empty batsman slot (the one the dismissed player left)
+    let batsman1Id = current.batsman1_id;
+    let batsman2Id = current.batsman2_id;
+    if (!batsman1Id) batsman1Id = newBatsmanId;
+    else if (!batsman2Id) batsman2Id = newBatsmanId;
+    else throw new ScoringError("Both batsman slots are already filled", 409);
+
+    const onStrikeId = isStriker ? newBatsmanId : current.on_strike_batsman_id;
+    const nonStrikeId = isStriker ? current.non_striker_batsman_id : newBatsmanId;
+
+    const [result] = await conn.execute(
+      `UPDATE live_scorecards SET
         on_strike_batsman_id = ?,
         non_striker_batsman_id = ?,
         batsman1_id = ?,
         batsman2_id = ?
-      WHERE inning_id = ? AND match_id = ?
-    `;
-
-    const [result] = await conn.execute(sql, [
-      onStrikeId,
-      nonStrikeId,
-      batsman1Id,
-      batsman2Id,
-      inningId,
-      matchId,
-    ]);
-
-    if (result.affectedRows === 0) {
-      throw new Error("Failed to update new batsman");
-    }
+      WHERE inning_id = ? AND match_id = ?`,
+      [onStrikeId, nonStrikeId, batsman1Id, batsman2Id, inningId, matchId]
+    );
+    if (result.affectedRows === 0) throw new ScoringError("Failed to update new batsman");
 
     return true;
   });
 };
 
-
-
 exports.setNewBowler = async ({ matchId, inningId, newBowlerId }) => {
   return withTransaction(async (conn) => {
     if (!matchId || !inningId || !newBowlerId) {
-      throw new Error("Missing required parameters: matchId, inningId, and newBowlerId are required");
+      throw new ScoringError("Missing required parameters: matchId, inningId, and newBowlerId are required");
     }
 
-    // 1. Check current bowler slot must be null (only allow setting new bowler if slot empty)
+    // 1. The bowler slot must be empty (only after an over has finished, or before the first one)
     const [[current]] = await conn.execute(
-      `SELECT bowler_id FROM live_scorecards WHERE inning_id = ? AND match_id = ? LIMIT 1`,
+      `SELECT bowler_id, legal_over_count FROM live_scorecards WHERE inning_id = ? AND match_id = ? LIMIT 1 FOR UPDATE`,
       [inningId, matchId]
     );
-    if (!current) throw new Error("Live scorecard not found");
-    if (current.bowler_id) throw new Error("Cannot set new bowler: Bowler slot is not empty");
+    if (!current) throw new ScoringError("Live scorecard not found", 404);
+    if (current.bowler_id) throw new ScoringError("Cannot set new bowler: Bowler slot is not empty", 409);
 
-    // 2. Get max over number for innings
-    const [[{ maxOver }]] = await conn.execute(
-      `SELECT MAX(over_number) AS maxOver FROM overs WHERE inning_id = ?`,
-      [inningId]
-    );
+    const [[match]] = await conn.execute(`SELECT total_overs FROM matches WHERE match_id = ? LIMIT 1`, [matchId]);
+    if (Math.floor(parseFloat(current.legal_over_count || 0)) >= ((match && match.total_overs) || 5)) {
+      throw new ScoringError("All overs of this innings are already bowled", 409);
+    }
 
+    // 2. Next over number
+    const [[{ maxOver }]] = await conn.execute(`SELECT MAX(over_number) AS maxOver FROM overs WHERE inning_id = ?`, [inningId]);
     const nextOverNumber = (maxOver || 0) + 1;
 
     // 3. Insert new over with new bowler
@@ -128,7 +98,7 @@ exports.setNewBowler = async ({ matchId, inningId, newBowlerId }) => {
        VALUES (?, ?, ?, ?, FALSE, NOW())`,
       [inningId, matchId, nextOverNumber, newBowlerId]
     );
-    if (result.affectedRows === 0) throw new Error("Failed to create new over");
+    if (result.affectedRows === 0) throw new ScoringError("Failed to create new over");
 
     // 4. Update live_scorecards with new bowler and reset balls_in_over
     const [updateResult] = await conn.execute(
@@ -137,15 +107,13 @@ exports.setNewBowler = async ({ matchId, inningId, newBowlerId }) => {
        WHERE inning_id = ? AND match_id = ? AND bowler_id IS NULL`,
       [newBowlerId, inningId, matchId]
     );
-    if (updateResult.affectedRows === 0)
-      throw new Error("Failed to update live scorecard with new bowler (slot not empty)");
+    if (updateResult.affectedRows === 0) {
+      throw new ScoringError("Failed to update live scorecard with new bowler (slot not empty)", 409);
+    }
 
     return true;
   });
 };
-
-
-
 
 exports.getMatchWithTeamsAndSquads = async (matchId) => {
   return withTransaction(async (conn) => {

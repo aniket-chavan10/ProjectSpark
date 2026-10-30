@@ -59,7 +59,7 @@ exports.getLiveScoreboard = async (conn, matchId) => {
   const ballsPerInnings = {};
   for (const inning of inningsList) {
     ballsPerInnings[inning.inning_id] =
-      await ballsModel.getRecentBallsByInnings(conn, inning.inning_id, 6);
+      await ballsModel.getRecentBallsByInnings(conn, inning.inning_id, 12);
     ballsPerInnings[inning.inning_id].forEach((ball) => {
       addPlayerIds([
         ball.batsman_id,
@@ -76,8 +76,19 @@ exports.getLiveScoreboard = async (conn, matchId) => {
     wicketsPerInnings[inning.inning_id] =
       await ballsModel.getWicketFallByInnings(conn, inning.inning_id);
     wicketsPerInnings[inning.inning_id].forEach((w) => {
-      addPlayerIds([w.player_out_id]);
+      addPlayerIds([w.dismissed_player_id, w.bowler_id, w.fielder_id]);
     });
+  }
+
+  // Extras per type, taken from the ball log (the single source of truth)
+  const extrasPerInnings = {};
+  for (const inning of inningsList) {
+    const rows = await ballsModel.getExtrasBreakdownByInnings(conn, inning.inning_id);
+    const byType = {};
+    rows.forEach((r) => {
+      byType[r.extra_type] = Number(r.total) || 0;
+    });
+    extrasPerInnings[inning.inning_id] = byType;
   }
 
   // Players map
@@ -103,37 +114,43 @@ exports.getLiveScoreboard = async (conn, matchId) => {
   const team1Players = await playerModel.getPlayersByTeam(conn, match.team1_id);
   const team2Players = await playerModel.getPlayersByTeam(conn, match.team2_id);
 
-  team1.players = team1Players.map((p) => ({
-    playerId: p.player_id,
-    name: p.players_name,
-    profilePicture: p.profile_picture,
-    jerseyNumber: p.jersey_number || null,
-    teamId: p.team_id,
-  }));
+  // A knockout match can still be waiting for its teams (team ids are null)
+  const toPlayerList = (list) =>
+    list.map((p) => ({
+      playerId: p.player_id,
+      name: p.players_name,
+      profilePicture: p.profile_picture,
+      jerseyNumber: p.jersey_number || null,
+      teamId: p.team_id,
+    }));
+  if (team1) team1.players = toPlayerList(team1Players);
+  if (team2) team2.players = toPlayerList(team2Players);
 
-  team2.players = team2Players.map((p) => ({
-    playerId: p.player_id,
-    name: p.players_name,
-    profilePicture: p.profile_picture,
-    jerseyNumber: p.jersey_number || null,
-    teamId: p.team_id,
-  }));
-
-  // Helper function for current over summary
+  // Helper function for current over summary (oldest ball first)
   function getCurrentOverSummary(recentBalls) {
     if (!recentBalls || recentBalls.length === 0) return [];
     const currentOverNumber = recentBalls[0].over_number;
     return recentBalls
       .filter((ball) => ball.over_number === currentOverNumber)
+      .sort((a, b) => a.ball_number - b.ball_number)
       .map((ball) => ({
         ballNumber: ball.ball_number,
         runs: ball.runs_scored,
         extras: ball.extra_type || null,
-        wicket: ball.is_wicket === 1,
+        extraRuns: ball.extras || 0,
+        wicket: Number(ball.is_wicket) === 1,
         ballOutcome: ball.ball_outcome,
         shotType: ball.shot_type,
       }));
   }
+
+  // Strike rate and economy are derived here from raw figures instead of trusting stored columns
+  const strikeRateOf = (runs, balls) => (balls > 0 ? ((runs * 100) / balls).toFixed(2) : "0.00");
+  const economyOf = (conceded, overs) => {
+    const whole = Math.floor(Number(overs) || 0);
+    const balls = whole * 6 + Math.round(((Number(overs) || 0) - whole) * 10);
+    return balls > 0 ? ((conceded * 6) / balls).toFixed(2) : "0.00";
+  };
 
   // Build innings detailed view with overs string and run rate calculation
   const inningsDetailed = inningsList.map((inning) => {
@@ -141,69 +158,33 @@ exports.getLiveScoreboard = async (conn, matchId) => {
     const currentBatsmen = [];
 
     if (ls) {
-      const batsman1Id = ls.batsman1_id || null;
-      const batsman2Id = ls.batsman2_id || null;
       const onStrikeId = ls.on_strike_batsman_id || null;
+      const nonStrikerId = ls.non_striker_batsman_id || null;
 
       const buildBatsman = (playerId, isOnStrike) => {
         if (!playerId) return null;
         const bat = playerMap[playerId] || {};
         const perf = performanceMap[playerId] || {};
+        const runs = perf.runs_scored ?? 0;
+        const balls = perf.balls_faced ?? 0;
         return {
           playerId,
           name: bat.name || null,
           profilePicture: bat.profilePicture || null,
           jerseyNumber: bat.jerseyNumber || null,
-          runs: perf.runs_scored ?? 0,
-          balls: perf.balls_faced ?? 0,
+          runs,
+          balls,
           fours: perf.fours ?? 0,
           sixes: perf.sixes ?? 0,
-          strikeRate: perf.strike_rate ?? "0.00",
+          strikeRate: strikeRateOf(runs, balls),
           isOnStrike,
         };
       };
 
-      if (batsman1Id && batsman2Id) {
-        if (batsman1Id === onStrikeId) {
-          currentBatsmen.push(buildBatsman(batsman1Id, true));
-          currentBatsmen.push(buildBatsman(batsman2Id, false));
-        } else if (batsman2Id === onStrikeId) {
-          currentBatsmen.push(buildBatsman(batsman2Id, true));
-          currentBatsmen.push(buildBatsman(batsman1Id, false));
-        } else {
-          currentBatsmen.push(buildBatsman(batsman1Id, true));
-          currentBatsmen.push(buildBatsman(batsman2Id, false));
-        }
-      } else {
-        // Handle case when only one batsman remains
-        if (batsman1Id) {
-          currentBatsmen.push(
-            buildBatsman(batsman1Id, batsman1Id === onStrikeId)
-          );
-        }
-        if (batsman2Id) {
-          currentBatsmen.push(
-            buildBatsman(batsman2Id, batsman2Id === onStrikeId)
-          );
-        }
-      }
-
-      if (batsman1Id && batsman2Id) {
-        if (batsman1Id === onStrikeId) {
-          currentBatsmen.push(buildBatsman(batsman1Id, true));
-          currentBatsmen.push(buildBatsman(batsman2Id, false));
-        } else if (batsman2Id === onStrikeId) {
-          currentBatsmen.push(buildBatsman(batsman2Id, true));
-          currentBatsmen.push(buildBatsman(batsman1Id, false));
-        } else {
-          currentBatsmen.push(buildBatsman(batsman1Id, true));
-          currentBatsmen.push(buildBatsman(batsman2Id, false));
-        }
-      } else if (batsman1Id) {
-        currentBatsmen.push(
-          buildBatsman(batsman1Id, batsman1Id === onStrikeId)
-        );
-      }
+      // Striker first, then the non-striker. A batsman who is out (null slot) is simply left out.
+      [buildBatsman(onStrikeId, true), buildBatsman(nonStrikerId, false)]
+        .filter(Boolean)
+        .forEach((b) => currentBatsmen.push(b));
     }
 
     const completedOvers = Math.floor(inning.balls_bowled / 6);
@@ -224,7 +205,7 @@ exports.getLiveScoreboard = async (conn, matchId) => {
         maidens: perf.maiden_overs ?? 0,
         runsConceded: perf.total_runs_conceded ?? 0,
         wickets: perf.wickets_taken ?? 0,
-        economy: perf.economy_rate ?? "0.00",
+        economy: economyOf(perf.total_runs_conceded ?? 0, perf.overs_bowled ?? 0),
       };
     }
 
@@ -241,13 +222,14 @@ exports.getLiveScoreboard = async (conn, matchId) => {
     }
 
     // Extras breakdown
+    const extrasByType = extrasPerInnings[inning.inning_id] || {};
     const extrasBreakdown = {
-      wides: inning.wides || 0,
-      noBalls: inning.no_balls || 0,
-      byes: inning.byes || 0,
-      legByes: inning.leg_byes || 0,
-      penalty: inning.penalty_runs || 0,
-      total: inning.extras || 0,
+      wides: extrasByType["wide"] || 0,
+      noBalls: extrasByType["no-ball"] || 0,
+      byes: extrasByType["bye"] || 0,
+      legByes: extrasByType["leg-bye"] || 0,
+      penalty: 0,
+      total: Object.values(extrasByType).reduce((a, b) => a + b, 0),
     };
 
     // Target score
@@ -278,15 +260,26 @@ exports.getLiveScoreboard = async (conn, matchId) => {
     );
 
     // Wicket falls
-    const wicketFalls = (wicketsPerInnings[inning.inning_id] || []).map((w) => {
-      const playerOut = playerMap[w.player_out_id] || {};
+    const wicketFalls = (wicketsPerInnings[inning.inning_id] || []).map((w, idx) => {
+      const playerOut = playerMap[w.dismissed_player_id] || {};
+      const bowler = playerMap[w.bowler_id] || {};
+      const fielder = playerMap[w.fielder_id] || {};
       return {
-        playerOutId: w.player_out_id,
+        wicketNumber: idx + 1,
+        playerOutId: w.dismissed_player_id,
         playerOutName: playerOut.name || null,
-        over: w.over ?? null,
-        description: w.description ?? null,
+        scoreAtFall: Number(w.score_at_fall) || 0,
+        over: `${Math.floor(w.legal_balls_upto / 6)}.${w.legal_balls_upto % 6}`,
+        wicketType: w.wicket_type || null,
+        bowlerId: w.bowler_id || null,
+        bowlerName: bowler.name || null,
+        fielderId: w.fielder_id || null,
+        fielderName: fielder.name || null,
+        description: w.wicket_type || null,
       };
     });
+
+    const currentRunRate = ballsBowled > 0 ? parseFloat(((inning.total_runs || 0) * 6 / ballsBowled).toFixed(2)) : 0;
 
     return {
       inningId: inning.inning_id,
@@ -297,7 +290,7 @@ exports.getLiveScoreboard = async (conn, matchId) => {
       ballsBowled: inning.balls_bowled,
       extrasBreakdown,
       inningsNumber: inning.innings_number,
-      runRate: parseFloat(inning.run_rate) || 0,
+      runRate: currentRunRate,
       requiredRunRate,
       targetScore,
       status: inning.status || "in_progress",
@@ -338,6 +331,14 @@ exports.getLiveScoreboard = async (conn, matchId) => {
           team2?.id === innings2.teamId ? team2?.team_name : team1?.team_name,
         marginType: "wickets",
         marginValue: wicketsLeft,
+      };
+    } else if (team2Runs === team1Runs) {
+      // Scores level: a tie has no winner
+      matchResult = {
+        winnerTeamId: null,
+        winnerTeamName: null,
+        marginType: "tie",
+        marginValue: 0,
       };
     } else {
       const runsMargin = (team1Runs || 0) - (team2Runs || 0); // Calculate runs margin here

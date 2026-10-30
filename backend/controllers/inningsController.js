@@ -6,7 +6,7 @@ exports.switchInnings = async (req, res) => {
   const io = req.app.get("socketio");
   let conn;
   try {
-    const { matchId, currentInningId, strikerId, nonStrikerId, bowlerId } = req.body;
+    const { matchId, currentInningId, forceEnd } = req.body;
 
     conn = await pool.getConnection();
     await conn.beginTransaction();
@@ -15,9 +15,7 @@ exports.switchInnings = async (req, res) => {
     const result = await inningsService.switchInnings(conn, {
       matchId,
       currentInningId,
-      strikerId,
-      nonStrikerId,
-      bowlerId,
+      forceEnd: forceEnd === true || forceEnd === "true",
     });
 
     // Fetch the updated scoreboard using same connection, to stay within transaction
@@ -37,7 +35,7 @@ exports.switchInnings = async (req, res) => {
   } catch (err) {
     if (conn) await conn.rollback();
     console.error("Error switching innings:", err);
-    res.status(400).json({ success: false, message: err.message });
+    res.status(err.status || 400).json({ success: false, message: err.message });
   } finally {
     if (conn) conn.release();
   }

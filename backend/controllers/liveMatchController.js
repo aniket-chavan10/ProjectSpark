@@ -6,70 +6,6 @@ const liveScoreService = require("../services/liveScoreService");
 const dbPool = require("../dbconfigure");
 
 exports.setInitialPlayers = async (req, res) => {
-  const io = req.app.get("socketio"); // Get Socket.IO instance
-  const { matchId, inningId, strikerId, nonStrikerId, bowlerId } = req.body;
-
-  let conn;
-  try {
-    conn = await dbPool.getConnection();
-    await conn.beginTransaction();
-
-    // Validate input
-    await playerValidator.validateInitialPlayers({
-      matchId,
-      inningId,
-      strikerId,
-      nonStrikerId,
-      bowlerId,
-    });
-
-    // Set initial players in DB
-    await liveMatchService.setInitialPlayers({
-      matchId,
-      inningId,
-      strikerId,
-      nonStrikerId,
-      bowlerId,
-    });
-
-    // Fetch updated live scoreboard data with enriched info
-    const liveScoreData = await liveScoreService.getLiveScoreboard(
-      conn,
-      matchId
-    );
-
-    await conn.commit();
-
-    // Emit updated live scoreboard to clients in match room
-    if (io) {
-      io.to(`match_${matchId}`).emit("scoreUpdate", liveScoreData);
-      io.to(`match_${matchId}`).emit("initial_players_set", {
-        message: "Initial players set successfully",
-        inningId,
-        strikerId,
-        nonStrikerId,
-        bowlerId,
-      });
-    } else {
-      console.warn("Socket.io instance not found on app");
-    }
-
-    // Respond with success and fresh live scoreboard data
-    res.status(200).json({
-      message: "Initial players set successfully",
-      data: liveScoreData,
-    });
-  } catch (err) {
-    if (conn) await conn.rollback();
-
-    console.error("Error setting initial players:", err.message);
-    res.status(400).json({ error: err.message });
-  } finally {
-    if (conn) conn.release();
-  }
-};
-
-exports.setInitialPlayers = async (req, res) => {
   const io = req.app.get("socketio");
   const { matchId, inningId, strikerId, nonStrikerId, bowlerId } = req.body;
   let conn;
@@ -121,7 +57,7 @@ exports.setInitialPlayers = async (req, res) => {
   } catch (err) {
     if (conn) await conn.rollback();
     console.error("Error setting initial players:", err.message);
-    res.status(400).json({ error: err.message });
+    res.status(err.status || 400).json({ error: err.message });
   } finally {
     if (conn) conn.release();
   }
@@ -195,7 +131,7 @@ exports.setNewBatsman = async (req, res) => {
   } catch (err) {
     if (conn) await conn.rollback();
     console.error("Error setting new batsman:", err.message);
-    res.status(400).json({ error: err.message });
+    res.status(err.status || 400).json({ error: err.message });
   } finally {
     if (conn) conn.release();
   }
@@ -215,6 +151,7 @@ exports.setNewBowler = async (req, res) => {
     await conn.beginTransaction();
 
     // Note: Pass ONLY the params object; service manages connection internally with withTransaction
+    await playerValidator.validateNewBowler({ matchId, inningId, newBowlerId });
     await liveMatchService.setNewBowler({ matchId, inningId, newBowlerId });
 
     // Fetch latest live scoreboard with explicit connection
@@ -239,7 +176,7 @@ exports.setNewBowler = async (req, res) => {
   } catch (err) {
     if (conn) await conn.rollback();
     console.error("Error setting new bowler:", err);
-    res.status(500).json({ error: err.message || "Internal Server Error" });
+    res.status(err.status || 500).json({ error: err.message || "Internal Server Error" });
   } finally {
     if (conn) conn.release();
   }

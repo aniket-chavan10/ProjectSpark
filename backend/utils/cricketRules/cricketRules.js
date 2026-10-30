@@ -1,101 +1,184 @@
-// utils/cricketRules.js
+// utils/cricketRules/cricketRules.js
+// Pure cricket rules. No DB access here so everything is unit-testable.
+
+const { ScoringError } = require("../errors");
+
+/* ----------------------------- extras ----------------------------- */
+
+const EXTRA_ALIASES = {
+  wide: "wide",
+  wd: "wide",
+  "no-ball": "no-ball",
+  noball: "no-ball",
+  nb: "no-ball",
+  bye: "bye",
+  b: "bye",
+  "leg-bye": "leg-bye",
+  legbye: "leg-bye",
+  lb: "leg-bye",
+};
 
 /**
- * Check if a delivery is legal (not wide or no-ball).
- * @param {string|null} extraType 
- * @returns {boolean}
+ * Canonical extra type: "wide" | "no-ball" | "bye" | "leg-bye" | null.
+ * Accepts "No Ball", "no_ball", "NB", "leg bye" ... Throws on anything unknown.
  */
-function isLegalDelivery(extraType) {
-  if (!extraType) return true;
-  const lowerExtra = extraType.toLowerCase();
-  return !(lowerExtra === "wide" || lowerExtra === "no-ball");
+function normalizeExtraType(extraType) {
+  if (extraType === null || extraType === undefined || extraType === "") return null;
+  const key = String(extraType).trim().toLowerCase().replace(/[\s_]+/g, "-");
+  const canonical = EXTRA_ALIASES[key];
+  if (!canonical) throw new ScoringError(`Unknown extra type "${extraType}"`);
+  return canonical;
 }
 
-/**
- * Calculate total runs for a ball (batsman runs + extras).
- * @param {number} runsScored 
- * @param {number} extras 
- * @returns {number}
- */
+/** Wides and no-balls do not count as one of the six balls in an over. */
+function isLegalDelivery(extraType) {
+  const t = normalizeExtraType(extraType);
+  return t !== "wide" && t !== "no-ball";
+}
+
+/** Batter runs + extras. */
 function calculateTotalRuns(runsScored, extras) {
   return (runsScored || 0) + (extras || 0);
 }
 
 /**
- * Determine if strike rotation should occur based on runs, extras and delivery type.
- * @param {number} runsScored 
- * @param {number} extras 
- * @param {string|null} extraType 
- * @param {boolean} isLegal 
- * @returns {boolean}
+ * Runs the batters physically ran, which is what decides whether they crossed.
+ *  - wide: extras include the 1 penalty run, the rest were run
+ *  - no-ball: only the bat runs were run (the penalty run is not run)
+ *  - bye / leg-bye: the extras were run
+ *  - otherwise: the bat runs
  */
-function shouldRotateStrike(runsScored, extras, extraType, isLegal) {
-  const lowerExtra = extraType ? extraType.toLowerCase() : null;
-  const rotateOnRuns = ((runsScored % 2) === 1) && (isLegal || lowerExtra === "no-ball");
-  const rotateOnExtras = ((extras % 2) === 1) && (lowerExtra === "bye" || lowerExtra === "leg-bye");
-  return rotateOnRuns || rotateOnExtras;
+function getRunsRun(runsScored, extras, extraType) {
+  const t = normalizeExtraType(extraType);
+  if (t === "wide") return Math.max((extras || 0) - 1, 0);
+  if (t === "bye" || t === "leg-bye") return extras || 0;
+  return runsScored || 0;
 }
 
-/**
- * Update legal balls in over and overs count based on current values and legality of delivery.
- * @param {number} currentBallsInOver 
- * @param {number} currentOvers 
- * @param {boolean} isLegalDelivery 
- * @returns {object} { newBallsInOver: number, newOvers: number }
- */
-function updateBallAndOverCount(currentBallsInOver, currentOvers, isLegalDelivery) {
-  let newBalls = currentBallsInOver;
-  let newOvers = currentOvers;
-
-  if (isLegalDelivery) {
-    newBalls = (currentBallsInOver + 1) % 6;
-    newOvers += 0.1;
-    if (newBalls === 0) {
-      // Round overs e.g. 4.6 → 5.0
-      newOvers = Math.round((newOvers + 0.4) * 10) / 10;
-    }
-  }
-
-  return { newBallsInOver: newBalls, newOvers };
+/** True when an odd number of runs was run, so the batters changed ends. */
+function shouldRotateStrike(runsScored, extras, extraType /* , isLegal (unused, kept for callers) */) {
+  return getRunsRun(runsScored, extras, extraType) % 2 === 1;
 }
 
-/**
- * Check if innings is over based on wickets and overs completed.
- * @param {number} wickets 
- * @param {number} legalOversCount 
- * @param {number} maxWickets 
- * @param {number} maxOvers 
- * @returns {boolean}
- */
-function isInningsOver(wickets, legalOversCount, maxWickets, maxOvers) {
-  return wickets >= maxWickets || Math.floor(legalOversCount) >= maxOvers;
-}
-
-/**
- * Determine if over is complete based on legal balls bowled.
- * @param {number} legalBallsInOver 
- * @returns {boolean}
- */
-function isOverComplete(legalBallsInOver) {
-  return legalBallsInOver === 0;
-}
-
-/**
- * Calculate partnership runs (batsman runs + extras).
- * @param {number} runsScored 
- * @param {number} extras 
- * @returns {number}
- */
+/** Partnership runs (batter runs + extras). */
 function getPartnershipRuns(runsScored, extras) {
   return calculateTotalRuns(runsScored, extras);
 }
 
+/* ----------------------------- wickets ----------------------------- */
+
+const WICKET_ALIASES = {
+  bowled: "bowled",
+  b: "bowled",
+  caught: "caught",
+  c: "caught",
+  lbw: "lbw",
+  "leg-before-wicket": "lbw",
+  stumped: "stumped",
+  st: "stumped",
+  "run-out": "run out",
+  runout: "run out",
+  "hit-wicket": "hit wicket",
+  hitwicket: "hit wicket",
+  "handled-ball": "handled ball",
+  "obstructing-the-field": "obstructing the field",
+  "obstructing-field": "obstructing the field",
+  "hit-the-ball-twice": "hit the ball twice",
+};
+
+// Dismissals that can only ever be given to the striker.
+const STRIKER_ONLY_WICKETS = ["bowled", "caught", "lbw", "stumped", "hit wicket", "hit the ball twice"];
+// Dismissals credited to the bowler.
+const BOWLER_WICKETS = ["bowled", "caught", "lbw", "stumped", "hit wicket"];
+// What can still get a batter out off a wide / a no-ball.
+const WICKETS_ON_WIDE = ["stumped", "run out", "hit wicket", "handled ball", "obstructing the field"];
+const WICKETS_ON_NO_BALL = ["run out", "handled ball", "obstructing the field", "hit the ball twice"];
+
+/** Canonical wicket type, e.g. "Run_Out" -> "run out". Throws when unknown. */
+function normalizeWicketType(wicketType) {
+  if (wicketType === null || wicketType === undefined || wicketType === "") return null;
+  const key = String(wicketType).trim().toLowerCase().replace(/[\s_]+/g, "-");
+  const canonical = WICKET_ALIASES[key];
+  if (!canonical) throw new ScoringError(`Unsupported wicket type "${wicketType}"`);
+  return canonical;
+}
+
+/** True when the dismissal is credited to the bowler (not run out, handled ball ...). */
+function isBowlerWicket(wicketType) {
+  return BOWLER_WICKETS.includes(wicketType);
+}
+
+/** Throws if this dismissal cannot happen on this kind of delivery. */
+function assertWicketPossible(wicketType, extraType) {
+  if (extraType === "wide" && !WICKETS_ON_WIDE.includes(wicketType)) {
+    throw new ScoringError(`A batter cannot be out "${wicketType}" off a wide`);
+  }
+  if (extraType === "no-ball" && !WICKETS_ON_NO_BALL.includes(wicketType)) {
+    throw new ScoringError(`A batter cannot be out "${wicketType}" off a no-ball`);
+  }
+}
+
+/* ------------------------------ overs ------------------------------ */
+// Overs are always derived from a legal-ball count. Never add 0.1 to a float.
+
+/** 22 balls -> "3.4" */
+function ballsToOversString(balls) {
+  const b = Math.max(0, Math.trunc(balls || 0));
+  return `${Math.floor(b / 6)}.${b % 6}`;
+}
+
+/** "3.4" / 3.4 -> 22 balls */
+function oversToBalls(overs) {
+  const value = Number(overs);
+  if (!Number.isFinite(value) || value <= 0) return 0;
+  const whole = Math.floor(value + 1e-9);
+  const balls = Math.round((value - whole) * 10);
+  return whole * 6 + balls;
+}
+
+/** Add (or remove, with delta -1) legal balls to a cricket-style overs value such as 3.4. */
+function addBallsToOvers(overs, delta) {
+  const total = Math.max(0, oversToBalls(overs) + delta);
+  return Number(ballsToOversString(total));
+}
+
+/** Legal balls -> { overs: completed overs, balls: balls in the current over } */
+function splitBalls(totalBalls) {
+  return { overs: Math.floor(totalBalls / 6), balls: totalBalls % 6 };
+}
+
+/** True when this legal ball is the 6th of the over. */
+function isOverComplete(legalBallsBefore, legalDelivery) {
+  return !!legalDelivery && legalBallsBefore + 1 === 6;
+}
+
+/** Innings is over on 10 wickets or when all overs are bowled. */
+function isInningsOver(wickets, totalLegalBalls, maxWickets, maxOvers) {
+  return wickets >= maxWickets || totalLegalBalls >= maxOvers * 6;
+}
+
+/** Runs per over, 2 decimals. */
+function runRate(runs, legalBalls) {
+  if (!legalBalls) return 0;
+  return Number(((runs * 6) / legalBalls).toFixed(2));
+}
+
 module.exports = {
+  normalizeExtraType,
   isLegalDelivery,
   calculateTotalRuns,
+  getRunsRun,
   shouldRotateStrike,
-  updateBallAndOverCount,
-  isInningsOver,
-  isOverComplete,
   getPartnershipRuns,
+  normalizeWicketType,
+  isBowlerWicket,
+  assertWicketPossible,
+  STRIKER_ONLY_WICKETS,
+  ballsToOversString,
+  oversToBalls,
+  addBallsToOvers,
+  splitBalls,
+  isOverComplete,
+  isInningsOver,
+  runRate,
 };

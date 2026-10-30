@@ -1,30 +1,34 @@
 const matchService = require("../services/matchService");
+const { sendScoringError } = require("../utils/errors");
 
 exports.setToss = async (req, res) => {
   const { matchId } = req.params;
   const { tossWinnerId, tossDecision } = req.body;
 
-  console.log("setToss:", { matchId, tossWinnerId, tossDecision });
-
   try {
-    await matchService.setToss(matchId, tossWinnerId, tossDecision);
+    const result = await matchService.setToss(matchId, tossWinnerId, tossDecision);
 
-    // Emit socket event to notify clients of toss update
+    // Tell clients in both rooms: the fixture room (tournament_matches.id) and the live match room (matches.match_id)
     const io = req.app.get("socketio");
     if (io) {
-      io.to(`match_${matchId}`).emit("toss_updated", {
+      const payload = {
         message: "Toss result updated successfully",
-        matchId,
+        matchId: result.matchId,
+        fixtureId: Number(matchId),
         tossWinnerId,
         tossDecision,
-      });
+        ...result,
+      };
+      io.to(`match_${matchId}`).emit("toss_updated", payload);
+      io.to(`match_${result.matchId}`).emit("toss_updated", payload);
     } else {
       console.warn("Socket.io instance not found on app");
     }
 
-    res.status(200).json({ message: "Toss result updated successfully" });
+    // The scorer needs the new match and innings ids to carry on
+    res.status(200).json({ message: "Toss result updated successfully", ...result });
   } catch (err) {
-    console.error("Toss Update Error:", err);
-    res.status(500).json({ error: err.message });
+    console.error("Toss Update Error:", err.message);
+    sendScoringError(res, err, "Failed to record toss");
   }
 };

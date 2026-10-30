@@ -37,13 +37,30 @@ exports.getRecentBallsByInnings = async (conn, inningId, limit = 6) => {
   return rows;
 };
 
+// legal_balls_upto / score_at_fall are measured up to and including the wicket ball.
 exports.getWicketFallByInnings = async (conn, inningId) => {
   const query = `
-    SELECT over_number, ball_number, batsman_id, bowler_id, wicket_type, dismissed_player_id, fielder_id, ball_timestamp
+    SELECT ball_id, over_number, ball_number, batsman_id, bowler_id, wicket_type, dismissed_player_id, fielder_id, ball_timestamp,
+      (SELECT COUNT(*) FROM balls b2
+         WHERE b2.inning_id = balls.inning_id AND b2.ball_id <= balls.ball_id AND b2.legal_delivery = 1) AS legal_balls_upto,
+      (SELECT COALESCE(SUM(b3.runs_scored + b3.extras), 0) FROM balls b3
+         WHERE b3.inning_id = balls.inning_id AND b3.ball_id <= balls.ball_id) AS score_at_fall
     FROM balls
     WHERE inning_id = ? AND is_wicket = 1
-    ORDER BY over_number, ball_number
+    ORDER BY ball_id
   `;
   const [rows] = await conn.execute(query, [inningId]);
+  return rows;
+};
+
+// Extras per type for an innings: [{ extra_type: 'wide', total: 4 }, ...]
+exports.getExtrasBreakdownByInnings = async (conn, inningId) => {
+  const [rows] = await conn.execute(
+    `SELECT extra_type, COALESCE(SUM(extras), 0) AS total
+     FROM balls
+     WHERE inning_id = ? AND extra_type IS NOT NULL
+     GROUP BY extra_type`,
+    [inningId]
+  );
   return rows;
 };

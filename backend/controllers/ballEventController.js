@@ -1,6 +1,7 @@
 const ballService = require('../services/ballEventService');
 const liveScoreService = require('../services/liveScoreService');
 const dbPool = require('../dbconfigure'); // your DB pool/connection
+const { sendScoringError } = require('../utils/errors');
 
 exports.registerBallEvent = async (req, res) => {
   const io = req.app.get("socketio"); // Get Socket.IO instance
@@ -33,7 +34,7 @@ exports.registerBallEvent = async (req, res) => {
     if (conn) await conn.rollback();
 
     console.error("Ball Event Error:", err);
-    res.status(500).json({ success: false, message: "Failed to register ball event" });
+    sendScoringError(res, err, "Failed to register ball event");
   } finally {
     if (conn) conn.release();
   }
@@ -69,7 +70,7 @@ exports.undoLastBallEvent = async (req, res) => {
     if (conn) await conn.rollback();
 
     console.error("Undo Last Ball Event Error:", err);
-    res.status(500).json({ success: false, message: "Failed to undo last ball event" });
+    sendScoringError(res, err, "Failed to undo last ball event");
   } finally {
     if (conn) conn.release();
   }
@@ -108,7 +109,7 @@ exports.changeStriker = async (req, res) => {
     if (conn) await conn.rollback();
 
     console.error("Change Striker Error:", err);
-    res.status(500).json({ success: false, message: "Failed to change striker" });
+    sendScoringError(res, err, "Failed to change striker");
   } finally {
     if (conn) conn.release();
   }
