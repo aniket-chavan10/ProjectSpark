@@ -3,7 +3,10 @@
   "version": "1.0.0",
   "main": "index.js",
   "scripts": {
-    "test": "jest"
+    "test": "jest",
+    "seed:test": "node scripts/seedTestData.js",
+    "seed:clean": "node scripts/seedTestData.js --clean",
+    "logins": "node scripts/resetLogin.js --list"
   },
   "keywords": [],
   "author": "",
