@@ -5,6 +5,7 @@ import DayBoard from "./DayBoard";
 import GroupDraw from "./GroupDraw";
 import Problems from "./Problems";
 import SetupPanel from "./SetupPanel";
+import TieRulesCard from "./TieRulesCard";
 import { dayLabel, durationText } from "./timeUtils";
 
 const isPowerOfTwo = (n) => n >= 2 && (n & (n - 1)) === 0;
@@ -227,6 +228,8 @@ export default function ScheduleBuilder({ tournamentId, onSaved }) {
           {notice.text}
         </p>
       )}
+
+      <TieRulesCard tournamentId={tournamentId} />
 
       <SetupPanel
         plan={plan}

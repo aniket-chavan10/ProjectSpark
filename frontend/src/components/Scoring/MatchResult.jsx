@@ -9,8 +9,9 @@ const MARGIN = {
 export default function MatchResult({ sb, onBack }) {
   const r = sb.matchResult;
   const tie = r && r.marginType === "tie";
+  const settled = r && r.marginType === "tiebreak";
   const headline = !r ? "Match completed" : tie ? "Match tied" : `${r.winnerTeamName} won`;
-  const detail = !r ? "" : tie ? "Scores are level. The organiser decides the winner (for example with a super over)." : (MARGIN[r.marginType] || (() => ""))(r.marginValue);
+  const detail = !r ? "" : settled ? "The scores were level. The tie was settled." : tie ? "Scores are level. The organiser decides the winner (for example with a super over)." : (MARGIN[r.marginType] || (() => ""))(r.marginValue);
 
   return (
     <section className="overflow-hidden rounded-2xl bg-gradient-to-br from-emerald-600 to-emerald-800 p-6 text-center text-white shadow-lg sm:p-8" aria-label="Result">

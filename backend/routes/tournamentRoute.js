@@ -61,6 +61,8 @@ router.post("/tournaments/:tournamentId/schedule/preview", verifyAdminToken, sch
 router.post("/tournaments/:tournamentId/schedule/check", verifyAdminToken, scheduleController.checkSchedule);
 router.post("/tournaments/:tournamentId/schedule", verifyAdminToken, scheduleController.saveSchedule);
 router.get("/tournaments/:tournamentId/standings", scheduleController.getStandings);
+router.get("/tournaments/:tournamentId/tie-rules", verifyAdminToken, scheduleController.getTieRules);
+router.put("/tournaments/:tournamentId/tie-rules", verifyAdminToken, scheduleController.setTieRules);
 
 router.get(
   "/tournaments/:tournamentId/scheduled-matches",

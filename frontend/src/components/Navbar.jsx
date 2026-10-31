@@ -1,6 +1,17 @@
 import React, { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import logo from "../../../backend/uploads/images/logo.webp"
+
+// the public site
+const LINKS = [
+  { to: "/", name: "Home" },
+  { to: "/tournaments", name: "Tournaments" },
+  { to: "/results", name: "Results" },
+  { to: "/teams", name: "Teams" },
+  { to: "/rankings", name: "Rankings" },
+  { to: "/rankings?tab=ratings", name: "Players" },
+  { to: "/awards", name: "Awards" },
+];
 
 const Navbar = () => {
   const [isOpen, setIsOpen] = useState(false);
@@ -20,21 +31,11 @@ const Navbar = () => {
 </div>
             <div className="hidden md:block">
               <div className="ml-10 flex items-baseline space-x-4">
-                <a href="/" className="text-gray-300 hover:text-white px-3 py-2 rounded-md text-sm font-medium">
-                  Home
-                </a>
-                <a href="/news" className="text-gray-300 hover:text-white px-3 py-2 rounded-md text-sm font-medium">
-                  News
-                </a>
-                <a href="/players" className="text-gray-300 hover:text-white px-3 py-2 rounded-md text-sm font-medium">
-                  Players
-                </a>
-                <a href="/rankings" className="text-gray-300 hover:text-white px-3 py-2 rounded-md text-sm font-medium">
-                  Rankings
-                </a>
-                <a href="/about" className="text-gray-300 hover:text-white px-3 py-2 rounded-md text-sm font-medium">
-                  About
-                </a>
+                {LINKS.map((l) => (
+                  <Link key={l.name} to={l.to} className="text-gray-300 hover:text-white px-3 py-2 rounded-md text-sm font-medium">
+                    {l.name}
+                  </Link>
+                ))}
               </div>
             </div>
           </div>
@@ -89,21 +90,11 @@ const Navbar = () => {
 
       <div className={`${isOpen ? "block" : "hidden"} md:hidden`} id="mobile-menu">
         <div className="px-2 pt-2 pb-3 space-y-1 sm:px-3">
-          <a href="/" className="text-gray-300 hover:text-white block px-3 py-2 rounded-md text-base font-medium">
-            Home
-          </a>
-          <a href="/news" className="text-gray-300 hover:text-white block px-3 py-2 rounded-md text-base font-medium">
-            News
-          </a>
-          <a href="/players" className="text-gray-300 hover:text-white block px-3 py-2 rounded-md text-base font-medium">
-            Players
-          </a>
-          <a href="/rankings" className="text-gray-300 hover:text-white block px-3 py-2 rounded-md text-base font-medium">
-            Rankings
-          </a>
-          <a href="/about" className="text-gray-300 hover:text-white block px-3 py-2 rounded-md text-base font-medium">
-            About
-          </a>
+          {LINKS.map((l) => (
+            <Link key={l.name} to={l.to} onClick={() => setIsOpen(false)} className="text-gray-300 hover:text-white block px-3 py-2 rounded-md text-base font-medium">
+              {l.name}
+            </Link>
+          ))}
         </div>
       </div>
     </nav>

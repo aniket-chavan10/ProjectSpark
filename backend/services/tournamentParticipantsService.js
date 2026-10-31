@@ -1,5 +1,6 @@
 // services/tournamentParticipantsService.js
 const db = require('../dbconfigure');
+const banService = require('./banService');
 
 exports.getOpenTournamentsForAdmin = async (teamId) => {
   const [rows] = await db.query(`
@@ -31,6 +32,7 @@ exports.applyForTournament = async (tournamentId, teamId) => {
       FROM tournaments WHERE id = ? FOR UPDATE`, [tournamentId]);
 
     if (!tournamentRows.length) throw new Error('Tournament not found');
+    await banService.assertTeamNotBanned(conn, teamId, 'register for a tournament');
 
     const t = tournamentRows[0];
     if (t.status !== 'open') throw new Error('Tournament is not open');

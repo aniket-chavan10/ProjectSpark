@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
+import jwt_decode from 'jwt-decode';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -7,6 +8,9 @@ import Sidebar from '../components/AdminDashboard/Sidebar';
 import Dashboard from '../components/AdminDashboard/Dashboard';
 import Profile from '../components/AdminDashboard/Profile';
 import Alerts from '../components/AdminDashboard/Alerts';
+import TeamResults from '../components/AdminDashboard/TeamResults';
+import TeamRankings from '../components/AdminDashboard/TeamRankings';
+import { teamNewsApi } from '../api/sparkApi';
 import Invitation from '../components/AdminDashboard/Invitation';
 import PlayersScreen from '../components/AdminDashboard/Team/PlayersScreen';
 import SquadScreen from '../components/AdminDashboard/Team/SquadScreen';
@@ -21,7 +25,8 @@ const PHONE_TABS = [
   { id: 'dashboard', name: 'Home', icon: '🏠' },
   { id: 'players', name: 'Players', icon: '👥' },
   { id: 'squad', name: 'Squad', icon: '🏏' },
-  { id: 'apply', name: 'Apply', icon: '📝' },
+  { id: 'results', name: 'Results', icon: '📊' },
+  { id: 'alerts', name: 'News', icon: '🔔' },
 ];
 
 const TITLES = {
@@ -32,7 +37,9 @@ const TITLES = {
   profile: 'Profile',
   players: 'My Players',
   squad: 'My Squad',
-  alerts: 'Alerts',
+  alerts: 'Notifications',
+  results: 'Results',
+  rankings: 'Rankings',
   appliedTeams: 'Applied teams',
 };
 
@@ -40,6 +47,31 @@ const AdminDashboard = () => {
   const [activeSection, setActiveSection] = useState('dashboard');
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [selectedTournamentId, setSelectedTournamentId] = useState(null);
+  const [unread, setUnread] = useState(0);
+  const [openMatchId, setOpenMatchId] = useState(null);
+
+  // the team comes from the login token; the bell shows how many notifications are new
+  let teamId = null;
+  try {
+    teamId = Number(jwt_decode(localStorage.getItem('authToken')).team_id) || null;
+  } catch {
+    teamId = null;
+  }
+  useEffect(() => {
+    let alive = true;
+    const check = () => teamNewsApi.notifications({ limit: 1 }).then((d) => alive && setUnread(d.unread)).catch(() => {});
+    check();
+    const timer = setInterval(check, 60000);
+    return () => {
+      alive = false;
+      clearInterval(timer);
+    };
+  }, []);
+
+  const openMatch = (matchId) => {
+    setOpenMatchId(matchId);
+    setActiveSection('results');
+  };
 
   const navigate = useNavigate();
 
@@ -65,7 +97,7 @@ const AdminDashboard = () => {
   );
 
   const sectionComponents = {
-    dashboard: <Dashboard />,
+    dashboard: <Dashboard onOpenMatch={openMatch} goTo={setActiveSection} />,
     // scheduling and managing a tournament needs a big screen
     organize: desktopOnly(
       'Organizing a tournament',
@@ -76,7 +108,9 @@ const AdminDashboard = () => {
     profile: <Profile />,
     players: <PlayersScreen />,
     squad: <SquadScreen goToPlayers={() => setActiveSection('players')} />,
-    alerts: <Alerts />,
+    alerts: <Alerts onOpenMatch={openMatch} onUnread={setUnread} goTo={setActiveSection} />,
+    rankings: <TeamRankings teamId={teamId} />,
+    results: <TeamResults teamId={teamId} openMatchId={openMatchId} clearOpen={() => setOpenMatchId(null)} />,
     appliedTeams: desktopOnly('Managing the teams of a tournament', <AppliedTeams tournamentId={selectedTournamentId} />),
   };
 
@@ -87,6 +121,7 @@ const AdminDashboard = () => {
         handleSectionClick={handleSectionClick}
         toggleSidebar={toggleSidebar}
         isSidebarOpen={isSidebarOpen}
+        unread={unread}
       />
 
       {/* phone: title bar with the menu button */}
@@ -121,7 +156,7 @@ const AdminDashboard = () => {
       </motion.div>
 
       {/* phone: the main things one tap away */}
-      <nav className="fixed inset-x-0 bottom-0 z-10 grid h-16 grid-cols-5 border-t border-slate-200 bg-white md:hidden" aria-label="Main">
+      <nav className="fixed inset-x-0 bottom-0 z-10 grid h-16 grid-cols-6 border-t border-slate-200 bg-white md:hidden" aria-label="Main">
         {PHONE_TABS.map((tab) => (
           <button
             key={tab.id}
@@ -132,7 +167,10 @@ const AdminDashboard = () => {
               activeSection === tab.id ? 'text-emerald-700' : 'text-slate-500'
             }`}
           >
-            <span className="text-xl leading-none" aria-hidden="true">{tab.icon}</span>
+            <span className="relative text-xl leading-none" aria-hidden="true">
+              {tab.icon}
+              {tab.id === 'alerts' && unread > 0 && <span className="absolute -right-2 -top-1 min-w-[1.1rem] rounded-full bg-red-600 px-1 text-[10px] font-bold leading-4 text-white">{unread > 9 ? '9+' : unread}</span>}
+            </span>
             {tab.name}
           </button>
         ))}

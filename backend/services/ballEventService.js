@@ -23,6 +23,9 @@ const playerPerfModel = require("../models/playerPerformanceModel");
 const playerStatsModel = require("../models/playerStatsModel");
 const ballsModel = require("../models/ballModel");
 const squadModel = require("../models/squadModel");
+const postMatchHooks = require("./postMatchHooks");
+const tieBreak = require("./tieBreakService");
+const { advanceBracket } = require("./bracketService");
 
 /* ----------------------------- helpers ----------------------------- */
 
@@ -97,26 +100,6 @@ const assertScoreboardCurrent = async (conn, inningId, expectedLastBallId) => {
   }
 };
 
-// Fill the slots of the next matches with the winner (or, for a third-place match, the loser)
-// of the match that just finished. Only the direct next matches are touched.
-async function advanceBracket(conn, matchId, winnerTeamId, loserTeamId) {
-  const [[tm]] = await conn.execute(`SELECT id FROM tournament_matches WHERE match_id = ? LIMIT 1`, [matchId]);
-  if (!tm) return;
-  const [dependents] = await conn.execute(
-    `SELECT id, dependent_match1_id, dependent_match1_type, dependent_match2_id, dependent_match2_type
-     FROM tournament_matches WHERE dependent_match1_id = ? OR dependent_match2_id = ?`,
-    [tm.id, tm.id]
-  );
-  for (const d of dependents) {
-    if (Number(d.dependent_match1_id) === Number(tm.id)) {
-      await conn.execute(`UPDATE tournament_matches SET team1_id = ? WHERE id = ?`, [d.dependent_match1_type === "loser" ? loserTeamId : winnerTeamId, d.id]);
-    }
-    if (Number(d.dependent_match2_id) === Number(tm.id)) {
-      await conn.execute(`UPDATE tournament_matches SET team2_id = ? WHERE id = ?`, [d.dependent_match2_type === "loser" ? loserTeamId : winnerTeamId, d.id]);
-    }
-  }
-}
-
 // Match, innings and live scorecard of an innings that is being scored, with the checks every scoring action needs.
 async function loadScoringContext(conn, inningId, matchId) {
   const live = await lockLiveScorecard(conn, inningId);
@@ -157,6 +140,13 @@ async function applyOutcome(conn, { matchId, matchRow, inningsRow, outcome, newS
   }
   if (!outcome.matchCompleted) return;
 
+  // A tie: the tournament may settle it by itself (the team that batted first wins). Otherwise the match
+  // stays level until the scorer records a super over or the host picks the winner (see tieBreakService).
+  if (!outcome.winnerTeamId) {
+    const auto = await tieBreak.autoWinner(conn, matchId);
+    if (auto) outcome = { ...outcome, winnerTeamId: auto.winnerTeamId, decidedBy: auto.decidedBy };
+  }
+
   await conn.execute(
     `UPDATE matches SET
       winner_team_id = ?, result = 'completed',
@@ -173,6 +163,9 @@ async function applyOutcome(conn, { matchId, matchRow, inningsRow, outcome, newS
     const loserTeamId = same(outcome.winnerTeamId, matchRow.team1_id) ? matchRow.team2_id : matchRow.team1_id;
     await advanceBracket(conn, matchId, outcome.winnerTeamId, loserTeamId);
   }
+  if (outcome.decidedBy) await tieBreak.recordAuto(conn, matchId, outcome.decidedBy, outcome.winnerTeamId);
+  // player figures, ranking points, final positions, notifications (never stops the result from being saved)
+  await postMatchHooks.onMatchCompleted(conn, matchId);
 }
 
 /* ---------------------------- register ball ---------------------------- */
@@ -768,6 +761,7 @@ exports.undoLastBallEvent = async (conn, inningId, matchId, options = {}) => {
       await conn.execute(`UPDATE tournament_matches SET team1_id = NULL WHERE dependent_match1_id = ?`, [tournamentMatch.id]);
       await conn.execute(`UPDATE tournament_matches SET team2_id = NULL WHERE dependent_match2_id = ?`, [tournamentMatch.id]);
     }
+    await postMatchHooks.onMatchReopened(conn, matchId);
   }
 
   return true;

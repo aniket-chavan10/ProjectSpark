@@ -1,6 +1,7 @@
 const { withTransaction } = require("../utils/db-transaction");
 const { ScoringError } = require("../utils/errors");
 const squadService = require("./squadService");
+const banService = require("./banService");
 
 exports.setToss = async (matchId, tossWinnerId, tossDecision) => {
   return withTransaction(async (conn) => {
@@ -29,10 +30,22 @@ exports.setToss = async (matchId, tossWinnerId, tossDecision) => {
     // with nobody to play stops the toss.
     const [teamNames] = await conn.execute(`SELECT id, team_name FROM teams WHERE id IN (?, ?)`, [team1_id, team2_id]);
     const nameOf = (id) => (teamNames.find((t) => Number(t.id) === Number(id)) || {}).team_name;
+    // a team the association has banned cannot play
+    await banService.assertTeamNotBanned(conn, team1_id, "play this match", nameOf(team1_id));
+    await banService.assertTeamNotBanned(conn, team2_id, "play this match", nameOf(team2_id));
     await squadService.freezeMatchSquads(conn, matchId, tournament_id, [
       { id: team1_id, name: nameOf(team1_id) },
       { id: team2_id, name: nameOf(team2_id) },
     ]);
+    // ... and neither can a banned player, even if the squad was picked before the ban
+    const [xi] = await conn.execute(`SELECT player_id FROM match_squads WHERE tournament_match_id = ? AND role = 'playing'`, [matchId]);
+    const banned = await banService.bannedAmong(conn, xi.map((r) => r.player_id));
+    if (banned.length) {
+      throw new ScoringError(
+        `${banned.map((p) => p.players_name).join(", ")} ${banned.length === 1 ? "is" : "are"} banned and cannot play. The team admin must change the squad before the toss.`,
+        409
+      );
+    }
 
     // 2. Validate toss winner is one of the teams
     const winnerId = parseInt(tossWinnerId, 10);

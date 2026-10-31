@@ -27,4 +27,11 @@ router.get("/matches/:fixtureId/squad", controller.getMatchSquad);
 router.put("/matches/:fixtureId/squad", controller.saveMatchSquad);
 router.delete("/matches/:fixtureId/squad", controller.resetMatchSquad);
 
+// news for the team: notifications (match scheduled, results, winners ...), the association's announcements, its standing
+router.get("/notifications", controller.listNotifications);
+router.post("/notifications/read", controller.markNotificationsRead);
+router.get("/announcements", controller.listAnnouncements);
+router.get("/overview", controller.overview);
+router.get("/rankings", controller.rankings);
+
 module.exports = router;

@@ -2,6 +2,7 @@
 // Dates the association reserves for a team to host a tournament (before the tournament itself exists).
 const db = require('../dbconfigure');
 const { addDays } = require('../utils/scheduleRules');
+const fixtureNotifier = require('./fixtureNotifier');
 
 /**
  * Reserve dates for a hosting team.
@@ -18,6 +19,8 @@ exports.createSchedule = async (organizer_admin_id, start_date, reserved_days = 
      VALUES (?, ?, ?, ?, NOW(), NOW(), 'pending', NULL)`,
     [organizer_admin_id, start_date, end_date, reserved_days]
   );
+
+  await fixtureNotifier.hostingReserved(organizer_admin_id, start_date, end_date);
 
   return {
     id: result.insertId,

@@ -483,6 +483,40 @@ class FakeScoringDb {
       const fixtures = this.tm.filter((m) => m.match_id === Number(p[0])).map((m) => m.id);
       return rows(this.matchSquads.filter((r) => fixtures.includes(r.tournament_match_id) && r.team_id === Number(p[1]) && r.role === "playing" && r.player_id === Number(p[2])).map((r) => ({ player_id: r.player_id })));
     }
+    /* ---------------------------- tie-break rules ---------------------------- */
+    // set this.tieRules = { group, knockout } to a rule name; the default is 'super_over' (a tie stays open)
+    if (s.startsWith("SELECT tm.id AS fixture_id, tm.stage, tm.tournament_id, t.tie_rule_group")) {
+      const f = this.tm.find((m) => m.match_id === Number(p[0]));
+      if (!f) return rows([]);
+      const r = this.tieRules || {};
+      return rows([{ fixture_id: f.id, stage: f.stage || "group", tournament_id: f.tournament_id || 1, tie_rule_group: r.group || "super_over", tie_rule_knockout: r.knockout || "super_over" }]);
+    }
+    if (s.startsWith("SELECT team_id FROM innings WHERE match_id = ? AND innings_number = 1")) {
+      const i = Object.values(this.innings).find((x) => x.match_id === Number(p[0]) && x.innings_number === 1);
+      return rows(i ? [{ team_id: i.team_id }] : []);
+    }
+    if (s.startsWith("INSERT INTO match_tiebreaks")) {
+      (this.tiebreaks = this.tiebreaks || []).push({ match_id: p[0], method: p[1], winner_team_id: p[2] });
+      return ok();
+    }
+    if (s.startsWith("UPDATE matches SET decided_by")) {
+      this.matches[p[1]].decided_by = p[0];
+      return ok();
+    }
+
+    /* ------------------------------- bans ------------------------------- */
+    // no ban is in force unless a test sets this.teamBans (team ids) or this.bannedPlayers (player ids)
+    if (s.startsWith("SELECT b.* FROM bans b")) {
+      const banned = (this.teamBans || []).includes(Number(p[1])) && p[0] === "team";
+      return rows(banned ? [{ id: 1, subject_type: "team", subject_id: p[1], reason: "test ban", ends_on: null }] : []);
+    }
+    if (s.startsWith("SELECT player_id FROM match_squads WHERE tournament_match_id = ? AND role = 'playing'")) {
+      return rows(this.matchSquads.filter((r) => r.tournament_match_id === Number(p[0]) && r.role === "playing").map((r) => ({ player_id: r.player_id })));
+    }
+    if (s.startsWith("SELECT player_id, players_name, is_banned, banned_until FROM players_core WHERE player_id IN")) {
+      const ids = (Array.isArray(p[0]) ? p[0] : [p[0]]).map(Number);
+      return rows(ids.filter((id) => (this.bannedPlayers || []).includes(id)).map((id) => ({ player_id: id, players_name: `Player ${id}`, is_banned: 1, banned_until: null })));
+    }
     throw new Error("FakeScoringDb: unhandled SQL: " + s.slice(0, 120));
   }
 }

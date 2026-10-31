@@ -5,6 +5,7 @@ const db = require("../dbconfigure");
 const { ScoringError } = require("../utils/errors");
 const format = require("../utils/tournamentFormat");
 const rules = require("../utils/scheduleRules");
+const fixtureNotifier = require("./fixtureNotifier");
 
 const pad = (n) => String(n).padStart(2, "0");
 
@@ -268,6 +269,7 @@ exports.saveSchedule = async (tournamentId, organizerAdminId, body = {}) => {
       );
     }
     await conn.commit();
+    await fixtureNotifier.scheduleReleased(db, tournamentId);
     return { saved: merged.length, warnings };
   } catch (err) {
     await conn.rollback();

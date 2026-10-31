@@ -9,9 +9,14 @@ const Sidebar = ({ activeSection, setActiveSection }) => {
     { id: 'profile', name: 'Profile', icon: '👤' },
     { id: 'all-teams', name: 'Teams', icon: '👥' },
     { id: 'teamRequests', name: 'Team Requests', icon: '📨' },
-    { id: 'rankings', name: 'Rankings', icon: '🏆' },
+    { id: 'rankings', name: 'Rankings & points', icon: '🏆' },
+    { id: 'announcements', name: 'Announcements', icon: '📢' },
+    { id: 'bans', name: 'Bans', icon: '⛔' },
     { id: 'tournamentManager', name: 'Tournaments', icon: '📅' },
-    { id: 'managePlayers', name: 'Manage Players', icon: '➕' },
+    { id: 'managePlayers', name: 'Players', icon: '🏏' },
+    { id: 'schedules', name: 'Schedules', icon: '🗓️' },
+    { id: 'awards', name: 'Awards', icon: '🏅' },
+    { id: 'sponsors', name: 'Sponsors', icon: '🤝' },
     { id: 'logout', name: 'Logout', icon: '🚪' },
   ];
 

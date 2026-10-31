@@ -10,6 +10,8 @@ import PlayersPanel from "../../components/Scoring/PlayersPanel";
 import RetireModal from "../../components/Scoring/RetireModal";
 import ScoreHero from "../../components/Scoring/ScoreHero";
 import ScorePad from "../../components/Scoring/ScorePad";
+import OverlayDesk from "../../components/Scoring/OverlayDesk";
+import TieBreakPanel from "../../components/Scoring/TieBreakPanel";
 import ScorecardPanel from "../../components/Scoring/ScorecardPanel";
 import WicketModal from "../../components/Scoring/WicketModal";
 import { ballToRedo, bowlerBlocked, currentInnings, figures, inningsStarted, nonStriker, sides, striker } from "../../components/Scoring/scoreUtils";
@@ -285,6 +287,7 @@ export default function ScoringDashboard({ matchId, initial, onExit }) {
         <ScoreHero sb={sb} inning={inning} />
 
         {matchDone && <MatchResult sb={sb} onBack={onExit} />}
+        {matchDone && sb.matchResult && sb.matchResult.marginType === "tie" && <TieBreakPanel matchId={matchId} onDone={() => refresh().catch((e) => setError(e.message))} />}
 
         {needOpeners && <InningsSetup key={inning.inningId} inningsNumber={inning.inningsNumber} battingTeam={batting} bowlingTeam={bowling} banner={breakBanner} onSubmit={submitOpeners} busy={busy} />}
 
@@ -308,13 +311,15 @@ export default function ScoringDashboard({ matchId, initial, onExit }) {
                 onSwap={swapEnds}
               />
             </div>
-            <div className="min-w-0 lg:col-span-5">
+            <div className="min-w-0 space-y-4 lg:col-span-5">
               <ScorecardPanel sb={sb} scorecard={scorecard} inningId={inning.inningId} overlayUrl={overlayUrl} />
+              <OverlayDesk matchId={matchId} sb={sb} />
             </div>
           </div>
         )}
 
         {(matchDone || needOpeners) && <ScorecardPanel sb={sb} scorecard={scorecard} inningId={sb.innings[0].inningId} overlayUrl={overlayUrl} />}
+        {(matchDone || needOpeners) && <OverlayDesk matchId={matchId} sb={sb} />}
       </main>
 
       {/* ---- a choice the scorer has to make before the next ball ---- */}

@@ -1,5 +1,6 @@
 const scheduleService = require("../services/tournamentScheduleService");
 const { ScoringError } = require("../utils/errors");
+const tieBreak = require("../services/tieBreakService");
 
 const fail = (res, err, fallback) => {
   if (err instanceof ScoringError) {
@@ -54,5 +55,24 @@ exports.getStandings = async (req, res) => {
     res.json(await scheduleService.getStandings(idOf(req)));
   } catch (err) {
     fail(res, err, "Could not load the standings");
+  }
+};
+
+// How a tied match is settled in this tournament (host only): GET / PUT /tournaments/:tournamentId/tie-rules
+exports.getTieRules = async (req, res) => {
+  try {
+    await scheduleService.assertOrganizer(idOf(req), req.user.id);
+    res.json(await tieBreak.getRules(idOf(req)));
+  } catch (err) {
+    fail(res, err, "Could not load the tie rules");
+  }
+};
+
+exports.setTieRules = async (req, res) => {
+  try {
+    await scheduleService.assertOrganizer(idOf(req), req.user.id);
+    res.json(await tieBreak.setRules(idOf(req), req.body));
+  } catch (err) {
+    fail(res, err, "Could not save the tie rules");
   }
 };

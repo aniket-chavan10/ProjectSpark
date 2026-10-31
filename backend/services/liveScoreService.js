@@ -368,6 +368,14 @@ exports.getLiveScoreboard = async (conn, matchId) => {
         marginType: "wickets",
         marginValue: wicketsLeft,
       };
+    } else if (team2Runs === team1Runs && match.winner_team_id) {
+      // level, but already settled (batted first, super over or the host's decision)
+      matchResult = {
+        winnerTeamId: match.winner_team_id,
+        winnerTeamName: Number(match.winner_team_id) === Number(team1?.id) ? team1?.team_name : team2?.team_name,
+        marginType: "tiebreak",
+        marginValue: 0,
+      };
     } else if (team2Runs === team1Runs) {
       // Scores level: a tie has no winner
       matchResult = {

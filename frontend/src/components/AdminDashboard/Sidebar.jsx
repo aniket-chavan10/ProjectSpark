@@ -6,6 +6,7 @@ const Sidebar = ({
   handleSectionClick,
   toggleSidebar,
   isSidebarOpen,
+  unread = 0,
 }) => {
   const sections = [
     { id: 'dashboard', name: 'Dashboard', icon: '🏠' },
@@ -25,7 +26,9 @@ const Sidebar = ({
     { id: 'players', name: 'My Players', icon: '👥' },
     { id: 'invitations', name: 'Invitation', icon: '✉️' },
     { id: 'profile', name: 'Profile', icon: '👤' },
-    { id: 'alerts', name: 'Alerts', icon: '🔔' },
+    { id: 'rankings', name: 'Rankings', icon: '🥇' },
+    { id: 'results', name: 'Results', icon: '📊' },
+    { id: 'alerts', name: 'Notifications', icon: '🔔' },
     { id: 'logout', name: 'Logout', icon: '🚪' },
   ];
 
@@ -127,6 +130,9 @@ const Sidebar = ({
                 >
                   <span className="text-lg mr-3">{section.icon}</span>
                   <span>{section.name}</span>
+                  {section.id === 'alerts' && unread > 0 && (
+                    <span className="ml-auto rounded-full bg-red-600 px-2 py-0.5 text-xs font-bold text-white">{unread > 99 ? '99+' : unread}</span>
+                  )}
                 </li>
               );
             })}

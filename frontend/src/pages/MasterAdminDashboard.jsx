@@ -4,6 +4,14 @@ import Sidebar from '../components/MasterAdminDashboard/Sidebar';
 import TeamRequests from '../components/MasterAdminDashboard/TeamRequests';
 import AllTeams from '../components/MasterAdminDashboard/AllTeams';
 import TournamentScheduler from '../components/MasterAdminDashboard/TournamentScheduler';
+import Announcements from '../components/MasterAdminDashboard/Announcements';
+import Bans from '../components/MasterAdminDashboard/Bans';
+import RankingPoints from '../components/MasterAdminDashboard/RankingPoints';
+import AwardsAdmin from '../components/MasterAdminDashboard/AwardsAdmin';
+import SponsorsAdmin from '../components/MasterAdminDashboard/SponsorsAdmin';
+import AssociationTeams from '../components/MasterAdminDashboard/AssociationTeams';
+import AssociationPlayers from '../components/MasterAdminDashboard/AssociationPlayers';
+import AssociationSchedules from '../components/MasterAdminDashboard/AssociationSchedules';
 
 const MasterAdminDashboard = () => {
   const [activeSection, setActiveSection] = useState('profile'); // Default to 'profile'
@@ -25,10 +33,15 @@ const MasterAdminDashboard = () => {
           >
             {activeSection === 'teamRequests' && <TeamRequests />}
             {activeSection === 'profile' && <div>Profile Section</div>}
-            {activeSection === 'all-teams' && <AllTeams />}
-            {activeSection === 'rankings' && <div>Rankings Section</div>}
+            {activeSection === 'all-teams' && <AssociationTeams goTo={setActiveSection} />}
+            {activeSection === 'rankings' && <RankingPoints />}
+            {activeSection === 'announcements' && <Announcements />}
+            {activeSection === 'bans' && <Bans />}
             {activeSection === 'tournamentManager' && <TournamentScheduler />}
-            {activeSection === 'managePlayers' && <div>Manage Players Section</div>}
+            {activeSection === 'managePlayers' && <AssociationPlayers goTo={setActiveSection} />}
+            {activeSection === 'schedules' && <AssociationSchedules />}
+            {activeSection === 'awards' && <AwardsAdmin />}
+            {activeSection === 'sponsors' && <SponsorsAdmin />}
             {activeSection === 'logout' && <div>You have logged out.</div>}
           </motion.div>
         </AnimatePresence>

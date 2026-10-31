@@ -16,7 +16,7 @@ export const apiOrigin = () => {
  * onStatus("connected" | "disconnected") lets a screen show a connection light.
  * Returns a function that leaves again.
  */
-export function watchMatch(matchId, { onScoreboard, onStatus } = {}) {
+export function watchMatch(matchId, { onScoreboard, onStatus, onOverlay } = {}) {
   const socket = io(apiOrigin(), { transports: ["websocket", "polling"], reconnection: true });
   const join = () => socket.emit("join_match", { matchNo: matchId });
 
@@ -26,6 +26,8 @@ export function watchMatch(matchId, { onScoreboard, onStatus } = {}) {
   });
   socket.on("disconnect", () => onStatus && onStatus("disconnected"));
   socket.on("scoreUpdate", (data) => onScoreboard && onScoreboard(data));
+  // the operator changed what the broadcast screen shows
+  socket.on("overlayUpdate", (state) => onOverlay && onOverlay(state));
   // after the innings changes the same payload shape arrives wrapped
   socket.on("innings_switched", (p) => p?.liveScoreData && onScoreboard && onScoreboard(p.liveScoreData));
 

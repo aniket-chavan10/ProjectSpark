@@ -87,7 +87,7 @@ export default function ScoreBug({ sb, inning, event, tournamentTag }) {
     const r = sb.matchResult;
     const [a, b] = sb.innings;
     const nameOf = (i) => (i.teamId === sb.teams.team1.id ? sb.teams.team1.name : sb.teams.team2.name);
-    const margin = r && r.marginType === "wickets" ? `by ${r.marginValue} wicket${r.marginValue === 1 ? "" : "s"}` : r && r.marginType === "runs" ? `by ${r.marginValue} run${r.marginValue === 1 ? "" : "s"}` : "";
+    const margin = r && r.marginType === "tiebreak" ? "after a tie" : r && r.marginType === "wickets" ? `by ${r.marginValue} wicket${r.marginValue === 1 ? "" : "s"}` : r && r.marginType === "runs" ? `by ${r.marginValue} run${r.marginValue === 1 ? "" : "s"}` : "";
     return (
       <Shell tag={tag}>
         <Message big={!r ? "Match complete" : r.marginType === "tie" ? "Match tied" : `${r.winnerTeamName} won ${margin}`} small={[a, b].filter(Boolean).map((i) => `${teamCode(nameOf(i))} ${i.totalRuns}/${i.wickets} (${i.overs})`).join("   ·   ")} />

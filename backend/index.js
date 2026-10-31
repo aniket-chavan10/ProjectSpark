@@ -96,6 +96,16 @@ app.use("/api/live/score", liveScoreRoutes);
 const inningsRoutes = require("./routes/inningsRoutes");
 app.use("/api/inning", inningsRoutes);
 
+// Public site (no login), the overlay desk and the association head's tools
+const publicRoute = require("./routes/publicRoute");
+app.use("/api/public", publicRoute);
+
+const overlayRoute = require("./routes/overlayRoute");
+app.use("/api/overlay", overlayRoute);
+
+const associationRoute = require("./routes/associationRoute");
+app.use("/api/association", associationRoute);
+
 const { swaggerUi, specs } = require("./swaggerConfig");
 app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(specs));
 
