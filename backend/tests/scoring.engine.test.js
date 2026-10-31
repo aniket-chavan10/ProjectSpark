@@ -344,6 +344,17 @@ describe("tournament bracket", () => {
     expect(db.tm.find((m) => m.id === 10).team1_id).toBeNull(); // the final must NOT get it yet
   });
 
+  test("the loser goes to a third-place match when the slot asks for the loser", async () => {
+    const db = setup();
+    withBracket(db);
+    db.tm.push({ id: 11, match_id: null, status: "scheduled", team1_id: null, team2_id: null, dependent_match1_id: 7, dependent_match1_type: "loser", dependent_match2_id: 8, dependent_match2_type: "loser" });
+    db.matches[100].target_score = 5;
+    db.setInitialPlayers(2, 41, 42, 51);
+    await score(db, { runsScored: 6 }, 2); // team 2 (chasing) wins, team 1 loses
+    expect(db.tm.find((m) => m.id === 9).team1_id).toBe(2); // winner to the next round
+    expect(db.tm.find((m) => m.id === 11).team1_id).toBe(1); // loser to third place
+  });
+
   test("a tie does not advance anyone", async () => {
     const db = setup({ totalOvers: 1 });
     withBracket(db);
@@ -521,7 +532,9 @@ describe("toss", () => {
 
   test("records the toss once and returns the new ids", async () => {
     const db = fixture();
+    db.tm[0].overs = 4;
     const res = await matchService.setToss(5, 2, "bat");
+    expect(db.matches[res.matchId].total_overs).toBe(4); // the overs the host scheduled
     expect(res.battingTeamId).toBe(2);
     expect(res.bowlingTeamId).toBe(1);
     expect(db.tm[0].match_id).toBe(res.matchId);

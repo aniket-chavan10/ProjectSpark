@@ -1,7 +1,6 @@
 const { ScoringError } = require("../utils/errors");
 const { ballsToOversString, isInningsOver } = require("../utils/cricketRules/cricketRules");
-
-const MAX_WICKETS = 10;
+const squadModel = require("../models/squadModel");
 
 /**
  * Close the current innings and hand over to the next one.
@@ -10,7 +9,7 @@ const MAX_WICKETS = 10;
  */
 exports.switchInnings = async (conn, { matchId, currentInningId, forceEnd = false }) => {
   const [[current]] = await conn.execute(
-    `SELECT inning_id, match_id, innings_number, total_runs, wickets, balls_bowled, status
+    `SELECT inning_id, match_id, innings_number, total_runs, wickets, balls_bowled, status, team_id
      FROM innings WHERE inning_id = ? LIMIT 1 FOR UPDATE`,
     [currentInningId]
   );
@@ -22,7 +21,8 @@ exports.switchInnings = async (conn, { matchId, currentInningId, forceEnd = fals
   if (match.status === "completed") throw new ScoringError("Match is already completed", 409);
 
   const ballsBowled = Number(current.balls_bowled || 0);
-  const finished = isInningsOver(Number(current.wickets), ballsBowled, MAX_WICKETS, match.total_overs || 5);
+  const maxWickets = await squadModel.getMaxWickets(conn, current.team_id, matchId);
+  const finished = isInningsOver(Number(current.wickets), ballsBowled, maxWickets, match.total_overs || 5);
   if (!finished && !forceEnd) {
     throw new ScoringError("Innings is not finished yet (send forceEnd: true to end it early)", 409);
   }

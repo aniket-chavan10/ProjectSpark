@@ -1,19 +1,15 @@
 const express = require('express');
 const router = express.Router();
 const tentativeScheduleController = require('../controllers/tentativeTournamentScheduleController');
-const authMiddleware = require('../middlewares/masterAdminAuth');
+const verifyMasterAdminToken = require('../middlewares/masterAdminAuth');
+const verifyAdminToken = require('../middlewares/authMiddleware');
 
-// Master Admin creates a tentative schedule
-router.post('/tentative-schedule', tentativeScheduleController.createSchedule);
+// The association (master admin) reserves dates for hosting teams and sees every reservation
+router.post('/tentative-schedule', verifyMasterAdminToken, tentativeScheduleController.createSchedule);
+router.get('/tentative-schedule', verifyMasterAdminToken, tentativeScheduleController.getAllSchedules);
 
-// Get all tentative schedules
-router.get('/tentative-schedule',  tentativeScheduleController.getAllSchedules);
-
-// this is for master admin
-router.get('/tentative-schedule/:organizerAdminId',  tentativeScheduleController.getSchedulesByOrganizer);
-
-// routes/tentativeScheduleRoutes.js
-router.get('/tentative-schedule/organizer/:organizerAdminId', tentativeScheduleController.getSchedulesByOrganizer); // this is for admin 
-
+// A hosting team sees the dates reserved for it
+router.get('/tentative-schedule/:organizerAdminId', verifyAdminToken, tentativeScheduleController.getSchedulesByOrganizer);
+router.get('/tentative-schedule/organizer/:organizerAdminId', verifyAdminToken, tentativeScheduleController.getSchedulesByOrganizer);
 
 module.exports = router;

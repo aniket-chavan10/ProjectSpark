@@ -1,9 +1,9 @@
 const express = require("express");
 const router = express.Router();
 const tournamentController = require("../controllers/tournamentController");
+const scheduleController = require("../controllers/tournamentScheduleController");
 const verifyAdminToken = require("../middlewares/authMiddleware"); // Auth middleware
-const multer = require("multer");
-const upload = multer();
+const upload = require("../middlewares/uploadMiddleware"); // saves the banner image to /uploads
 
 router.post(
   "/",
@@ -55,11 +55,12 @@ router.post(
   tournamentController.assignTournamentGroups
 );
 
-// Generate knockout schedule
-router.post(
-  "/tournaments/:tournamentId/generate-knockout-schedule",
-  tournamentController.scheduleKnockoutMatches
-);
+// Match scheduling: host only, except the standings which anyone can read
+router.get("/tournaments/:tournamentId/schedule-plan", verifyAdminToken, scheduleController.getSchedulePlan);
+router.post("/tournaments/:tournamentId/schedule/preview", verifyAdminToken, scheduleController.previewSchedule);
+router.post("/tournaments/:tournamentId/schedule/check", verifyAdminToken, scheduleController.checkSchedule);
+router.post("/tournaments/:tournamentId/schedule", verifyAdminToken, scheduleController.saveSchedule);
+router.get("/tournaments/:tournamentId/standings", scheduleController.getStandings);
 
 router.get(
   "/tournaments/:tournamentId/scheduled-matches",

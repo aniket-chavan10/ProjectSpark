@@ -2,14 +2,38 @@
 const liveScorecardModel = require("../models/liveScorecardModel");
 const { withTransaction } = require("../utils/db-transaction");
 const { ScoringError } = require("../utils/errors");
+const squadService = require("./squadService");
 
+// Choose the openers and the first bowler. Only possible before the first ball: once the innings is under way
+// the players change through new batsman / new bowler / change striker, so a stray call cannot wipe a live innings.
 exports.setInitialPlayers = async ({ matchId, inningId, strikerId, nonStrikerId, bowlerId }) => {
-  return liveScorecardModel.updateInitialPlayers({
-    matchId,
-    inningId,
-    strikerId,
-    nonStrikerId,
-    bowlerId
+  return withTransaction(async (conn) => {
+    const [[innings]] = await conn.execute(
+      `SELECT innings_number, status, match_id FROM innings WHERE inning_id = ? LIMIT 1 FOR UPDATE`,
+      [inningId]
+    );
+    if (!innings) throw new ScoringError("Innings not found", 404);
+    if (Number(innings.match_id) !== Number(matchId)) throw new ScoringError("Innings does not belong to this match");
+    if (innings.status === "completed") throw new ScoringError("Innings is already completed", 409);
+
+    const [[match]] = await conn.execute(`SELECT status, target_score FROM matches WHERE match_id = ? LIMIT 1`, [matchId]);
+    if (!match) throw new ScoringError("Match not found", 404);
+    if (match.status === "completed") throw new ScoringError("Match is already completed", 409);
+    if (innings.innings_number > 1 && !match.target_score) throw new ScoringError("First innings is not completed yet", 409);
+
+    const [[bowled]] = await conn.execute(`SELECT COUNT(*) AS n FROM balls WHERE inning_id = ?`, [inningId]);
+    if (Number(bowled.n) > 0) {
+      throw new ScoringError("This innings has already started. Use new batsman, new bowler or change striker instead.", 409);
+    }
+
+    const [result] = await conn.execute(
+      `UPDATE live_scorecards
+       SET batsman1_id = ?, batsman2_id = ?, on_strike_batsman_id = ?, non_striker_batsman_id = ?, bowler_id = ?
+       WHERE match_id = ? AND inning_id = ?`,
+      [strikerId, nonStrikerId, strikerId, nonStrikerId, bowlerId, matchId, inningId]
+    );
+    if (result.affectedRows === 0) throw new ScoringError("Live scorecard not found", 404);
+    return result;
   });
 };
 
@@ -119,9 +143,13 @@ exports.getMatchWithTeamsAndSquads = async (matchId) => {
   return withTransaction(async (conn) => {
     // 1. Fetch match details by match ID
     const [[match]] = await conn.execute(
-      `SELECT id, match_no, tournament_id, round_number, group_name, team1_id, team2_id, match_date,
-          match_time, venue, winner_team_id, status, dependent_match1_id, dependent_match2_id, created_at, updated_at
-       FROM tournament_matches WHERE id = ? LIMIT 1`,
+      `SELECT tm.id, tm.match_id, tm.match_no, tm.tournament_id, tm.stage, tm.round_number, tm.group_name,
+          tm.team1_id, tm.team2_id, tm.match_date, tm.match_time,
+          DATE_FORMAT(tm.match_date, '%Y-%m-%d') AS match_date_str, DATE_FORMAT(tm.match_time, '%H:%i') AS start_time_str,
+          tm.overs, tm.duration_minutes, tm.venue, tm.winner_team_id, tm.status,
+          tm.dependent_match1_id, tm.dependent_match2_id, tm.created_at, tm.updated_at, t.name AS tournament_name
+       FROM tournament_matches tm LEFT JOIN tournaments t ON t.id = tm.tournament_id
+       WHERE tm.id = ? LIMIT 1`,
       [matchId]
     );
     if (!match) throw new Error("Match not found");
@@ -151,15 +179,22 @@ exports.getMatchWithTeamsAndSquads = async (matchId) => {
       return players || [];
     }
 
-    // 4. Fetch squads for each team (only players playing)
-    const team1Squad = await getTeamPlayers(match.team1_id);
-    const team2Squad = await getTeamPlayers(match.team2_id);
+    // 4. The squads: what each team declared (the XI can be changed per match), frozen at the toss.
+    //    Matches from before squads existed keep using the old playing XI table.
+    const declared = await squadService.getFixtureSquads(conn, matchId, match.tournament_id, [{ id: match.team1_id }, { id: match.team2_id }]);
+    const squadOf = async (teamId) => {
+      const d = declared[teamId] || { source: "none", playing: [], reserves: [] };
+      if (d.source === "none") return { source: "none", squad: await getTeamPlayers(teamId), reserves: [] };
+      return { source: d.source, squad: d.playing, reserves: d.reserves };
+    };
+    const s1 = await squadOf(match.team1_id);
+    const s2 = await squadOf(match.team2_id);
 
     // 5. Compose full response
     return {
       match,
-      team1: { ...team1, squad: team1Squad },
-      team2: { ...team2, squad: team2Squad },
+      team1: team1 ? { ...team1, squad: s1.squad, reserves: s1.reserves, squadSource: s1.source } : team1,
+      team2: team2 ? { ...team2, squad: s2.squad, reserves: s2.reserves, squadSource: s2.source } : team2,
     };
   });
 };

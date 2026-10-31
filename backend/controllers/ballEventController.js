@@ -40,9 +40,35 @@ exports.registerBallEvent = async (req, res) => {
   }
 };
 
+// A batter retires (hurt, or out). It is not a delivery.
+exports.retireBatsman = async (req, res) => {
+  const io = req.app.get("socketio");
+  const { inningId, matchId, batsmanId, retiredOut, lastBallId } = req.body;
+
+  let conn;
+  try {
+    conn = await dbPool.getConnection();
+    await conn.beginTransaction();
+
+    await ballService.retireBatsman(conn, { inningId, matchId, batsmanId, retiredOut, lastBallId });
+    const liveScoreData = await liveScoreService.getLiveScoreboard(conn, matchId);
+
+    await conn.commit();
+
+    io.to(`match_${matchId}`).emit("scoreUpdate", liveScoreData);
+    res.status(201).json({ success: true, data: liveScoreData });
+  } catch (err) {
+    if (conn) await conn.rollback();
+    console.error("Retire Batsman Error:", err);
+    sendScoringError(res, err, "Failed to record the retirement");
+  } finally {
+    if (conn) conn.release();
+  }
+};
+
 exports.undoLastBallEvent = async (req, res) => {
   const io = req.app.get("socketio"); // Get Socket.IO instance
-  const { inningId, matchId } = req.body;
+  const { inningId, matchId, lastBallId, survivorId } = req.body;
 
   if (!inningId || !matchId) {
     return res.status(400).json({ success: false, message: "inningId and matchId are required" });
@@ -54,7 +80,7 @@ exports.undoLastBallEvent = async (req, res) => {
     await conn.beginTransaction();
 
     // Call service method to undo last ball event
-    await ballService.undoLastBallEvent(conn, inningId, matchId);
+    await ballService.undoLastBallEvent(conn, inningId, matchId, { lastBallId, survivorId });
 
     // Fetch updated live scoreboard data with enriched info
     const liveScoreData = await liveScoreService.getLiveScoreboard(conn, matchId);

@@ -2,7 +2,6 @@ import React, { useState, useEffect } from "react";
 import ManualGrouping from "./ManualGrouping";
 import BulkGrouping from "./BulkGrouping";
 import RandomGrouping from "./RandomGrouping";
-import ScheduleFirstRound from "./ScheduleFirstRound";
 
 export default function GroupTeams({ teams = [], onCreateGroups, onContinue }) {
   const [groupingMode, setGroupingMode] = useState("manual");
@@ -60,10 +59,6 @@ export default function GroupTeams({ teams = [], onCreateGroups, onContinue }) {
       )}
       {groupingMode === "random" && (
         <RandomGrouping savedTeams={savedTeams} onSaveGroups={saveGroupAssignments} />
-      )}
-
-      {showSchedule && groupedTeams.length > 0 && (
-        <ScheduleFirstRound groupedTeams={groupedTeams} onContinue={onContinue} />
       )}
 
       {!savedTeams.length && (

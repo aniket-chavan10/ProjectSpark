@@ -5,6 +5,8 @@ const ballsModel = require("../models/ballModel");
 const playerModel = require("../models/playerModel");
 const teamModel = require("../models/teamModel");
 const performanceModel = require("../models/playerPerformanceModel");
+const squadModel = require("../models/squadModel");
+const { isFreeHit, isInningsOver } = require("../utils/cricketRules/cricketRules");
 
 exports.getLiveScoreboard = async (conn, matchId) => {
   // Fetch match data
@@ -111,8 +113,20 @@ exports.getLiveScoreboard = async (conn, matchId) => {
   const team2 = await teamModel.getTeamById(conn, match.team2_id);
 
   // Get players of each team
-  const team1Players = await playerModel.getPlayersByTeam(conn, match.team1_id);
-  const team2Players = await playerModel.getPlayersByTeam(conn, match.team2_id);
+  const team1Players = match.team1_id ? await squadModel.getPlayingXI(conn, matchId, match.team1_id) : [];
+  const team2Players = match.team2_id ? await squadModel.getPlayingXI(conn, matchId, match.team2_id) : [];
+
+  // What the scorer needs to know to carry on: wickets that end the innings, the newest ball (sent back with the next
+  // ball so a stale screen is refused), whether the next ball is a free hit
+  const flagsPerInnings = {};
+  for (const inning of inningsList) {
+    flagsPerInnings[inning.inning_id] = {
+      maxWickets: await squadModel.getMaxWickets(conn, inning.team_id, matchId),
+      lastBallId: await ballsModel.getLastBallId(conn, inning.inning_id),
+      freeHit: inning.status !== "completed" && isFreeHit(await ballsModel.getRecentExtraTypes(conn, inning.inning_id)),
+      retiredHurtIds: await ballsModel.getRetiredHurtByInnings(conn, inning.inning_id),
+    };
+  }
 
   // A knockout match can still be waiting for its teams (team ids are null)
   const toPlayerList = (list) =>
@@ -121,6 +135,8 @@ exports.getLiveScoreboard = async (conn, matchId) => {
       name: p.players_name,
       profilePicture: p.profile_picture,
       jerseyNumber: p.jersey_number || null,
+      isCaptain: !!p.is_captain,
+      isKeeper: !!p.is_keeper,
       teamId: p.team_id,
     }));
   if (team1) team1.players = toPlayerList(team1Players);
@@ -279,6 +295,15 @@ exports.getLiveScoreboard = async (conn, matchId) => {
       };
     });
 
+    const flags = flagsPerInnings[inning.inning_id];
+    const inningsLive = inning.status !== "completed" && !!ls && match.status !== "completed" && (inning.innings_number === 1 || !!match.target_score);
+    // after a wicket or at the end of an over the scorer has to choose the next batsman / bowler
+    const awaiting = { batsmanEnd: null, bowler: false };
+    if (inningsLive && ls.on_strike_batsman_id && !ls.non_striker_batsman_id) awaiting.batsmanEnd = "nonStriker";
+    else if (inningsLive && !ls.on_strike_batsman_id && ls.non_striker_batsman_id) awaiting.batsmanEnd = "striker";
+    else if (inningsLive && !ls.on_strike_batsman_id && !ls.non_striker_batsman_id) awaiting.batsmanEnd = "striker";
+    if (inningsLive && !ls.bowler_id && !isInningsOver(inning.wickets || 0, inning.balls_bowled || 0, flags.maxWickets, MAX_OVERS)) awaiting.bowler = true;
+
     const currentRunRate = ballsBowled > 0 ? parseFloat(((inning.total_runs || 0) * 6 / ballsBowled).toFixed(2)) : 0;
 
     return {
@@ -286,6 +311,17 @@ exports.getLiveScoreboard = async (conn, matchId) => {
       teamId: inning.team_id,
       totalRuns: inning.total_runs,
       wickets: inning.wickets,
+      maxWickets: flags.maxWickets,
+      wicketsLeft: Math.max(flags.maxWickets - (inning.wickets || 0), 0),
+      lastBallId: flags.lastBallId,
+      freeHit: flags.freeHit,
+      awaiting,
+      // retired hurt, not out and not at the crease: they may come back when a wicket falls
+      retiredHurt: flags.retiredHurtIds.filter(
+        (id) =>
+          ![ls?.on_strike_batsman_id, ls?.non_striker_batsman_id].some((c) => c && Number(c) === id) &&
+          !wicketFalls.some((w) => Number(w.playerOutId) === id)
+      ),
       overs: oversString,
       ballsBowled: inning.balls_bowled,
       extrasBreakdown,
@@ -323,7 +359,7 @@ exports.getLiveScoreboard = async (conn, matchId) => {
     const team2Runs = innings2.totalRuns || 0;
     const team2Wkts = innings2.wickets ?? 0;
     const target = innings2.targetScore;
-    const wicketsLeft = 10 - (team2Wkts || 0);
+    const wicketsLeft = Math.max(innings2.maxWickets - (team2Wkts || 0), 0);
     if (team2Runs >= target) {
       matchResult = {
         winnerTeamId: innings2.teamId,

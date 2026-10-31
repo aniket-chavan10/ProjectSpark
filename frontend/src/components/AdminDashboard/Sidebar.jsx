@@ -16,16 +16,15 @@ const Sidebar = ({
       name: 'Tournament',
       icon: '🏆',
       children: [
-        { id: 'organize', name: 'Organize', icon: '📅' },
+        { id: 'organize', name: 'Organize', icon: '📅', note: 'Computer' },
         { id: 'apply', name: 'Apply', icon: '📝' }
       ]
     },
 
+    { id: 'squad', name: 'My Squad', icon: '🏏' },
+    { id: 'players', name: 'My Players', icon: '👥' },
     { id: 'invitations', name: 'Invitation', icon: '✉️' },
     { id: 'profile', name: 'Profile', icon: '👤' },
-    { id: 'playingXI', name: 'Manage Playing XI', icon: '🏏' },
-    { id: 'addPlayer', name: 'Add New Player', icon: '➕' },
-    { id: 'viewPlayers', name: 'View Players', icon: '👥' },
     { id: 'alerts', name: 'Alerts', icon: '🔔' },
     { id: 'logout', name: 'Logout', icon: '🚪' },
   ];
@@ -46,7 +45,7 @@ const Sidebar = ({
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             onClick={toggleSidebar}
-            className="fixed inset-0 z-10 bg-black/50 md:hidden"
+            className="fixed inset-0 z-20 bg-black/50 md:hidden"
           />
         )}
       </AnimatePresence>
@@ -57,7 +56,7 @@ const Sidebar = ({
         animate={{ x: isSidebarOpen || window.innerWidth >= 768 ? 0 : -256 }}
         exit={{ x: -256 }}
         transition={{ type: 'spring', stiffness: 300, damping: 30 }}
-        className="fixed z-20 top-0 left-0 h-screen w-64 bg-gradient-to-b from-gray-900 to-gray-800 shadow-2xl"
+        className="fixed z-30 top-0 left-0 h-screen w-64 bg-gradient-to-b from-gray-900 to-gray-800 shadow-2xl"
         style={{ overflowY: 'auto' }}
       >
         {/* Header */}
@@ -106,6 +105,7 @@ const Sidebar = ({
                           >
                             <span className="mr-2">{child.icon}</span>
                             {child.name}
+                            {child.note && <span className="ml-2 rounded bg-gray-700 px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-gray-300">{child.note}</span>}
                           </li>
                         ))}
                       </ul>

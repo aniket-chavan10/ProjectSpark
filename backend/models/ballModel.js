@@ -64,3 +64,39 @@ exports.getExtrasBreakdownByInnings = async (conn, inningId) => {
   );
   return rows;
 };
+
+// A retirement is stored in the ball log but is not a delivery: not legal and no extra type.
+// Every real delivery is either legal or a wide / no-ball.
+
+// Id of the newest ball of an innings (0 when nothing was bowled). Clients send it back so a stale
+// screen or a double tap cannot add a ball on top of a scoreboard that has moved on.
+exports.getLastBallId = async (conn, inningId) => {
+  const [[row]] = await conn.execute(`SELECT COALESCE(MAX(ball_id), 0) AS id FROM balls WHERE inning_id = ?`, [inningId]);
+  return Number(row.id);
+};
+
+// Every ball of an innings in the order it was bowled (for the full scorecard).
+exports.getAllBallsByInnings = async (conn, inningId) => {
+  const [rows] = await conn.execute(`SELECT * FROM balls WHERE inning_id = ? ORDER BY ball_id`, [inningId]);
+  return rows;
+};
+
+// Batters who retired hurt in this innings (not out, they may come back when a wicket falls).
+exports.getRetiredHurtByInnings = async (conn, inningId) => {
+  const [rows] = await conn.execute(
+    `SELECT DISTINCT dismissed_player_id FROM balls WHERE inning_id = ? AND is_retired_hurt = 1 AND dismissed_player_id IS NOT NULL`,
+    [inningId]
+  );
+  return rows.map((r) => Number(r.dismissed_player_id));
+};
+
+// Extra types of the latest deliveries, newest first (null for a normal delivery). Used for the free hit.
+exports.getRecentExtraTypes = async (conn, inningId, limit = 30) => {
+  const [rows] = await conn.execute(
+    `SELECT extra_type FROM balls
+     WHERE inning_id = ? AND NOT (legal_delivery = 0 AND extra_type IS NULL)
+     ORDER BY ball_id DESC LIMIT ${Number(limit)}`,
+    [inningId]
+  );
+  return rows.map((r) => r.extra_type);
+};

@@ -6,6 +6,10 @@ const {
   getPartnershipRuns,
   normalizeWicketType,
   assertWicketPossible,
+  assertDeadBallDismissal,
+  assertFreeHitWicket,
+  isFreeHit,
+  decideOutcome,
   STRIKER_ONLY_WICKETS,
   ballsToOversString,
   splitBalls,
@@ -17,14 +21,15 @@ const { ScoringError } = require("../utils/errors");
 
 const playerPerfModel = require("../models/playerPerformanceModel");
 const playerStatsModel = require("../models/playerStatsModel");
-
-const MAX_WICKETS = 10;
+const ballsModel = require("../models/ballModel");
+const squadModel = require("../models/squadModel");
 
 /* ----------------------------- helpers ----------------------------- */
 
 const num = (v) => (v === null || v === undefined ? null : Number(v));
 const same = (a, b) => a !== null && a !== undefined && b !== null && b !== undefined && Number(a) === Number(b);
 const flag = (v) => v === true || v === 1 || v === "1" || v === "true";
+const given = (v) => v !== null && v !== undefined && v !== "";
 const swap = (c) => {
   [c.striker, c.nonStriker] = [c.nonStriker, c.striker];
 };
@@ -82,22 +87,38 @@ const overRunsConceded = async (conn, overId) => {
   return Number(row.conceded);
 };
 
-// Fill the next-round slot of the bracket with the winner of the match that just finished.
-async function advanceBracket(conn, matchId, winnerTeamId) {
+// The client says which ball it last saw. If the innings has moved on (another scorer, a double tap,
+// a request that was sent twice) the new ball is refused instead of being added on top of a newer state.
+const assertScoreboardCurrent = async (conn, inningId, expectedLastBallId) => {
+  if (!given(expectedLastBallId)) return;
+  const current = await ballsModel.getLastBallId(conn, inningId);
+  if (Number(expectedLastBallId) !== current) {
+    throw new ScoringError("The scoreboard has changed since you loaded it. Refresh and check the last ball before scoring.", 409);
+  }
+};
+
+// Fill the slots of the next matches with the winner (or, for a third-place match, the loser)
+// of the match that just finished. Only the direct next matches are touched.
+async function advanceBracket(conn, matchId, winnerTeamId, loserTeamId) {
   const [[tm]] = await conn.execute(`SELECT id FROM tournament_matches WHERE match_id = ? LIMIT 1`, [matchId]);
   if (!tm) return;
-  await conn.execute(`UPDATE tournament_matches SET team1_id = ? WHERE dependent_match1_id = ?`, [winnerTeamId, tm.id]);
-  await conn.execute(`UPDATE tournament_matches SET team2_id = ? WHERE dependent_match2_id = ?`, [winnerTeamId, tm.id]);
+  const [dependents] = await conn.execute(
+    `SELECT id, dependent_match1_id, dependent_match1_type, dependent_match2_id, dependent_match2_type
+     FROM tournament_matches WHERE dependent_match1_id = ? OR dependent_match2_id = ?`,
+    [tm.id, tm.id]
+  );
+  for (const d of dependents) {
+    if (Number(d.dependent_match1_id) === Number(tm.id)) {
+      await conn.execute(`UPDATE tournament_matches SET team1_id = ? WHERE id = ?`, [d.dependent_match1_type === "loser" ? loserTeamId : winnerTeamId, d.id]);
+    }
+    if (Number(d.dependent_match2_id) === Number(tm.id)) {
+      await conn.execute(`UPDATE tournament_matches SET team2_id = ? WHERE id = ?`, [d.dependent_match2_type === "loser" ? loserTeamId : winnerTeamId, d.id]);
+    }
+  }
 }
 
-/* ---------------------------- register ball ---------------------------- */
-
-exports.registerBallEvent = async (conn, inputData) => {
-  const matchId = toId(inputData.matchId, "matchId");
-  const inningId = toId(inputData.inningId, "inningId");
-  if (!matchId || !inningId) throw new ScoringError("matchId and inningId are required");
-
-  // Lock the innings first so two scorers (or a double tap) are processed one after the other.
+// Match, innings and live scorecard of an innings that is being scored, with the checks every scoring action needs.
+async function loadScoringContext(conn, inningId, matchId) {
   const live = await lockLiveScorecard(conn, inningId);
 
   const [[matchRow]] = await conn.execute(
@@ -118,8 +139,65 @@ exports.registerBallEvent = async (conn, inputData) => {
     throw new ScoringError("First innings is not completed yet", 409);
   }
 
-  const MAX_OVERS = matchRow.total_overs || 5;
-  const matchTargetScore = matchRow.target_score ? Number(matchRow.target_score) : null;
+  return {
+    live,
+    matchRow,
+    inningsRow,
+    maxOvers: matchRow.total_overs || 5,
+    maxWickets: await squadModel.getMaxWickets(conn, inningsRow.team_id, matchId),
+    target: matchRow.target_score ? Number(matchRow.target_score) : null,
+  };
+}
+
+// Write what the outcome means: the target after the first innings, and the result once the match is decided.
+async function applyOutcome(conn, { matchId, matchRow, inningsRow, outcome, newScore }) {
+  // The target always follows the first innings total (it changes if a ball was undone and re-scored).
+  if (outcome.inningsFinished && inningsRow.innings_number === 1) {
+    await conn.execute(`UPDATE matches SET target_score = ? WHERE match_id = ?`, [newScore + 1, matchId]);
+  }
+  if (!outcome.matchCompleted) return;
+
+  await conn.execute(
+    `UPDATE matches SET
+      winner_team_id = ?, result = 'completed',
+      status = 'completed', victory_margin_type = ?, victory_margin = ?
+    WHERE match_id = ?`,
+    [outcome.winnerTeamId, outcome.marginType, outcome.margin, matchId]
+  );
+  await conn.execute(`UPDATE tournament_matches SET winner_team_id = ?, status = 'completed' WHERE match_id = ?`, [
+    outcome.winnerTeamId,
+    matchId,
+  ]);
+  // A tie has no winner, so the bracket waits until the organiser settles it.
+  if (outcome.winnerTeamId) {
+    const loserTeamId = same(outcome.winnerTeamId, matchRow.team1_id) ? matchRow.team2_id : matchRow.team1_id;
+    await advanceBracket(conn, matchId, outcome.winnerTeamId, loserTeamId);
+  }
+}
+
+/* ---------------------------- register ball ---------------------------- */
+
+exports.registerBallEvent = async (conn, inputData) => {
+  const matchId = toId(inputData.matchId, "matchId");
+  const inningId = toId(inputData.inningId, "inningId");
+  if (!matchId || !inningId) throw new ScoringError("matchId and inningId are required");
+
+  // A batter retiring is not a delivery: it is recorded on its own and does not use up a ball.
+  if (flag(inputData.isRetiredHurt)) {
+    const hasDelivery =
+      toCount(inputData.runsScored, "runsScored", 8) > 0 || toCount(inputData.extras, "extras", 12) > 0 || given(inputData.extraType) || flag(inputData.isWicket);
+    if (hasDelivery) throw new ScoringError("A retirement is not a delivery. Record it on its own, then score the ball.");
+    return exports.retireBatsman(conn, {
+      inningId,
+      matchId,
+      batsmanId: inputData.dismissedPlayerId ?? inputData.batsmanId,
+      lastBallId: inputData.lastBallId,
+    });
+  }
+
+  // Lock the innings first so two scorers (or a double tap) are processed one after the other.
+  const { live, matchRow, inningsRow, maxOvers, maxWickets, target } = await loadScoringContext(conn, inningId, matchId);
+  await assertScoreboardCurrent(conn, inningId, inputData.lastBallId);
 
   const strikerBefore = num(live.on_strike_batsman_id);
   const nonStrikerBefore = num(live.non_striker_batsman_id);
@@ -129,7 +207,7 @@ exports.registerBallEvent = async (conn, inputData) => {
   if (!live.bowler_id) throw new ScoringError("No bowler assigned. Select the bowler first.", 409);
 
   const totalBefore = totalLegalBalls(live);
-  if (isInningsOver(Number(live.current_wickets), totalBefore, MAX_WICKETS, MAX_OVERS)) {
+  if (isInningsOver(Number(live.current_wickets), totalBefore, maxWickets, maxOvers)) {
     throw new ScoringError("Innings is over. No further balls allowed.", 409);
   }
 
@@ -162,16 +240,18 @@ exports.registerBallEvent = async (conn, inputData) => {
 
   // ----- the wicket -----
   const fielderId = toId(inputData.fielderId, "fielderId");
-  const isRetiredHurt = flag(inputData.isRetiredHurt);
-  const outEvent = flag(inputData.isWicket) && !isRetiredHurt; // a real dismissal
-  const leavesCrease = flag(inputData.isWicket) || isRetiredHurt;
+  const outEvent = flag(inputData.isWicket);
   let wicketType = null;
   let dismissedPlayerId = toId(inputData.dismissedPlayerId, "dismissedPlayerId");
 
   if (outEvent) {
     wicketType = normalizeWicketType(inputData.wicketType);
     if (!wicketType) throw new ScoringError("wicketType is required when isWicket is true");
+    if (wicketType === "retired out") throw new ScoringError("A retirement is not a delivery. Record it on its own.");
     assertWicketPossible(wicketType, extraType);
+    assertDeadBallDismissal(wicketType, runsScored, extras, extraType);
+    // a free hit follows a no-ball (and carries on through wides): only some dismissals are possible
+    if (isFreeHit(await ballsModel.getRecentExtraTypes(conn, inningId))) assertFreeHitWicket(wicketType);
 
     if (STRIKER_ONLY_WICKETS.includes(wicketType)) {
       dismissedPlayerId = dismissedPlayerId ?? strikerBefore;
@@ -187,11 +267,6 @@ exports.registerBallEvent = async (conn, inputData) => {
       if (wicketType === "run out" && !fielderId) {
         throw new ScoringError("Fielder id must be provided for run out wicket");
       }
-    }
-  } else if (isRetiredHurt) {
-    dismissedPlayerId = dismissedPlayerId ?? strikerBefore;
-    if (!same(dismissedPlayerId, strikerBefore) && !same(dismissedPlayerId, nonStrikerBefore)) {
-      throw new ScoringError("The retiring player is not at the crease");
     }
   } else {
     dismissedPlayerId = null;
@@ -231,7 +306,7 @@ exports.registerBallEvent = async (conn, inputData) => {
       extras,
       extraType,
       legalDelivery ? 1 : 0,
-      isRetiredHurt ? 1 : 0,
+      0,
       inputData.shotType ?? null,
       inputData.ballOutcome ?? null,
       inputData.wagonWheelRegion ?? null,
@@ -253,9 +328,9 @@ exports.registerBallEvent = async (conn, inputData) => {
   let batsman2Id = num(live.batsman2_id);
   const crossed = shouldRotateStrike(runsScored, extras, extraType);
 
-  if (leavesCrease) {
+  if (outEvent) {
     // A run out with an odd number of completed runs happened after the batters crossed.
-    if (outEvent && wicketType === "run out" && crossed) swap(crease);
+    if (wicketType === "run out" && crossed) swap(crease);
     if (same(crease.striker, dismissedPlayerId)) crease.striker = null;
     if (same(crease.nonStriker, dismissedPlayerId)) crease.nonStriker = null;
     if (same(batsman1Id, dismissedPlayerId)) batsman1Id = null;
@@ -266,41 +341,21 @@ exports.registerBallEvent = async (conn, inputData) => {
   if (overIsComplete) swap(crease);
 
   const bowlerIdToUpdate = overIsComplete ? null : bowlerId;
-  const partnershipRuns = leavesCrease ? 0 : Number(live.partnership_runs || 0) + getPartnershipRuns(runsScored, extras);
+  const partnershipRuns = outEvent ? 0 : Number(live.partnership_runs || 0) + getPartnershipRuns(runsScored, extras);
 
   // ----- innings / match outcome -----
-  const inningsCompleted = isInningsOver(newWickets, totalAfter, MAX_WICKETS, MAX_OVERS);
-  let matchCompleted = false;
-  let chaseWon = false;
-  let winnerTeamId = null;
-  let victoryMarginType = null;
-  let victoryMargin = null;
-
-  if (inningsRow.innings_number > 1 && matchTargetScore) {
-    if (newScore >= matchTargetScore) {
-      matchCompleted = true;
-      chaseWon = true;
-      winnerTeamId = inningsRow.team_id;
-      victoryMarginType = "wickets";
-      victoryMargin = MAX_WICKETS - newWickets;
-    } else if (inningsCompleted) {
-      matchCompleted = true;
-      if (newScore === matchTargetScore - 1) {
-        // Scores level: a tie. No winner, no margin (a completed match without winner_team_id).
-        victoryMargin = 0;
-      } else {
-        winnerTeamId = same(inningsRow.team_id, matchRow.team1_id) ? matchRow.team2_id : matchRow.team1_id;
-        victoryMarginType = "runs";
-        victoryMargin = matchTargetScore - 1 - newScore;
-      }
-    }
-  }
-  const inningsFinished = inningsCompleted || chaseWon;
-
-  // The target always follows the first innings total (it changes if a ball was undone and re-scored).
-  if (inningsFinished && inningsRow.innings_number === 1) {
-    await conn.execute(`UPDATE matches SET target_score = ? WHERE match_id = ?`, [newScore + 1, matchId]);
-  }
+  const outcome = decideOutcome({
+    inningsNumber: inningsRow.innings_number,
+    target,
+    score: newScore,
+    wickets: newWickets,
+    legalBalls: totalAfter,
+    maxWickets,
+    maxOvers,
+    battingTeamId: inningsRow.team_id,
+    team1Id: matchRow.team1_id,
+    team2Id: matchRow.team2_id,
+  });
 
   await conn.execute(
     `UPDATE live_scorecards SET
@@ -344,7 +399,7 @@ exports.registerBallEvent = async (conn, inputData) => {
       newWickets,
       totalAfter,
       oversString,
-      inningsFinished ? "completed" : inningsRow.status,
+      outcome.inningsFinished ? "completed" : inningsRow.status,
       extras,
       runRate(newScore, totalAfter),
       inningId,
@@ -355,21 +410,7 @@ exports.registerBallEvent = async (conn, inputData) => {
     await conn.execute(`UPDATE overs SET is_complete = TRUE WHERE over_id = ?`, [currentOverId]);
   }
 
-  if (matchCompleted) {
-    await conn.execute(
-      `UPDATE matches SET
-        winner_team_id = ?, result = 'completed',
-        status = 'completed', victory_margin_type = ?, victory_margin = ?
-      WHERE match_id = ?`,
-      [winnerTeamId, victoryMarginType, victoryMargin, matchId]
-    );
-    await conn.execute(`UPDATE tournament_matches SET winner_team_id = ?, status = 'completed' WHERE match_id = ?`, [
-      winnerTeamId,
-      matchId,
-    ]);
-    // A tie has no winner, so the bracket waits until the organiser settles it.
-    if (winnerTeamId) await advanceBracket(conn, matchId, winnerTeamId);
-  }
+  await applyOutcome(conn, { matchId, matchRow, inningsRow, outcome, newScore });
 
   // ----- player figures -----
   const figures = {
@@ -396,12 +437,119 @@ exports.registerBallEvent = async (conn, inputData) => {
     await playerPerfModel.adjustMaidens(conn, bowlerId, matchId, 1);
   }
 
-  return { matchCompleted, inningsFinished, winnerTeamId };
+  return { matchCompleted: outcome.matchCompleted, inningsFinished: outcome.inningsFinished, winnerTeamId: outcome.winnerTeamId };
+};
+
+/* ------------------------------ retirement ------------------------------ */
+
+/**
+ * A batter leaves the crease between deliveries: retired hurt (not out, may come back later when a
+ * wicket has fallen) or retired out (counts as a wicket, never the bowler's). It is not a delivery:
+ * no ball is used, no runs, the over and the bowler are untouched. The partnership ends.
+ */
+exports.retireBatsman = async (conn, input) => {
+  const matchId = toId(input.matchId, "matchId");
+  const inningId = toId(input.inningId, "inningId");
+  const retiringId = toId(input.batsmanId, "batsmanId");
+  if (!matchId || !inningId) throw new ScoringError("matchId and inningId are required");
+  if (!retiringId) throw new ScoringError("batsmanId is required: who is retiring?");
+  const retiredOut = flag(input.retiredOut);
+
+  const { live, matchRow, inningsRow, maxOvers, maxWickets, target } = await loadScoringContext(conn, inningId, matchId);
+  await assertScoreboardCurrent(conn, inningId, input.lastBallId);
+
+  const strikerBefore = num(live.on_strike_batsman_id);
+  const nonStrikerBefore = num(live.non_striker_batsman_id);
+  if (!strikerBefore || !nonStrikerBefore) {
+    throw new ScoringError("Both batsmen must be at the crease. Select the incoming batsman first.", 409);
+  }
+  if (!same(retiringId, strikerBefore) && !same(retiringId, nonStrikerBefore)) {
+    throw new ScoringError("The retiring player is not at the crease");
+  }
+  const totalBalls = totalLegalBalls(live);
+
+  // the retirement is written to the ball log (so it can be undone) against the latest over
+  const [[lastOver]] = await conn.execute(`SELECT over_id, over_number, bowler_id FROM overs WHERE inning_id = ? ORDER BY over_number DESC LIMIT 1`, [inningId]);
+  let over = lastOver;
+  if (!over) {
+    if (!live.bowler_id) throw new ScoringError("No bowler assigned. Select the bowler first.", 409);
+    over = await getCurrentActiveOver(conn, inningId, matchId, num(live.bowler_id));
+  }
+  const [[{ nextBallNumber }]] = await conn.execute(
+    `SELECT COALESCE(MAX(ball_number), 0) + 1 AS nextBallNumber FROM balls WHERE over_id = ?`,
+    [over.over_id]
+  );
+  await conn.execute(
+    `INSERT INTO balls (
+      inning_id, over_id, over_number, ball_number,
+      batsman_id, bowler_id, runs_scored,
+      is_wicket, wicket_type, dismissed_player_id, fielder_id,
+      extras, extra_type, legal_delivery, is_retired_hurt,
+      shot_type, ball_outcome, wagon_wheel_region
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    [
+      inningId, over.over_id, over.over_number, nextBallNumber, strikerBefore, over.bowler_id, 0,
+      retiredOut ? 1 : 0, retiredOut ? "retired out" : null, retiringId, null,
+      0, null, 0, retiredOut ? 0 : 1,
+      null, "retired", null,
+    ]
+  );
+
+  const crease = { striker: strikerBefore, nonStriker: nonStrikerBefore };
+  let batsman1Id = num(live.batsman1_id);
+  let batsman2Id = num(live.batsman2_id);
+  if (same(crease.striker, retiringId)) crease.striker = null;
+  if (same(crease.nonStriker, retiringId)) crease.nonStriker = null;
+  if (same(batsman1Id, retiringId)) batsman1Id = null;
+  if (same(batsman2Id, retiringId)) batsman2Id = null;
+
+  const newScore = Number(live.current_score);
+  const newWickets = Number(live.current_wickets) + (retiredOut ? 1 : 0);
+  const outcome = decideOutcome({
+    inningsNumber: inningsRow.innings_number,
+    target,
+    score: newScore,
+    wickets: newWickets,
+    legalBalls: totalBalls,
+    maxWickets,
+    maxOvers,
+    battingTeamId: inningsRow.team_id,
+    team1Id: matchRow.team1_id,
+    team2Id: matchRow.team2_id,
+  });
+
+  await conn.execute(
+    `UPDATE live_scorecards SET
+      current_wickets = ?, on_strike_batsman_id = ?, non_striker_batsman_id = ?,
+      batsman1_id = ?, batsman2_id = ?, partnership_runs = 0, last_updated = CURRENT_TIMESTAMP
+    WHERE inning_id = ?`,
+    [newWickets, crease.striker, crease.nonStriker, batsman1Id, batsman2Id, inningId]
+  );
+  if (retiredOut) {
+    await conn.execute(
+      `UPDATE live_scorecards SET last_wicket_player_id = ?, last_wicket_over = ?, last_wicket_description = ? WHERE inning_id = ?`,
+      [retiringId, ballsToOversString(totalBalls), "retired out", inningId]
+    );
+  }
+  await conn.execute(`UPDATE innings SET wickets = ?, status = ? WHERE inning_id = ?`, [
+    newWickets,
+    outcome.inningsFinished ? "completed" : inningsRow.status,
+    inningId,
+  ]);
+  await applyOutcome(conn, { matchId, matchRow, inningsRow, outcome, newScore });
+
+  return { matchCompleted: outcome.matchCompleted, inningsFinished: outcome.inningsFinished, winnerTeamId: outcome.winnerTeamId };
 };
 
 /* -------------------------------- undo -------------------------------- */
 
-exports.undoLastBallEvent = async (conn, inningId, matchId) => {
+/**
+ * Take the last ball (or retirement) back and restore everything it changed.
+ * @param options.lastBallId  the ball the scorer thinks is the last one; refused if the innings moved on
+ * @param options.survivorId  only needed to take back a wicket of the striker after the incoming batsman was
+ *                            already chosen: the batter who was at the other end before the wicket
+ */
+exports.undoLastBallEvent = async (conn, inningId, matchId, options = {}) => {
   inningId = toId(inningId, "inningId");
   matchId = toId(matchId, "matchId");
   if (!inningId || !matchId) throw new ScoringError("inningId and matchId are required");
@@ -421,11 +569,15 @@ exports.undoLastBallEvent = async (conn, inningId, matchId) => {
   );
   if (!matchRow) throw new ScoringError("Match not found", 404);
   const MAX_OVERS = matchRow.total_overs || 5;
+  const maxWickets = await squadModel.getMaxWickets(conn, inningsRow.team_id, matchId);
 
   const [[lastBall]] = await conn.execute(`SELECT * FROM balls WHERE inning_id = ? ORDER BY ball_id DESC LIMIT 1`, [
     inningId,
   ]);
   if (!lastBall) throw new ScoringError("No ball events to undo", 409);
+  if (given(options.lastBallId) && Number(options.lastBallId) !== Number(lastBall.ball_id)) {
+    throw new ScoringError("The last ball is no longer the one you were looking at. Refresh before undoing.", 409);
+  }
 
   if (inningsRow.innings_number === 1) {
     const [[later]] = await conn.execute(
@@ -443,6 +595,7 @@ exports.undoLastBallEvent = async (conn, inningId, matchId) => {
   const isRetired = Number(lastBall.is_retired_hurt) === 1;
   const outEvent = Number(lastBall.is_wicket) === 1 && !isRetired;
   const leavesCrease = outEvent || isRetired;
+  const delivery = legal || !!extraType; // a retirement is in the log but was never a delivery
   const runsScored = Number(lastBall.runs_scored || 0);
   const extras = Number(lastBall.extras || 0);
   const dismissedId = num(lastBall.dismissed_player_id);
@@ -481,15 +634,16 @@ exports.undoLastBallEvent = async (conn, inningId, matchId) => {
     const present = [crease.striker, crease.nonStriker].filter((id) => id !== null);
     let incomingId = null;
     if (present.length === 2) {
-      // The incoming batsman is already in. We can only tell who he is when the striker was
-      // not the one who left (then the striker of the ball is the one who stayed).
-      if (same(dismissedId, strikerBeforeBall)) {
+      // The incoming batsman is already in. If the striker was not the one who left, the striker of the
+      // ball is the one who stayed. Otherwise the scorer has to say who stayed.
+      let survivor = same(dismissedId, strikerBeforeBall) ? num(options.survivorId) : strikerBeforeBall;
+      if (survivor === null || !present.some((id) => same(id, survivor))) {
         throw new ScoringError(
-          "Cannot undo this wicket: the incoming batsman has already been selected. Remove him first.",
+          "Cannot undo this wicket: the incoming batsman has already been selected. Send survivorId (the batter who stayed at the crease) to take it back.",
           409
         );
       }
-      incomingId = present.find((id) => !same(id, strikerBeforeBall));
+      incomingId = present.find((id) => !same(id, survivor));
     }
     if (incomingId !== null) {
       if (same(crease.striker, incomingId)) crease.striker = dismissedId;
@@ -513,15 +667,17 @@ exports.undoLastBallEvent = async (conn, inningId, matchId) => {
 
   // ----- player figures (read the dismissed batter's runs BEFORE taking the ball back) -----
   let dismissedRuns = null;
-  if (outEvent && dismissedId) dismissedRuns = await playerPerfModel.getMatchRuns(conn, dismissedId, matchId);
+  if (delivery && outEvent && dismissedId) dismissedRuns = await playerPerfModel.getMatchRuns(conn, dismissedId, matchId);
   if (overWasComplete && (await overRunsConceded(conn, lastBall.over_id)) === 0) {
     await playerPerfModel.adjustMaidens(conn, lastBall.bowler_id, matchId, -1);
   }
 
   await conn.execute(`DELETE FROM balls WHERE ball_id = ?`, [lastBall.ball_id]);
 
-  await playerPerfModel.revertPerformanceOnBall(conn, lastBall, matchId);
-  await playerStatsModel.revertStatsOnBall(conn, lastBall, { dismissedRuns });
+  if (delivery) {
+    await playerPerfModel.revertPerformanceOnBall(conn, lastBall, matchId);
+    await playerStatsModel.revertStatsOnBall(conn, lastBall, { dismissedRuns });
+  }
 
   // ----- totals -----
   const totalAfter = Math.max(totalLegalBalls(live) - (legal ? 1 : 0), 0);
@@ -543,7 +699,7 @@ exports.undoLastBallEvent = async (conn, inningId, matchId) => {
     [inningId]
   );
 
-  const stillComplete = isInningsOver(newWickets, totalAfter, MAX_WICKETS, MAX_OVERS);
+  const stillComplete = isInningsOver(newWickets, totalAfter, maxWickets, MAX_OVERS);
   const newStatus = stillComplete ? "completed" : inningsRow.status === "completed" ? "live" : inningsRow.status;
 
   // ----- over bookkeeping: take the bowler back if the over was closed by this ball -----

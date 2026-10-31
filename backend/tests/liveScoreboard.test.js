@@ -3,15 +3,20 @@ jest.mock("../dbconfigure", () => ({ execute: jest.fn(), query: jest.fn(), getCo
 const { getLiveScoreboard } = require("../services/liveScoreService");
 
 // Canned rows keyed by the table/columns each model query reads.
-const makeConn = ({ match, innings, live, perf = [], balls = [], wickets = [], extras = [], players = [], teams = {} }) => ({
+const makeConn = ({ match, innings, live, perf = [], balls = [], wickets = [], extras = [], players = [], teams = {}, squad = 0, retired = [] }) => ({
   execute: async (sql, params = []) => {
     const s = sql.replace(/\s+/g, " ");
+    if (s.includes("FROM match_squads")) return s.includes("COUNT(*)") ? [[{ n: 0 }]] : [[]]; // no frozen squad: fall back to the old tables
     if (s.includes("FROM matches WHERE match_id")) return [[match]];
     if (s.includes("FROM innings WHERE match_id")) return [innings];
     if (s.includes("FROM live_scorecards l JOIN teams")) return [live];
     if (s.includes("FROM player_performance")) return [perf];
     if (s.includes("GROUP BY extra_type")) return [extras.filter((e) => e.inning_id === params[0]).map(({ extra_type, total }) => ({ extra_type, total }))];
     if (s.includes("AS legal_balls_upto")) return [wickets.filter((w) => w.inning_id === params[0])];
+    if (s.includes("SELECT DISTINCT dismissed_player_id")) return [retired.map((id) => ({ dismissed_player_id: id }))];
+    if (s.includes("FROM teams_squad")) return [[{ n: squad }]];
+    if (s.includes("COALESCE(MAX(ball_id)")) return [[{ id: Math.max(0, ...balls.filter((b) => b.inning_id === params[0]).map((b) => b.ball_id || 0)) }]];
+    if (s.includes("SELECT extra_type FROM balls")) return [balls.filter((b) => b.inning_id === params[0]).reverse().map((b) => ({ extra_type: b.extra_type }))];
     if (s.includes("FROM balls") && s.includes("ORDER BY over_number DESC")) return [balls.filter((b) => b.inning_id === params[0])];
     if (s.includes("INNER JOIN teams_squad")) return [[]];
     if (s.includes("FROM players_core")) return [players];
@@ -126,6 +131,57 @@ test("a completed tied match reports a tie, not a win", async () => {
   });
   const out = await getLiveScoreboard(conn, 100);
   expect(out.matchResult).toEqual({ winnerTeamId: null, winnerTeamName: null, marginType: "tie", marginValue: 0 });
+});
+
+describe("what the scorer needs next", () => {
+  const board = async (o) => (await getLiveScoreboard(makeConn({ match: baseMatch, innings: [inn({ balls_bowled: 3 })], live: [ls()], players, teams, ...o }), 100)).innings[0];
+
+  test("the next ball is a free hit after a no-ball, and the newest ball id is given back", async () => {
+    const balls = [
+      { ball_id: 7, inning_id: 1, over_number: 1, ball_number: 1, runs_scored: 1, is_wicket: 0, extras: 0, extra_type: null },
+      { ball_id: 9, inning_id: 1, over_number: 1, ball_number: 2, runs_scored: 0, is_wicket: 0, extras: 1, extra_type: "no-ball" },
+    ];
+    const first = await board({ balls });
+    expect([first.freeHit, first.lastBallId]).toEqual([true, 9]);
+    const next = { ball_id: 10, inning_id: 1, over_number: 1, ball_number: 3, runs_scored: 1, is_wicket: 0, extras: 0, extra_type: null };
+    const second = await board({ balls: [...balls, next] });
+    expect([second.freeHit, second.lastBallId]).toEqual([false, 10]);
+  });
+
+  test("a wicket or the end of an over says what to choose next", async () => {
+    expect((await board({ live: [ls({ on_strike_batsman_id: null })] })).awaiting).toEqual({ batsmanEnd: "striker", bowler: false });
+    expect((await board({ live: [ls({ non_striker_batsman_id: null })] })).awaiting.batsmanEnd).toBe("nonStriker");
+    expect((await board({ innings: [inn({ balls_bowled: 6 })], live: [ls({ bowler_id: null })] })).awaiting).toEqual({ batsmanEnd: null, bowler: true });
+  });
+
+  test("nothing is awaited once the innings is over, or before the second innings can start", async () => {
+    const done = await board({ innings: [inn({ balls_bowled: 30, status: "completed" })], live: [ls({ bowler_id: null })] });
+    expect(done.awaiting).toEqual({ batsmanEnd: null, bowler: false });
+    const second = await board({ innings: [inn({ innings_number: 2, inning_id: 2 })], live: [ls({ inning_id: 2, bowler_id: null })] });
+    expect(second.awaiting.bowler).toBe(false);
+  });
+
+  test("wickets that end the innings follow the number of players", async () => {
+    const small = await board({ squad: 6 });
+    expect([small.maxWickets, small.wicketsLeft]).toEqual([5, 5]);
+    expect((await board({ squad: 0 })).maxWickets).toBe(10);
+  });
+
+  test("a chase won says how many wickets were left out of the side's own number", async () => {
+    const out = await getLiveScoreboard(
+      makeConn({
+        match: { ...baseMatch, status: "completed", target_score: 10 },
+        innings: [inn({ inning_id: 1, total_runs: 9, innings_number: 1 }), inn({ inning_id: 2, team_id: 2, total_runs: 10, wickets: 3, innings_number: 2, status: "completed" })],
+        live: [ls({ inning_id: 1 }), ls({ inning_id: 2 })],
+        players,
+        teams,
+        squad: 7,
+      }),
+      100
+    );
+    // a side of 7 is all out after 6 wickets; 3 were down, so it won with 3 wickets left
+    expect(out.matchResult).toMatchObject({ winnerTeamId: 2, marginType: "wickets", marginValue: 3 });
+  });
 });
 
 test("a knockout match whose teams are not decided yet does not crash", async () => {

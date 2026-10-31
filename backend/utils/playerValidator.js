@@ -1,6 +1,6 @@
 const matchModel = require("../models/matchModel");
 const inningsModel = require("../models/inningsModel");
-const playersModel = require("../models/playersModel");
+const squadModel = require("../models/squadModel");
 const db = require("../dbconfigure");
 const { ScoringError } = require("./errors");
 
@@ -31,15 +31,16 @@ exports.validateInitialPlayers = async ({ matchId, inningId, strikerId, nonStrik
   const bowlingTeamId = battingTeamId == team1_id ? team2_id : team1_id;
 
   // 🎯 3. Validate both batsmen
-  const batsmenValid = await playersModel.areBothPlayersFromTeam(battingTeamId, strikerId, nonStrikerId);
-  if (!batsmenValid) {
-    throw new ScoringError("One or both batsmen do not belong to the batting team");
+  const strikerOk = await squadModel.isInPlayingXI(db, matchId, battingTeamId, strikerId);
+  const nonStrikerOk = await squadModel.isInPlayingXI(db, matchId, battingTeamId, nonStrikerId);
+  if (!strikerOk || !nonStrikerOk) {
+    throw new ScoringError("One or both batsmen are not in the batting team's playing XI");
   }
 
   // 🎯 4. Validate bowler
-  const bowlerValid = await playersModel.isPlayerFromTeam(bowlingTeamId, bowlerId);
+  const bowlerValid = await squadModel.isInPlayingXI(db, matchId, bowlingTeamId, bowlerId);
   if (!bowlerValid) {
-    throw new ScoringError("Bowler does not belong to the bowling team");
+    throw new ScoringError("The bowler is not in the bowling team's playing XI");
   }
 
 
@@ -54,8 +55,8 @@ exports.validateNewBatsman = async ({ matchId, inningId, newBatsmanId, end }) =>
   // Must belong to the batting team
   const inning = await inningsModel.getBattingTeamByInning(matchId, inningId);
   if (!inning) throw new ScoringError("Inning not found for given match", 404);
-  const onTeam = await playersModel.isPlayerFromTeam(inning.team_id, newBatsmanId);
-  if (!onTeam) throw new ScoringError("The new batsman does not belong to the batting team");
+  const onTeam = await squadModel.isInPlayingXI(db, matchId, inning.team_id, newBatsmanId);
+  if (!onTeam) throw new ScoringError("The new batsman is not in the batting team's playing XI");
 
   // Must not be out already (a batter who retired hurt may come back)
   const [out] = await db.execute(
@@ -83,8 +84,8 @@ exports.validateNewBowler = async ({ matchId, inningId, newBowlerId }) => {
   const teams = await matchModel.getTeamsByMatchId(matchId);
   if (!teams) throw new ScoringError("Match not found", 404);
   const bowlingTeamId = Number(inning.team_id) === Number(teams.team1_id) ? teams.team2_id : teams.team1_id;
-  const onTeam = await playersModel.isPlayerFromTeam(bowlingTeamId, newBowlerId);
-  if (!onTeam) throw new ScoringError("The bowler does not belong to the bowling team");
+  const onTeam = await squadModel.isInPlayingXI(db, matchId, bowlingTeamId, newBowlerId);
+  if (!onTeam) throw new ScoringError("The bowler is not in the bowling team's playing XI");
 
   // Not two overs in a row
   const [lastOvers] = await db.execute(

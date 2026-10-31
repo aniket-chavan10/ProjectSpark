@@ -1,10 +1,11 @@
 const tournamentService = require('../services/tournamentService');
+const scheduleService = require('../services/tournamentScheduleService');
 
 exports.createTournamentFromSchedule = async (req, res) => {
   try {
     const organizerAdminId = req.user.id;
     const { tentative_id, name, venue } = req.body;
-    const banner_image = req.file ? req.file.path : null;
+    const banner_image = req.file ? `uploads/${req.file.filename}` : null;
 
     if (!tentative_id || !name || !venue ) {
       return res.status(400).json({ error: 'All fields are required' });
@@ -169,27 +170,6 @@ exports.assignTournamentGroups = async (req, res) => {
 
 
 
-exports.scheduleKnockoutMatches = async (req, res) => {
-  try {
-    const tournamentId = parseInt(req.params.tournamentId, 10);
-    const matches = req.body.matches;
-
-    if (!tournamentId || !Array.isArray(matches) || matches.length === 0) {
-      return res.status(400).json({ error: "Tournament ID and matches array are required" });
-    }
-
-    const result = await tournamentService.scheduleKnockoutMatches(tournamentId, matches);
-
-    res.status(201).json({
-      message: "Knockout matches scheduled successfully",
-      matches: result,
-    });
-  } catch (error) {
-    console.error("Error scheduling knockout matches:", error);
-    res.status(500).json({ error: error.message || "Internal Server Error" });
-  }
-};
-
 exports.getScheduledMatches = async (req, res) => {
   try {
     const tournamentId = parseInt(req.params.tournamentId, 10);
@@ -233,6 +213,7 @@ exports.getGroupsWithTeams = async (req, res) => {
 exports.updateTournamentProgress = async (req, res) => {
   try {
     const { tournamentId } = req.params;
+    await scheduleService.assertOrganizer(tournamentId, req.user.id);
     const updates = req.body;
     if (!tournamentId) return res.status(400).json({ error: "tournament_id missing" });
 
@@ -240,19 +221,20 @@ exports.updateTournamentProgress = async (req, res) => {
     res.json({ success: true, progress: result });
   } catch (err) {
     console.error("progress update error", err);
-    res.status(500).json({ error: err.message });
+    res.status(err.status || 500).json({ error: err.message });
   }
 };
 
 exports.getTournamentProgress = async (req, res) => {
   try {
     const { tournamentId } = req.params;
+    await scheduleService.assertOrganizer(tournamentId, req.user.id);
     if (!tournamentId) return res.status(400).json({ error: "tournament_id missing" });
 
     const result = await tournamentService.getTournamentProgress(tournamentId);
     res.json({ progress: result });
   } catch (err) {
     console.error("progress fetch error", err);
-    res.status(500).json({ error: err.message });
+    res.status(err.status || 500).json({ error: err.message });
   }
 };

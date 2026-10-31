@@ -1,51 +1,6 @@
 const db = require("../dbconfigure");
 
 
-// services/tournamentService.js
-exports.createTournamentFromSchedule = async (organizerAdminId, data) => {
-  const { tentative_id, name, venue, banner_image } = data;
-
-  // 1. Verify schedule belongs to admin
-  const [schedule] = await db.query(
-    `SELECT * FROM tentative_tournament_schedules 
-     WHERE id = ? AND organizer_admin_id = ? AND status = 'pending'`,
-    [tentative_id, organizerAdminId]
-  );
-
-  if (!schedule.length) {
-    throw new Error('Invalid or unavailable schedule');
-  }
-
-  const sched = schedule[0];
-
-  // 2. Insert tournament
-  const [result] = await db.query(
-    `INSERT INTO tournaments 
-      (tentative_id, start_date, end_date, organizer_admin_id, name, banner_image, venue, status, organizing_team, total_slots, available_slots, application_deadline, current_step) 
-     VALUES (?, ?, ?, ?, ?, ?, ?, 'open', ?, 32, 32, DATE_SUB(?, INTERVAL 4 DAY), 1)`,
-    [
-      tentative_id,
-      sched.start_date,
-      sched.end_date,
-      organizerAdminId,
-      name,
-      banner_image,
-      venue,
-      'My Team Name', // could be pulled dynamically if mapping to org
-      sched.start_date
-    ]
-  );
-
-  const tournamentId = result.insertId;
-
-  await db.query(
-    `UPDATE tentative_tournament_schedules SET status = 'allocated', tournament_id = ? WHERE id = ?`,
-    [tournamentId, tentative_id]
-  );
-
-  return { tournamentId };
-};
-
 exports.getTournamentsByOrganizer = async (organizerAdminId) => {
   const [rows] = await db.query(
     `SELECT 
@@ -191,153 +146,40 @@ exports.assignGroups = async (tournamentId, organizerAdminId, assignments) => {
 
 
 
-exports.scheduleKnockoutMatches = async (tournamentId, inputMatches) => {
-  const connection = await db.getConnection();
-  try {
-    await connection.beginTransaction();
-
-    // Fetch tournament details: start_date, end_date, venue
-    const [tournamentRows] = await connection.query(
-      `SELECT start_date, end_date, venue FROM tournaments WHERE id = ?`,
-      [tournamentId]
-    );
-    if (!tournamentRows.length) throw new Error("Tournament not found");
-    const { start_date, end_date, venue: tournamentVenue } = tournamentRows[0];
-
-    // Clear existing matches
-    await connection.query(`DELETE FROM tournament_matches WHERE tournament_id = ?`, [tournamentId]);
-
-    const matchIdMap = {}; // map match_no → db id
-
-    // Step 1: Insert matches 
-    for (const match of inputMatches) {
-      let team1Id = null;
-      let team2Id = null;
-
-      if (match.team1Id != null && !isNaN(match.team1Id)) team1Id = Number(match.team1Id);
-      if (match.team2Id != null && !isNaN(match.team2Id)) team2Id = Number(match.team2Id);
-
-      // Validate and clamp match_date within tournament start and end date
-      let matchDate = null;
-      if (match.match_date) {
-        const d = new Date(match.match_date);
-        const start = new Date(start_date);
-        const end = new Date(end_date);
-
-        if (d < start) {
-          matchDate = start_date;
-        } else if (d > end) {
-          matchDate = end_date;
-        } else {
-          matchDate = match.match_date;
-        }
-      }
-
-      // Prepare full datetime for match_time
-      let matchTimeFull = null;
-      if (matchTimeIsFullISO(match.match_time)) {
-        // if time is already ISO datetime (e.g. from frontend)
-        matchTimeFull = match.match_time;
-      } else if (match.match_time && matchDate) {
-        // Compose datetime from date + time like 'YYYY-MM-DD HH:mm:ss'
-        matchTimeFull = `${matchDate} ${match.match_time}:00`;
-      }
-
-      // Use venue from tournament if not provided per match
-      const matchVenue = match.venue && match.venue.trim() !== '' ? match.venue : tournamentVenue;
-
-      const [res] = await connection.query(
-        `INSERT INTO tournament_matches
-         (match_no, tournament_id, round_number, group_name,
-          team1_id, team2_id, match_date, match_time, venue,
-          dependent_match1_id, dependent_match2_id, status)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, NULL, 'scheduled')`,
-        [
-          match.match_no,
-          tournamentId,
-          match.round,
-          match.group || null,
-          team1Id,
-          team2Id,
-          matchDate || null,
-          matchTimeFull || null,
-          matchVenue || null,
-        ]
-      );
-
-      matchIdMap[match.match_no] = res.insertId;
-    }
-
-    // Step 2: Update dependencies
-    for (const match of inputMatches) {
-      let dep1Id = null;
-      let dep2Id = null;
-
-      if (typeof match.team1Id === 'string' && match.team1Id.toLowerCase().startsWith('winner of match')) {
-        const depMatchNo = parseInt(match.team1Id.replace(/\D/g, ''), 10);
-        dep1Id = matchIdMap[depMatchNo];
-      }
-      if (typeof match.team2Id === 'string' && match.team2Id.toLowerCase().startsWith('winner of match')) {
-        const depMatchNo = parseInt(match.team2Id.replace(/\D/g, ''), 10);
-        dep2Id = matchIdMap[depMatchNo];
-      }
-
-      if (dep1Id || dep2Id) {
-        await connection.query(
-          `UPDATE tournament_matches
-           SET dependent_match1_id = ?, dependent_match2_id = ?
-           WHERE tournament_id = ? AND match_no = ?`,
-          [dep1Id, dep2Id, tournamentId, match.match_no]
-        );
-      }
-    }
-
-    await connection.commit();
-
-    const [saved] = await connection.query(
-      `SELECT * FROM tournament_matches WHERE tournament_id = ? ORDER BY match_no ASC`,
-      [tournamentId]
-    );
-    return saved;
-
-  } catch (error) {
-    await connection.rollback();
-    throw error;
-  } finally {
-    connection.release();
-  }
-};
-
-// Utility helper: check if match_time is full ISO datetime string
-function matchTimeIsFullISO(timeStr) {
-  if (!timeStr) return false;
-  // Quick check for YYYY-MM-DD part (ISO format)
-  return /^\d{4}-\d{2}-\d{2}/.test(timeStr);
-}
-
-
 exports.getScheduledMatchesByTournament = async (tournamentId) => {
   const [rows] = await db.query(
     `SELECT
        tm.id,
+       tm.match_id,
        tm.match_no,
        tm.tournament_id,
+       tm.stage,
        tm.round_number,
        tm.group_name,
        tm.team1_id,
        tm.team2_id,
+       t1.team_name AS team1_name,
+       t2.team_name AS team2_name,
        tm.match_date,
        tm.match_time,
+       DATE_FORMAT(tm.match_date, '%Y-%m-%d') AS match_date_str,
+       DATE_FORMAT(tm.match_time, '%H:%i') AS start_time_str,
+       tm.overs,
+       tm.duration_minutes,
        tm.venue,
        tm.winner_team_id,
        t.team_name AS winner_team_name,
        tm.status,
        tm.dependent_match1_id,
+       tm.dependent_match1_type,
        tm.dependent_match2_id,
+       tm.dependent_match2_type,
        tm.created_at,
        tm.updated_at
      FROM tournament_matches tm
      LEFT JOIN teams t ON tm.winner_team_id = t.id
+     LEFT JOIN teams t1 ON tm.team1_id = t1.id
+     LEFT JOIN teams t2 ON tm.team2_id = t2.id
      WHERE tm.tournament_id = ?
      ORDER BY tm.match_no ASC`,
     [tournamentId]
@@ -391,6 +233,8 @@ exports.getGroupsWithTeamsForOrganizer = async (organizerAdminId, tournamentId) 
 
 // services/tournamentService.js
 // This creates or updates tournament progress row with default zeros if needed
+const PROGRESS_FIELDS = ["teams_created", "groups_created", "schedule_created", "matches_started", "live_match_state"];
+
 exports.createOrUpdateTournamentProgress = async (tournamentId, progressUpdates = {}) => {
   // Default progress fields
   const defaults = {
@@ -399,6 +243,14 @@ exports.createOrUpdateTournamentProgress = async (tournamentId, progressUpdates 
     schedule_created: 0,
     matches_started: 0,
   };
+
+  // Only known progress columns are accepted. Column names must never come straight from the request.
+  const unknown = Object.keys(progressUpdates).filter((k) => !PROGRESS_FIELDS.includes(k));
+  if (unknown.length) {
+    const err = new Error(`Unknown progress field: ${unknown.join(", ")}`);
+    err.status = 400;
+    throw err;
+  }
 
   // Merge defaults with provided updates
   const allFields = { ...defaults, ...progressUpdates };
@@ -445,54 +297,55 @@ exports.createTournamentFromSchedule = async (organizerAdminId, data) => {
     throw new Error("All fields (tentative_id, name, venue) are required.");
   }
 
-  // 1. Verify schedule belongs to admin
-  const [schedule] = await db.query(
-    `SELECT * FROM tentative_tournament_schedules 
-     WHERE id = ? AND organizer_admin_id = ? AND status = 'pending'`,
-    [tentative_id, organizerAdminId]
-  );
+  const conn = await db.getConnection();
+  try {
+    await conn.beginTransaction();
 
-  if (!schedule.length) {
-    throw new Error("Invalid or unavailable schedule");
+    // 1. The reserved dates must belong to this team and still be free (locked, so a double click cannot book twice)
+    const [schedule] = await conn.query(
+      `SELECT * FROM tentative_tournament_schedules
+       WHERE id = ? AND organizer_admin_id = ? AND status = 'pending' FOR UPDATE`,
+      [tentative_id, organizerAdminId]
+    );
+    if (!schedule.length) {
+      throw new Error("Invalid or unavailable schedule");
+    }
+    const sched = schedule[0];
+
+    const [teamRows] = await conn.query(`SELECT team_name FROM teams WHERE admin_id = ? LIMIT 1`, [organizerAdminId]);
+    const organizingTeam = teamRows.length ? teamRows[0].team_name : null;
+
+    // 2. Insert tournament (32 teams can register; registration closes 4 days before the start)
+    const [result] = await conn.query(
+      `INSERT INTO tournaments
+        (tentative_id, start_date, end_date, organizer_admin_id, name, banner_image, venue, status, organizing_team, total_slots, available_slots, application_deadline, current_step)
+       VALUES (?, ?, ?, ?, ?, ?, ?, 'open', ?, 32, 32, DATE_SUB(?, INTERVAL 4 DAY), 1)`,
+      [tentative_id, sched.start_date, sched.end_date, organizerAdminId, name, banner_image, venue, organizingTeam, sched.start_date]
+    );
+    const tournamentId = result.insertId;
+
+    // 3. Mark the reserved dates as used
+    await conn.query(
+      `UPDATE tentative_tournament_schedules SET status = 'allocated', tournament_id = ? WHERE id = ?`,
+      [tournamentId, tentative_id]
+    );
+
+    // 4. Insert initial tournament_progress with zeros
+    await conn.query(
+      `INSERT INTO tournament_progress
+        (tournament_id, teams_created, groups_created, schedule_created, matches_started, last_updated)
+       VALUES (?, 0, 0, 0, 0, NOW())`,
+      [tournamentId]
+    );
+
+    await conn.commit();
+    return { tournamentId };
+  } catch (err) {
+    await conn.rollback();
+    throw err;
+  } finally {
+    conn.release();
   }
-
-  const sched = schedule[0];
-
-  // 2. Insert tournament
-  const [result] = await db.query(
-    `INSERT INTO tournaments 
-      (tentative_id, start_date, end_date, organizer_admin_id, name, banner_image, venue, status, organizing_team, total_slots, available_slots, application_deadline, current_step) 
-     VALUES (?, ?, ?, ?, ?, ?, ?, 'open', ?, 32, 32, DATE_SUB(?, INTERVAL 4 DAY), 1)`,
-    [
-      tentative_id,
-      sched.start_date,
-      sched.end_date,
-      organizerAdminId,
-      name,
-      banner_image,
-      venue,
-      'My Team Name', // Adjust if needed
-      sched.start_date,
-    ]
-  );
-
-  const tournamentId = result.insertId;
-
-  // 3. Update tentative schedule status
-  await db.query(
-    `UPDATE tentative_tournament_schedules SET status = 'allocated', tournament_id = ? WHERE id = ?`,
-    [tournamentId, tentative_id]
-  );
-
-  // 4. Insert initial tournament_progress with zeros
-  await db.query(
-    `INSERT INTO tournament_progress 
-      (tournament_id, teams_created, groups_created, schedule_created, matches_started, last_updated) 
-     VALUES (?, 0, 0, 0, 0, NOW())`,
-    [tournamentId]
-  );
-
-  return { tournamentId };
 };
 
 

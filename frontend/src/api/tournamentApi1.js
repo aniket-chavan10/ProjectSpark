@@ -34,6 +34,12 @@ const tournamentApi = {
     }
   },
 
+   // Change the name or venue of a tournament you host
+   async updateTournament(tournamentId, { name, venue }) {
+    const res = await axiosInstance.put(`/tournament/${tournamentId}`, { name, venue });
+    return res.data;
+  },
+
    async getOpenTournaments() {
     try {
       const token = localStorage.getItem("authToken");
@@ -118,25 +124,53 @@ async getGroupsWithTeams(tournamentId) {
     throw error.response?.data || { error: error.message };
   }
 },
-async generateKnockoutSchedule(tournamentId, matches) {
+// ---- match scheduling (host) ----
+  // Everything the schedule screen needs: days, groups, saved schedule, defaults
+  async getSchedulePlan(tournamentId) {
     try {
-      const token = localStorage.getItem("authToken");
-      const res = await axiosInstance.post(
-        `/tournament/tournaments/${tournamentId}/generate-knockout-schedule`,
-        { matches }, // request body
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        }
-      );
-      return res.data; // contains message + saved matches
+      const res = await axiosInstance.get(`/tournament/tournaments/${tournamentId}/schedule-plan`);
+      return res.data;
     } catch (error) {
-      console.error("Error generating knockout schedule:", error);
       throw error.response?.data || { error: error.message };
     }
   },
-   async getTournamentProgress(tournamentId) {
+
+  // Auto-fill: lay all matches out on the days
+  async previewSchedule(tournamentId, body) {
+    try {
+      const res = await axiosInstance.post(`/tournament/tournaments/${tournamentId}/schedule/preview`, body);
+      return res.data;
+    } catch (error) {
+      throw error.response?.data || { error: error.message };
+    }
+  },
+
+  // Check a hand-edited schedule without saving it
+  async checkSchedule(tournamentId, body, signal) {
+    try {
+      const res = await axiosInstance.post(`/tournament/tournaments/${tournamentId}/schedule/check`, body, { signal });
+      return res.data;
+    } catch (error) {
+      throw error.response?.data || { error: error.message };
+    }
+  },
+
+  async saveSchedule(tournamentId, body) {
+    try {
+      const res = await axiosInstance.post(`/tournament/tournaments/${tournamentId}/schedule`, body);
+      return res.data;
+    } catch (error) {
+      throw error.response?.data || { error: error.message };
+    }
+  },
+
+  // 1st-4th place from the matches played so far
+  async getStandings(tournamentId) {
+    const res = await axiosInstance.get(`/tournament/tournaments/${tournamentId}/standings`);
+    return res.data;
+  },
+
+  async getTournamentProgress(tournamentId) {
     try {
       const token = localStorage.getItem("authToken");
       const res = await axiosInstance.get(

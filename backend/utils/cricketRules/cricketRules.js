@@ -84,6 +84,7 @@ const WICKET_ALIASES = {
   "obstructing-the-field": "obstructing the field",
   "obstructing-field": "obstructing the field",
   "hit-the-ball-twice": "hit the ball twice",
+  "retired-out": "retired out",
 };
 
 // Dismissals that can only ever be given to the striker.
@@ -163,6 +164,80 @@ function runRate(runs, legalBalls) {
   return Number(((runs * 6) / legalBalls).toFixed(2));
 }
 
+/* --------------------------- more Laws of Cricket --------------------------- */
+
+// The ball is dead the moment the batter is out in these ways, so no runs can follow.
+const DEAD_BALL_WICKETS = ["bowled", "caught", "lbw", "stumped", "hit wicket"];
+
+/**
+ * A batter who is bowled, caught, lbw, stumped or hit wicket is out on a dead ball: no runs off the bat,
+ * no byes or leg-byes. The only run that can still be added is the one-run penalty of a wide
+ * (the batter can be stumped or hit wicket off a wide).
+ */
+function assertDeadBallDismissal(wicketType, runsScored, extras, extraType) {
+  if (!DEAD_BALL_WICKETS.includes(wicketType)) return;
+  if (runsScored > 0) throw new ScoringError(`No runs can be scored off the bat when the batter is out ${wicketType}`);
+  if (extraType === "bye" || extraType === "leg-bye") {
+    throw new ScoringError(`The ball is dead when the batter is out ${wicketType}, so no ${extraType} runs can be added`);
+  }
+  if (extraType === "wide" && extras !== 1) {
+    throw new ScoringError(`Only the one-run wide penalty can be added when the batter is out ${wicketType}`);
+  }
+}
+
+// Off a no-ball a batter can only be out in these ways, and so on the free hit that follows it.
+const FREE_HIT_WICKETS = ["run out", "obstructing the field", "hit the ball twice"];
+
+function assertFreeHitWicket(wicketType) {
+  if (!FREE_HIT_WICKETS.includes(wicketType)) {
+    throw new ScoringError(`This ball is a free hit: the batter can only be out run out, obstructing the field or hitting the ball twice, not ${wicketType}`);
+  }
+}
+
+/**
+ * Is the next delivery a free hit? Pass the extra types of the deliveries bowled so far, newest first.
+ * A no-ball gives a free hit. A wide bowled on a free hit does not use it up, so the free hit carries on
+ * through wides until a delivery that is not a wide.
+ */
+function isFreeHit(extraTypesNewestFirst) {
+  for (const raw of extraTypesNewestFirst) {
+    const t = raw ? String(raw).trim().toLowerCase().replace(/[\s_]+/g, "-") : null;
+    if (t === "wide") continue;
+    return t === "no-ball";
+  }
+  return false;
+}
+
+/**
+ * How many wickets end the innings: one fewer than the players in the side (a side of 8 is all out after 7).
+ * Squads of 2-11 are used as they are, anything else (unknown, empty, too big) falls back to 10.
+ */
+function maxWicketsFor(squadSize) {
+  const n = Number(squadSize);
+  return Number.isInteger(n) && n >= 2 && n <= 11 ? n - 1 : 10;
+}
+
+/**
+ * What the score means for the innings and the match. Pure, so it can be tested on its own.
+ * @returns { inningsFinished, matchCompleted, chaseWon, tie, winnerTeamId, marginType, margin }
+ */
+function decideOutcome({ inningsNumber, target, score, wickets, legalBalls, maxWickets, maxOvers, battingTeamId, team1Id, team2Id }) {
+  const inningsOver = isInningsOver(wickets, legalBalls, maxWickets, maxOvers);
+  const out = { inningsFinished: inningsOver, matchCompleted: false, chaseWon: false, tie: false, winnerTeamId: null, marginType: null, margin: null };
+  if (inningsNumber < 2 || !target) return out;
+
+  if (score >= target) {
+    // the chasing side got there: it wins by the wickets it still had in hand
+    return { ...out, inningsFinished: true, matchCompleted: true, chaseWon: true, winnerTeamId: battingTeamId, marginType: "wickets", margin: maxWickets - wickets };
+  }
+  if (inningsOver) {
+    if (score === target - 1) return { ...out, matchCompleted: true, tie: true, margin: 0 };
+    const other = Number(battingTeamId) === Number(team1Id) ? team2Id : team1Id;
+    return { ...out, matchCompleted: true, winnerTeamId: other, marginType: "runs", margin: target - 1 - score };
+  }
+  return out;
+}
+
 module.exports = {
   normalizeExtraType,
   isLegalDelivery,
@@ -181,4 +256,11 @@ module.exports = {
   isOverComplete,
   isInningsOver,
   runRate,
+  DEAD_BALL_WICKETS,
+  FREE_HIT_WICKETS,
+  assertDeadBallDismissal,
+  assertFreeHitWicket,
+  isFreeHit,
+  maxWicketsFor,
+  decideOutcome,
 };

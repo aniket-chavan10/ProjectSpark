@@ -68,6 +68,10 @@ app.use('/api/admin', adminRoute);
 const teamRoute = require('./routes/teamRoute');
 app.use('/api/team', teamRoute);
 
+// A team admin: own players, squads (playing XI + reserves)
+const teamAdminRoute = require('./routes/teamAdminRoute');
+app.use('/api/team-admin', teamAdminRoute);
+
 const tournamentRoute = require('./routes/tournamentRoute');
 app.use('/api/tournament', tournamentRoute);
 

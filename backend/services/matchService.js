@@ -1,5 +1,6 @@
 const { withTransaction } = require("../utils/db-transaction");
 const { ScoringError } = require("../utils/errors");
+const squadService = require("./squadService");
 
 exports.setToss = async (matchId, tossWinnerId, tossDecision) => {
   return withTransaction(async (conn) => {
@@ -10,7 +11,7 @@ exports.setToss = async (matchId, tossWinnerId, tossDecision) => {
 
     // 1. Fetch tournament match details (locked, so a double tap cannot create two matches)
     const [tournamentMatches] = await conn.execute(
-      `SELECT id, tournament_id, match_no, team1_id, team2_id, venue, match_id
+      `SELECT id, tournament_id, match_no, team1_id, team2_id, venue, match_id, overs
        FROM tournament_matches WHERE id = ? FOR UPDATE`,
       [matchId]
     );
@@ -19,9 +20,19 @@ exports.setToss = async (matchId, tossWinnerId, tossDecision) => {
     if (!tournamentMatch) throw new ScoringError("Tournament match not found", 404);
 
     const { team1_id, team2_id, tournament_id, match_no, venue } = tournamentMatch;
+    const totalOvers = tournamentMatch.overs || 5; // the host chose the overs when scheduling
 
     if (tournamentMatch.match_id) throw new ScoringError("Toss has already been recorded for this match", 409);
     if (!team1_id || !team2_id) throw new ScoringError("Both teams of this match are not decided yet", 409);
+
+    // The squads of both teams are frozen now (the team admins can no longer change them), and a team
+    // with nobody to play stops the toss.
+    const [teamNames] = await conn.execute(`SELECT id, team_name FROM teams WHERE id IN (?, ?)`, [team1_id, team2_id]);
+    const nameOf = (id) => (teamNames.find((t) => Number(t.id) === Number(id)) || {}).team_name;
+    await squadService.freezeMatchSquads(conn, matchId, tournament_id, [
+      { id: team1_id, name: nameOf(team1_id) },
+      { id: team2_id, name: nameOf(team2_id) },
+    ]);
 
     // 2. Validate toss winner is one of the teams
     const winnerId = parseInt(tossWinnerId, 10);
@@ -36,9 +47,9 @@ exports.setToss = async (matchId, tossWinnerId, tossDecision) => {
     // 4. Insert new row in matches table with toss information and initial status
     const [insertResult] = await conn.execute(
       `INSERT INTO matches
-       (tournament_id, match_no, team1_id, team2_id, date, venue, toss_winner_id, toss_decision, status)
-       VALUES (?, ?, ?, ?, NOW(), ?, ?, ?, 'live')`,
-      [tournament_id, match_no, team1_id, team2_id, venue, winnerId, decision]
+       (tournament_id, match_no, team1_id, team2_id, date, venue, toss_winner_id, toss_decision, total_overs, status)
+       VALUES (?, ?, ?, ?, NOW(), ?, ?, ?, ?, 'live')`,
+      [tournament_id, match_no, team1_id, team2_id, venue, winnerId, decision, totalOvers]
     );
 
     const newMatchId = insertResult.insertId;

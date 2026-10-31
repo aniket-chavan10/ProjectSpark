@@ -2,7 +2,10 @@ const tournamentParticipantsService = require('../services/tournamentParticipant
 
 exports.applyForTournament = async (req, res) => {
   try {
-    const teamId = req.user.id; // OR map from admin to their team
+    const teamId = req.user.team_id; // the team of the logged-in admin (set in the login token)
+    if (!teamId) {
+      return res.status(400).json({ error: "Your login is not linked to a team" });
+    }
     const { tournament_id } = req.body;
 
     if (!tournament_id) {
@@ -20,8 +23,8 @@ exports.applyForTournament = async (req, res) => {
 
 exports.getDashboardTournaments = async (req, res) => {
   try {
-    const adminId = req.user.id; 
-    const tournaments = await tournamentParticipantsService.getOpenTournamentsForAdmin(adminId);
+    const teamId = req.user.team_id;
+    const tournaments = await tournamentParticipantsService.getOpenTournamentsForAdmin(teamId);
     res.json(tournaments);
   } catch (err) {
     console.error(err);

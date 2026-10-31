@@ -1,24 +1,17 @@
 // services/tentativeScheduleService.js
-const db = require('../dbconfigure'); // adjust if your DB connection file is different
+// Dates the association reserves for a team to host a tournament (before the tournament itself exists).
+const db = require('../dbconfigure');
+const { addDays } = require('../utils/scheduleRules');
 
 /**
- * Create a new tentative tournament schedule
- * @param {number} organizer_admin_id - ID of the admin the schedule is assigned to
- * @param {string} start_date - Start date (YYYY-MM-DD)
+ * Reserve dates for a hosting team.
+ * @param {number} organizer_admin_id - admin (hosting team) the dates are assigned to
+ * @param {string} start_date - first day, YYYY-MM-DD (usually a Friday, but any day is allowed)
+ * @param {number} reserved_days - number of days reserved, default 3
  */
-exports.createSchedule = async (organizer_admin_id, start_date) => {
-  // Calculate end_date and reserved_days
-  const start = new Date(start_date);
-  
-  // ✅ Assuming the schedule is 3 days by default
-  const reserved_days = 3;
+exports.createSchedule = async (organizer_admin_id, start_date, reserved_days = 3) => {
+  const end_date = addDays(start_date, reserved_days - 1);
 
-  // Add reserved_days - 1 to get end date
-  const end = new Date(start);
-  end.setDate(start.getDate() + (reserved_days - 1));
-  const end_date = end.toISOString().split('T')[0]; // format to YYYY-MM-DD
-
-  // Insert into DB
   const [result] = await db.query(
     `INSERT INTO tentative_tournament_schedules 
      (organizer_admin_id, start_date, end_date, reserved_days, created_at, updated_at, status, tournament_id)
@@ -34,4 +27,21 @@ exports.createSchedule = async (organizer_admin_id, start_date) => {
     reserved_days,
     status: 'pending'
   };
+};
+
+const SELECT_SCHEDULES = `
+  SELECT s.id, s.organizer_admin_id, s.start_date, s.end_date, s.reserved_days, s.status,
+         s.tournament_id, tm.team_name AS organizer_team_name, t.name AS tournament_name
+  FROM tentative_tournament_schedules s
+  LEFT JOIN teams tm ON tm.admin_id = s.organizer_admin_id
+  LEFT JOIN tournaments t ON t.id = s.tournament_id`;
+
+exports.getAllSchedules = async () => {
+  const [rows] = await db.query(`${SELECT_SCHEDULES} ORDER BY s.start_date ASC`);
+  return rows;
+};
+
+exports.getSchedulesByOrganizer = async (organizerAdminId) => {
+  const [rows] = await db.query(`${SELECT_SCHEDULES} WHERE s.organizer_admin_id = ? ORDER BY s.start_date ASC`, [organizerAdminId]);
+  return rows;
 };

@@ -28,6 +28,10 @@ class FakeScoringDb {
     this.perf = {};
     this.stats = {};
     this.tm = [];
+    this.squad = {}; // team id -> players in the playing XI (nothing recorded = 10 wickets)
+    this.matchSquads = []; // frozen / per-match squads  { tournament_match_id, team_id, player_id, role, batting_order, jersey_number, is_captain, is_keeper }
+    this.tournamentSquads = []; // squads declared for a tournament, same shape with tournament_id
+    this.legacyXI = {}; // team id -> player ids of the old playing XI table (default: 11 made-up players)
     this.addInnings(1, 1, team1);
     this.addInnings(2, 2, team2);
     this.ids.inning = 10;
@@ -115,6 +119,10 @@ class FakeScoringDb {
       Object.assign(l, { bowler_id: p[0], legal_balls_in_over: 0 });
       return ok();
     }
+    if (s.startsWith("UPDATE live_scorecards SET current_wickets = ?, on_strike_batsman_id = ?")) {
+      Object.assign(this.live[p[5]], { current_wickets: p[0], on_strike_batsman_id: p[1], non_striker_batsman_id: p[2], batsman1_id: p[3], batsman2_id: p[4], partnership_runs: 0 });
+      return ok();
+    }
     if (s.startsWith("UPDATE live_scorecards SET current_score = ?")) {
       const l = this.live[p[p.length - 1]];
       const undo = s.includes("last_wicket_player_id = ?");
@@ -165,7 +173,7 @@ class FakeScoringDb {
       const id = ++this.ids.match;
       this.matches[id] = {
         match_id: id,
-        total_overs: 5,
+        total_overs: p[7],
         team1_id: p[2],
         team2_id: p[3],
         target_score: null,
@@ -181,7 +189,7 @@ class FakeScoringDb {
     if (s.startsWith("SELECT balls_bowled, total_runs, wickets, status, innings_number, team_id, match_id FROM innings")) {
       return rows(this.innings[p[0]] ? [copy(this.innings[p[0]])] : []);
     }
-    if (s.startsWith("SELECT inning_id, match_id, innings_number, total_runs, wickets, balls_bowled, status FROM innings")) {
+    if (s.startsWith("SELECT inning_id, match_id, innings_number, total_runs, wickets, balls_bowled, status") && s.includes("FROM innings")) {
       return rows(this.innings[p[0]] ? [copy(this.innings[p[0]])] : []);
     }
     if (s.startsWith("SELECT inning_id FROM innings WHERE match_id = ? AND innings_number = ?")) {
@@ -190,6 +198,10 @@ class FakeScoringDb {
     }
     if (s.startsWith("UPDATE innings SET overs = ?, status = 'completed'")) {
       Object.assign(this.innings[p[1]], { overs: p[0], status: "completed" });
+      return ok();
+    }
+    if (s.startsWith("UPDATE innings SET wickets = ?, status = ? WHERE inning_id = ?")) {
+      Object.assign(this.innings[p[2]], { wickets: p[0], status: p[1] });
       return ok();
     }
     if (s.startsWith("UPDATE innings SET total_runs = ?")) {
@@ -217,6 +229,10 @@ class FakeScoringDb {
     if (s.startsWith("SELECT MAX(over_number) AS maxOver FROM overs")) {
       const mine = this.overs.filter((o) => o.inning_id === p[0]);
       return rows([{ maxOver: mine.length ? Math.max(...mine.map((o) => o.over_number)) : null }]);
+    }
+    if (s.startsWith("SELECT over_id, over_number, bowler_id FROM overs WHERE inning_id = ? ORDER BY over_number DESC LIMIT 1")) {
+      const mine = this.overs.filter((o) => o.inning_id === p[0]).sort((a, b) => b.over_number - a.over_number);
+      return rows(mine.length ? [copy(mine[0])] : []);
     }
     if (s.startsWith("INSERT INTO overs")) {
       const o = { over_id: this.ids.over++, inning_id: p[0], over_number: p[2], bowler_id: p[3], is_complete: false };
@@ -266,6 +282,32 @@ class FakeScoringDb {
       }).length;
       return rows([{ n }]);
     }
+    if (s.startsWith("SELECT COALESCE(MAX(ball_id), 0) AS id FROM balls WHERE inning_id = ?")) {
+      const mine = this.balls.filter((b) => b.inning_id === p[0]);
+      return rows([{ id: mine.length ? Math.max(...mine.map((b) => b.ball_id)) : 0 }]);
+    }
+    if (s.startsWith("SELECT extra_type FROM balls WHERE inning_id = ? AND NOT (legal_delivery = 0 AND extra_type IS NULL)")) {
+      const mine = this.balls.filter((b) => b.inning_id === p[0] && !(b.legal_delivery === 0 && !b.extra_type)).sort((a, b) => b.ball_id - a.ball_id);
+      return rows(mine.slice(0, 30).map((b) => ({ extra_type: b.extra_type })));
+    }
+    if (s.startsWith("SELECT innings_number, status, match_id FROM innings WHERE inning_id = ?")) {
+      return rows(this.innings[p[0]] ? [copy(this.innings[p[0]])] : []);
+    }
+    if (s.startsWith("SELECT status, target_score FROM matches WHERE match_id = ?")) {
+      return rows(this.matches[p[0]] ? [copy(this.matches[p[0]])] : []);
+    }
+    if (s.startsWith("SELECT COUNT(*) AS n FROM balls WHERE inning_id = ?")) {
+      return rows([{ n: this.balls.filter((b) => b.inning_id === p[0]).length }]);
+    }
+    if (s.startsWith("UPDATE live_scorecards SET batsman1_id = ?, batsman2_id = ?, on_strike_batsman_id = ?, non_striker_batsman_id = ?, bowler_id = ?")) {
+      const l = this.live[p[6]];
+      if (!l || l.match_id !== Number(p[5])) return [{ affectedRows: 0 }];
+      Object.assign(l, { batsman1_id: p[0], batsman2_id: p[1], on_strike_batsman_id: p[2], non_striker_batsman_id: p[3], bowler_id: p[4] });
+      return ok();
+    }
+    if (s.startsWith("SELECT COUNT(*) AS n FROM teams_squad WHERE team_id = ? AND is_playing = 1")) {
+      return rows([{ n: this.squad[p[0]] || 0 }]);
+    }
     if (s.startsWith("DELETE FROM balls WHERE ball_id = ?")) {
       this.balls = this.balls.filter((b) => b.ball_id !== p[0]);
       return ok();
@@ -291,7 +333,7 @@ class FakeScoringDb {
     }
 
     /* ------------------------------ tournament_matches ------------------------------ */
-    if (s.startsWith("SELECT id, tournament_id, match_no, team1_id, team2_id, venue, match_id FROM tournament_matches")) {
+    if (s.startsWith("SELECT id, tournament_id, match_no, team1_id, team2_id, venue, match_id, overs FROM tournament_matches")) {
       return rows(this.tm.filter((m) => m.id === Number(p[0])).map(copy));
     }
     if (s.startsWith("UPDATE tournament_matches SET match_id = ?, status = 'live' WHERE id = ?")) {
@@ -310,6 +352,17 @@ class FakeScoringDb {
     }
     if (s.startsWith("UPDATE tournament_matches SET winner_team_id = NULL, status = 'live' WHERE match_id")) {
       this.tm.filter((m) => m.match_id === p[0]).forEach((m) => Object.assign(m, { winner_team_id: null, status: "live" }));
+      return ok();
+    }
+    if (s.startsWith("SELECT id, dependent_match1_id, dependent_match1_type, dependent_match2_id, dependent_match2_type FROM tournament_matches")) {
+      return rows(this.tm.filter((m) => m.dependent_match1_id === p[0] || m.dependent_match2_id === p[1]).map(copy));
+    }
+    if (s.startsWith("UPDATE tournament_matches SET team1_id = ? WHERE id = ?")) {
+      this.tm.find((m) => m.id === p[1]).team1_id = p[0];
+      return ok();
+    }
+    if (s.startsWith("UPDATE tournament_matches SET team2_id = ? WHERE id = ?")) {
+      this.tm.find((m) => m.id === p[1]).team2_id = p[0];
       return ok();
     }
     if (s.startsWith("UPDATE tournament_matches SET team1_id = ? WHERE dependent_match1_id")) {
@@ -399,6 +452,37 @@ class FakeScoringDb {
       return ok();
     }
 
+    /* ------------------------------- squads ------------------------------- */
+    if (s.startsWith("SELECT id, team_name FROM teams WHERE id IN (?, ?)")) {
+      return rows([p[0], p[1]].map((id) => ({ id, team_name: (this.teams && this.teams[id] && this.teams[id].team_name) || `Team ${id}` })));
+    }
+    if (s.startsWith("SELECT player_id, role, batting_order, jersey_number, is_captain, is_keeper FROM match_squads WHERE tournament_match_id = ?")) {
+      return rows(this.matchSquads.filter((r) => r.tournament_match_id === Number(p[0]) && r.team_id === Number(p[1])).map(copy));
+    }
+    if (s.startsWith("SELECT player_id, role, batting_order, jersey_number, is_captain, is_keeper FROM tournament_squads WHERE tournament_id = ?")) {
+      return rows(this.tournamentSquads.filter((r) => r.tournament_id === Number(p[0]) && r.team_id === Number(p[1])).map(copy));
+    }
+    if (s.startsWith("SELECT p.player_id, 'playing' AS role")) {
+      const ids = this.legacyXI[p[0]] || Array.from({ length: 11 }, (_, i) => Number(p[0]) * 100 + i + 1);
+      return rows(ids.map((id) => ({ player_id: id, role: "playing", batting_order: null, jersey_number: null, is_captain: 0, is_keeper: 0 })));
+    }
+    if (s.startsWith("DELETE FROM match_squads WHERE tournament_match_id = ? AND team_id = ?")) {
+      this.matchSquads = this.matchSquads.filter((r) => !(r.tournament_match_id === Number(p[0]) && r.team_id === Number(p[1])));
+      return ok();
+    }
+    if (s.startsWith("INSERT INTO match_squads")) {
+      const [tournament_match_id, team_id, player_id, role, batting_order, jersey_number, is_captain, is_keeper] = p;
+      this.matchSquads.push({ tournament_match_id: Number(tournament_match_id), team_id: Number(team_id), player_id: Number(player_id), role, batting_order, jersey_number, is_captain, is_keeper });
+      return ok();
+    }
+    if (s.startsWith("SELECT COUNT(*) AS n FROM match_squads ms JOIN tournament_matches tm ON tm.id = ms.tournament_match_id")) {
+      const fixtures = this.tm.filter((m) => m.match_id === Number(p[0])).map((m) => m.id);
+      return rows([{ n: this.matchSquads.filter((r) => fixtures.includes(r.tournament_match_id) && r.team_id === Number(p[1]) && r.role === "playing").length }]);
+    }
+    if (s.startsWith("SELECT ms.player_id FROM match_squads ms JOIN tournament_matches tm")) {
+      const fixtures = this.tm.filter((m) => m.match_id === Number(p[0])).map((m) => m.id);
+      return rows(this.matchSquads.filter((r) => fixtures.includes(r.tournament_match_id) && r.team_id === Number(p[1]) && r.role === "playing" && r.player_id === Number(p[2])).map((r) => ({ player_id: r.player_id })));
+    }
     throw new Error("FakeScoringDb: unhandled SQL: " + s.slice(0, 120));
   }
 }
