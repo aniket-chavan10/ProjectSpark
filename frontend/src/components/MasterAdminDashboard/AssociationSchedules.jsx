@@ -125,7 +125,7 @@ const AssociationSchedules = () => {
                       <span className="w-12 font-semibold tabular-nums text-emerald-700">{f.time}</span>
                       <span className="min-w-0 flex-1 text-slate-800">{f.team1 || 'TBD'} <span className="text-slate-400">vs</span> {f.team2 || 'TBD'}</span>
                       <span className="text-xs text-slate-500">{f.tournament} · {STAGE[f.stage] || f.stage}{f.group ? ` ${f.group}` : ''} · #{f.matchNo}</span>
-                      {f.venue && <span className="text-xs text-slate-500">📍 {f.venue}</span>}
+                      {f.venue && <span className="text-xs text-slate-500">{f.venue}</span>}
                       <Pill tone={f.status === 'completed' ? 'green' : f.status === 'ongoing' ? 'red' : 'slate'}>{f.status}</Pill>
                     </li>
                   ))}

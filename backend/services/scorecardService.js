@@ -8,7 +8,7 @@ const ballsModel = require("../models/ballModel");
 const playerModel = require("../models/playerModel");
 const squadModel = require("../models/squadModel");
 const teamModel = require("../models/teamModel");
-const { ballsToOversString } = require("../utils/cricketRules/cricketRules");
+const { ballsToOversString, bowlerRunsCharged } = require("../utils/cricketRules/cricketRules");
 
 const BOWLER_WICKETS = ["bowled", "caught", "lbw", "stumped", "hit wicket"];
 const n = (v) => (v === null || v === undefined ? null : Number(v));
@@ -89,12 +89,17 @@ function buildInningsScorecard({ balls, nameOf, crease = {}, squadIds = [] }) {
         bowlerOrder.push(id);
       }
       const w = bowl[id];
-      const charge = runs + (type === "wide" || type === "no-ball" ? ex : 0);
+      const nbType = type === "no-ball" ? b.nb_runs_type || null : null;
+      const charge = bowlerRunsCharged(runs, ex, type, nbType);
       w.runs += charge;
       if (type === "wide") w.wides += ex;
       if (type === "no-ball") w.noBalls += 1;
       if (Number(b.legal_delivery) === 1) w.legal += 1;
-      if (type && extras[type] !== undefined) extras[type] += ex;
+      if (nbType) {
+        // a no-ball whose runs were byes / leg-byes: 1 is the no-ball, the rest are those byes
+        extras["no-ball"] += 1;
+        extras[nbType] += ex - 1;
+      } else if (type && extras[type] !== undefined) extras[type] += ex;
 
       const o = (overs[b.over_id] ||= { bowlers: new Set(), legal: 0, charge: 0 });
       o.bowlers.add(id);

@@ -1,3 +1,4 @@
+const dateOnly = require("../utils/dateOnly");
 // Notifications about WHEN teams play: the schedule of a tournament was saved, a team's next match became
 // known (the bracket advanced), and the association's season plan. Failures here never block the action
 // that caused them.
@@ -72,9 +73,9 @@ exports.hostingReserved = async (organizerAdminId, startDate, endDate) => {
     await notifications.notifyTeams(db, teams.map((t) => t.id), {
       type: "season_plan",
       title: "Dates reserved for you to host",
-      body: `The association has reserved ${String(startDate).slice(0, 10)} to ${String(endDate).slice(0, 10)} for your team to host a tournament.`,
+      body: `The association has reserved ${dateOnly(startDate)} to ${dateOnly(endDate)} for your team to host a tournament.`,
       link: "hosting",
-      dedupeKey: `hosting:${organizerAdminId}:${String(startDate).slice(0, 10)}`,
+      dedupeKey: `hosting:${organizerAdminId}:${dateOnly(startDate)}`,
     });
   } catch (err) {
     if (process.env.NODE_ENV !== "test") console.error("Dates saved, but the hosting team could not be notified:", err.message);

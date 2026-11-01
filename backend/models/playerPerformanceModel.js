@@ -3,7 +3,7 @@
 // leg-byes are not; run outs / handled ball etc. are not bowler wickets; overs are counted in
 // legal balls (3.4 = 3 overs 4 balls) and never by adding 0.1.
 
-const { addBallsToOvers, isBowlerWicket } = require("../utils/cricketRules/cricketRules");
+const { addBallsToOvers, isBowlerWicket, bowlerRunsCharged } = require("../utils/cricketRules/cricketRules");
 
 const safe = (val) => (val === undefined ? null : val);
 
@@ -32,8 +32,7 @@ exports.getMatchRuns = async (conn, playerId, matchId) => {
 };
 
 /** Runs charged to the bowler for this delivery. */
-const bowlerRuns = (runsScored, extras, extraType) =>
-  (runsScored || 0) + (extraType === "wide" || extraType === "no-ball" ? extras || 0 : 0);
+const bowlerRuns = (runsScored, extras, extraType, noBallRunsType) => bowlerRunsCharged(runsScored, extras, extraType, noBallRunsType);
 
 exports.bowlerRuns = bowlerRuns;
 
@@ -45,6 +44,7 @@ exports.updatePerformanceOnBall = async (conn, data) => {
     runsScored = 0,
     extras = 0,
     extraType = null,
+    noBallRunsType = null,
     legalDelivery,
     isWicket,
     wicketType,
@@ -81,7 +81,7 @@ exports.updatePerformanceOnBall = async (conn, data) => {
        overs_bowled = ?,
        wickets_taken = wickets_taken + ?
      WHERE player_id = ? AND match_id = ?`,
-    [bowlerRuns(runsScored, extras, extraType), newOvers, isWicket && isBowlerWicket(wicketType) ? 1 : 0, bowlerId, matchId]
+    [bowlerRuns(runsScored, extras, extraType, noBallRunsType), newOvers, isWicket && isBowlerWicket(wicketType) ? 1 : 0, bowlerId, matchId]
   );
 };
 
@@ -94,6 +94,7 @@ exports.revertPerformanceOnBall = async (conn, lastBall, matchId) => {
     wicket_type: wicketType,
     legal_delivery: legalDelivery,
     extra_type: extraType = null,
+    nb_runs_type: noBallRunsType = null,
     extras = 0,
   } = lastBall;
 
@@ -124,7 +125,7 @@ exports.revertPerformanceOnBall = async (conn, lastBall, matchId) => {
        wickets_taken = GREATEST(wickets_taken - ?, 0)
      WHERE player_id = ? AND match_id = ?`,
     [
-      bowlerRuns(runsScored, extras, extraType),
+      bowlerRuns(runsScored, extras, extraType, noBallRunsType),
       newOvers,
       isWicket && isBowlerWicket(wicketType) ? 1 : 0,
       safe(bowlerId),

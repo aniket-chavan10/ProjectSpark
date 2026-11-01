@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { LuArrowLeft, LuCircleStop, LuEllipsis, LuRefreshCw, LuUndo2, LuUserRoundX, LuWifi, LuWifiOff } from "react-icons/lu";
 import scoringApi from "../../api/scoringApi";
 import { watchMatch } from "../../api/matchSocket";
-import { btn } from "../../components/ui/classes";
+import { SparkMark } from "../../components/layout/AppShell";
+import BroadcastMenu from "../../components/Scoring/BroadcastMenu";
 import InningsSetup from "../../components/Scoring/InningsSetup";
 import MatchResult from "../../components/Scoring/MatchResult";
 import Modal from "../../components/Scoring/Modal";
@@ -10,15 +12,18 @@ import PlayersPanel from "../../components/Scoring/PlayersPanel";
 import RetireModal from "../../components/Scoring/RetireModal";
 import ScoreHero from "../../components/Scoring/ScoreHero";
 import ScorePad from "../../components/Scoring/ScorePad";
-import OverlayDesk from "../../components/Scoring/OverlayDesk";
 import TieBreakPanel from "../../components/Scoring/TieBreakPanel";
 import ScorecardPanel from "../../components/Scoring/ScorecardPanel";
 import WicketModal from "../../components/Scoring/WicketModal";
+import { Alert, Button, cx, LiveBadge } from "../../components/ui/kit";
 import { ballToRedo, bowlerBlocked, currentInnings, figures, inningsStarted, nonStriker, sides, striker } from "../../components/Scoring/scoreUtils";
 
+const stageText = (sb) => [`Match ${sb.matchNo}`, `${sb.maxOvers} overs`, sb.venue].filter(Boolean).join(" · ");
+
 /**
- * The scorer's screen. Everything the scorer does goes through the backend scoring engine, which refuses
+ * The scorer's console. Everything the scorer does goes through the backend scoring engine, which refuses
  * anything against the Laws of Cricket; the screen only makes the right thing the easy thing.
+ * The on-air graphics have their own screen (the operator console): the scorer only hands out its link.
  */
 export default function ScoringDashboard({ matchId, initial, onExit }) {
   const [sb, setSb] = useState(initial);
@@ -29,8 +34,7 @@ export default function ScoringDashboard({ matchId, initial, onExit }) {
   const [menu, setMenu] = useState(false);
   const [redo, setRedo] = useState([]);
   const [link, setLink] = useState("connecting");
-  const [copied, setCopied] = useState(false);
-  const errorRef = useRef(null);
+  const menuRef = useRef(null);
 
   const inning = currentInnings(sb);
   const { batting, bowling } = sides(sb, inning);
@@ -40,6 +44,13 @@ export default function ScoringDashboard({ matchId, initial, onExit }) {
   /* ----------------------------- live data ----------------------------- */
 
   useEffect(() => watchMatch(matchId, { onScoreboard: setSb, onStatus: setLink }), [matchId]);
+
+  useEffect(() => {
+    if (!menu) return undefined;
+    const close = (e) => menuRef.current && !menuRef.current.contains(e.target) && setMenu(false);
+    document.addEventListener("mousedown", close);
+    return () => document.removeEventListener("mousedown", close);
+  }, [menu]);
 
   const refresh = useCallback(async () => {
     setSb(await scoringApi.getScoreboard(matchId));
@@ -106,8 +117,10 @@ export default function ScoringDashboard({ matchId, initial, onExit }) {
 
   const onRun = useCallback((n) => sendBall({ runsScored: n }), [inning, strikerNow]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const onExtra = (type, n) => {
+  const onExtra = (type, n, as = null) => {
     if (type === "wide") return sendBall({ extraType: "wide", extras: 1 + n, runsScored: 0 });
+    // byes / leg-byes run off a no-ball are extras on top of the no-ball, not bat runs
+    if (type === "no-ball" && as) return sendBall({ extraType: "no-ball", extras: 1 + n, runsScored: 0, noBallRunsAs: as });
     if (type === "no-ball") return sendBall({ extraType: "no-ball", extras: 1, runsScored: n });
     return sendBall({ extraType: type, extras: n, runsScored: 0 });
   };
@@ -178,9 +191,9 @@ export default function ScoringDashboard({ matchId, initial, onExit }) {
     const crease = new Set(inning.currentBatsmen.map((b) => b.playerId));
     const retired = new Set(inning.retiredHurt || []);
     const free = batting.players.filter((p) => !out.has(p.playerId) && !crease.has(p.playerId));
-    const toRow = (p) => ({ id: p.playerId, name: p.name, note: p.jerseyNumber ? `#${p.jerseyNumber}` : undefined });
+    const toRow = (p) => ({ id: p.playerId, name: p.name, photo: p.profilePicture, note: p.jerseyNumber ? `#${p.jerseyNumber}` : undefined });
     return [
-      { label: "Retired hurt — may come back", players: free.filter((p) => retired.has(p.playerId)).map(toRow) },
+      { label: "Retired hurt: may come back", players: free.filter((p) => retired.has(p.playerId)).map(toRow) },
       { label: "Yet to bat", players: free.filter((p) => !retired.has(p.playerId)).map(toRow) },
     ].filter((s) => s.players.length);
   }, [inning, batting]);
@@ -190,24 +203,12 @@ export default function ScoringDashboard({ matchId, initial, onExit }) {
     const byId = Object.fromEntries((card?.bowling || []).map((b) => [b.playerId, b]));
     const players = bowling.players.map((p) => {
       const b = byId[p.playerId] || { playerId: p.playerId, legalBalls: 0, overs: "0.0", maidens: 0, runs: 0, wickets: 0 };
-      return { id: p.playerId, name: p.name, note: b.legalBalls ? figures(b) : "Has not bowled", badge: `${b.overs} ov`, blocked: bowlerBlocked({ bowler: b, lastOverBowlerId: card?.lastOverBowlerId, maxOvers: sb.maxOvers }) };
+      return { id: p.playerId, name: p.name, photo: p.profilePicture, note: b.legalBalls ? figures(b) : "Has not bowled", badge: `${b.overs} ov`, blocked: bowlerBlocked({ bowler: b, lastOverBowlerId: card?.lastOverBowlerId, maxOvers: sb.maxOvers }) };
     });
-    return [{ label: `${bowling.name} — over ${Math.floor((inning.ballsBowled || 0) / 6) + 1}`, players }];
+    return [{ label: `${bowling.name}: over ${Math.floor((inning.ballsBowled || 0) / 6) + 1}`, players }];
   }, [scorecard, inning, bowling, sb.maxOvers]);
 
   /* ----------------------------- small things ----------------------------- */
-
-  const overlayUrl = `${window.location.origin}/overlay/${matchId}`;
-  const copyOverlay = async () => {
-    try {
-      await navigator.clipboard.writeText(overlayUrl);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 1800);
-    } catch {
-      setError("Could not copy. The overlay link is " + overlayUrl);
-    }
-    setMenu(false);
-  };
 
   const first = sb.innings[0];
   const breakBanner =
@@ -215,45 +216,46 @@ export default function ScoringDashboard({ matchId, initial, onExit }) {
       ? `Innings break. ${sb.teams.team1.id === first.teamId ? sb.teams.team1.name : sb.teams.team2.name} scored ${first.totalRuns}/${first.wickets} in ${first.overs} overs. ${batting.name} need ${inning.targetScore || first.totalRuns + 1} to win.`
       : null;
 
-  const statusChip = matchDone ? ["Completed", "bg-slate-200 text-slate-700"] : needOpeners ? ["Ready", "bg-amber-100 text-amber-800"] : ["Live", "bg-red-100 text-red-700"];
+  const status = matchDone ? <span className="rounded-md bg-white/15 px-2 py-0.5 text-xs font-bold uppercase tracking-wide text-white">Completed</span> : needOpeners ? <span className="rounded-md bg-white/15 px-2 py-0.5 text-xs font-bold uppercase tracking-wide text-white">Ready</span> : <LiveBadge />;
+
+  const menuItems = [
+    { icon: LuUserRoundX, label: "Batter retires…", disabled: padOff || !nonStrikerNow, run: () => setModal("retire") },
+    { icon: LuCircleStop, label: "End the innings early…", disabled: matchDone || inningsDone || needOpeners, run: () => setModal("end") },
+    { icon: LuRefreshCw, label: "Refresh the scoreboard", run: () => refresh().catch((e) => setError(e.message)) },
+    { icon: LuArrowLeft, label: "Close the console", run: onExit },
+  ];
 
   /* ----------------------------- render ----------------------------- */
 
   return (
-    <div className="min-h-screen bg-slate-100 pb-10">
-      <header className="sticky top-0 z-30 border-b border-slate-200 bg-white/95 backdrop-blur">
-        <div className="mx-auto flex max-w-7xl items-center justify-between gap-3 px-3 py-2.5 sm:px-6">
-          <div className="flex min-w-0 items-center gap-3">
-            <span className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-bold uppercase tracking-wide ${statusChip[1]}`}>{statusChip[0]}</span>
-            <div className="min-w-0">
-              <h1 className="truncate text-sm font-bold text-slate-900 sm:text-base">
-                {sb.teams.team1.name} v {sb.teams.team2.name}
+    <div className="min-h-screen bg-slate-100">
+      <header className="sticky top-0 z-30 border-b border-white/10 bg-ink-950 text-white">
+        <div className="mx-auto flex h-16 max-w-[1500px] items-center gap-4 px-4 sm:px-6">
+          <SparkMark size={34} />
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-3">
+              <h1 className="truncate text-[15px] font-semibold tracking-tight sm:text-base">
+                {sb.teams.team1.name} <span className="text-ink-400">v</span> {sb.teams.team2.name}
               </h1>
-              <p className="truncate text-xs text-slate-500">
-                Match {sb.matchNo} · {sb.maxOvers} overs{sb.venue ? ` · ${sb.venue}` : ""}
-              </p>
+              {status}
             </div>
+            <p className="truncate text-xs text-ink-300">{stageText(sb)}</p>
           </div>
-          <div className="relative flex shrink-0 items-center gap-2">
-            <span className="flex items-center gap-1.5 text-xs text-slate-500" title="Live connection">
-              <span className={`h-2.5 w-2.5 rounded-full ${link === "connected" ? "bg-emerald-500" : "bg-amber-400"}`} />
-              <span className="hidden sm:inline">{link === "connected" ? "Live" : "Reconnecting"}</span>
-            </span>
-            <a href={`/overlay/${matchId}`} target="_blank" rel="noreferrer" className={`${btn.secondary} !px-3 !py-2`}>
-              Overlay ↗
-            </a>
-            <button type="button" aria-haspopup="menu" aria-expanded={menu} onClick={() => setMenu((m) => !m)} className={`${btn.secondary} !px-3 !py-2`}>
-              ⋯
+
+          <span className={cx("hidden items-center gap-1.5 text-xs font-medium sm:inline-flex", link === "connected" ? "text-ink-200" : "text-amber-300")} title="Live connection">
+            {link === "connected" ? <LuWifi className="h-4 w-4" aria-hidden="true" /> : <LuWifiOff className="h-4 w-4" aria-hidden="true" />}
+            {link === "connected" ? "Connected" : "Reconnecting"}
+          </span>
+
+          <BroadcastMenu matchId={matchId} />
+
+          <div className="relative" ref={menuRef}>
+            <button type="button" aria-haspopup="menu" aria-expanded={menu} aria-label="More" onClick={() => setMenu((m) => !m)} className="inline-flex h-9 w-9 items-center justify-center rounded-lg bg-white/10 ring-1 ring-inset ring-white/15 hover:bg-white/15">
+              <LuEllipsis className="h-5 w-5" />
             </button>
             {menu && (
-              <div role="menu" className="absolute right-0 top-full z-40 mt-2 w-60 overflow-hidden rounded-xl border border-slate-200 bg-white py-1 shadow-xl">
-                {[
-                  { label: "Batter retires…", disabled: padOff || !nonStrikerNow, run: () => setModal("retire") },
-                  { label: "End the innings early…", disabled: matchDone || inningsDone || needOpeners, run: () => setModal("end") },
-                  { label: copied ? "Link copied ✓" : "Copy overlay link", run: copyOverlay },
-                  { label: "Refresh the scoreboard", run: () => refresh().catch((e) => setError(e.message)) },
-                  { label: "Close this screen", run: onExit },
-                ].map((item) => (
+              <div role="menu" className="absolute right-0 top-full z-40 mt-2 w-64 overflow-hidden rounded-xl border border-slate-200 bg-white py-1 text-slate-800 shadow-pop">
+                {menuItems.map((item) => (
                   <button
                     key={item.label}
                     role="menuitem"
@@ -263,8 +265,9 @@ export default function ScoringDashboard({ matchId, initial, onExit }) {
                       setMenu(false);
                       item.run();
                     }}
-                    className="block w-full px-4 py-2.5 text-left text-sm text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
+                    className="flex w-full items-center gap-3 px-4 py-2.5 text-left text-sm hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
                   >
+                    <item.icon className="h-4 w-4 text-slate-500" aria-hidden="true" />
                     {item.label}
                   </button>
                 ))}
@@ -274,14 +277,11 @@ export default function ScoringDashboard({ matchId, initial, onExit }) {
         </div>
       </header>
 
-      <main className="mx-auto max-w-7xl space-y-4 px-3 py-4 sm:px-6">
+      <main className="mx-auto max-w-[1500px] space-y-5 px-4 py-5 sm:px-6">
         {error && (
-          <div ref={errorRef} className="flex items-start justify-between gap-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800" role="alert">
-            <span>{error}</span>
-            <button type="button" onClick={() => setError("")} className="shrink-0 font-semibold text-red-700 hover:underline">
-              Dismiss
-            </button>
-          </div>
+          <Alert tone="error" onClose={() => setError("")}>
+            {error}
+          </Alert>
         )}
 
         <ScoreHero sb={sb} inning={inning} />
@@ -292,8 +292,8 @@ export default function ScoringDashboard({ matchId, initial, onExit }) {
         {needOpeners && <InningsSetup key={inning.inningId} inningsNumber={inning.inningsNumber} battingTeam={batting} bowlingTeam={bowling} banner={breakBanner} onSubmit={submitOpeners} busy={busy} />}
 
         {!matchDone && !needOpeners && (
-          <div className="grid grid-cols-1 gap-4 lg:grid-cols-12">
-            <div className="min-w-0 space-y-4 lg:col-span-7">
+          <div className="grid grid-cols-1 items-start gap-5 xl:grid-cols-12">
+            <div className="min-w-0 space-y-5 xl:col-span-7">
               <PlayersPanel inning={inning} onRetire={padOff ? null : () => setModal("retire")} awaitingBowler={needBowler} />
               <ScorePad
                 disabled={padOff}
@@ -311,15 +311,13 @@ export default function ScoringDashboard({ matchId, initial, onExit }) {
                 onSwap={swapEnds}
               />
             </div>
-            <div className="min-w-0 space-y-4 lg:col-span-5">
-              <ScorecardPanel sb={sb} scorecard={scorecard} inningId={inning.inningId} overlayUrl={overlayUrl} />
-              <OverlayDesk matchId={matchId} sb={sb} />
+            <div className="min-w-0 xl:sticky xl:top-[5.25rem] xl:col-span-5">
+              <ScorecardPanel sb={sb} scorecard={scorecard} inningId={inning.inningId} />
             </div>
           </div>
         )}
 
-        {(matchDone || needOpeners) && <ScorecardPanel sb={sb} scorecard={scorecard} inningId={sb.innings[0].inningId} overlayUrl={overlayUrl} />}
-        {(matchDone || needOpeners) && <OverlayDesk matchId={matchId} sb={sb} />}
+        {(matchDone || needOpeners) && <ScorecardPanel sb={sb} scorecard={scorecard} inningId={sb.innings[0].inningId} />}
       </main>
 
       {/* ---- a choice the scorer has to make before the next ball ---- */}
@@ -334,9 +332,9 @@ export default function ScoringDashboard({ matchId, initial, onExit }) {
           footer={
             <div className="flex items-center justify-between gap-3">
               <span className="text-xs text-slate-500">Picked the wrong ball? Take it back.</span>
-              <button type="button" className={btn.secondary} disabled={busy || !inning.lastBallId} onClick={() => undo()}>
-                ↶ Undo last ball
-              </button>
+              <Button variant="secondary" size="sm" icon={LuUndo2} disabled={busy || !inning.lastBallId} onClick={() => undo()}>
+                Undo last ball
+              </Button>
             </div>
           }
         />
@@ -352,9 +350,9 @@ export default function ScoringDashboard({ matchId, initial, onExit }) {
           footer={
             <div className="flex items-center justify-between gap-3">
               <span className="text-xs text-slate-500">Scored the last ball wrongly?</span>
-              <button type="button" className={btn.secondary} disabled={busy || !inning.lastBallId} onClick={() => undo()}>
-                ↶ Undo last ball
-              </button>
+              <Button variant="secondary" size="sm" icon={LuUndo2} disabled={busy || !inning.lastBallId} onClick={() => undo()}>
+                Undo last ball
+              </Button>
             </div>
           }
         />
@@ -366,7 +364,7 @@ export default function ScoringDashboard({ matchId, initial, onExit }) {
         <PlayerPicker
           title="Who stayed at the crease?"
           subtitle="The new batsman has already come in. Choose the batter who was at the crease with the one who got out, so the wicket can be taken back."
-          sections={[{ label: "At the crease now", players: inning.currentBatsmen.map((b) => ({ id: b.playerId, name: b.name, note: `${b.runs} (${b.balls})` })) }]}
+          sections={[{ label: "At the crease now", players: inning.currentBatsmen.map((b) => ({ id: b.playerId, name: b.name, photo: b.profilePicture, note: `${b.runs} (${b.balls})` })) }]}
           busy={busy}
           onPick={(id) => undo(id)}
           onClose={() => setModal(null)}
@@ -379,12 +377,12 @@ export default function ScoringDashboard({ matchId, initial, onExit }) {
           onClose={() => setModal(null)}
           footer={
             <div className="flex justify-end gap-3">
-              <button type="button" className={btn.secondary} onClick={() => setModal(null)}>
+              <Button variant="secondary" onClick={() => setModal(null)}>
                 Keep playing
-              </button>
-              <button type="button" className="inline-flex items-center justify-center rounded-lg bg-red-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-red-700 disabled:bg-slate-300" disabled={busy} onClick={endInnings}>
-                {busy ? "Ending…" : "End the innings"}
-              </button>
+              </Button>
+              <Button variant="danger" busy={busy} onClick={endInnings}>
+                End the innings
+              </Button>
             </div>
           }
         >

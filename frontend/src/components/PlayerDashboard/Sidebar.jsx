@@ -63,7 +63,7 @@ const Sidebar = ({
                 transition={{ delay: 0.1 * sections.indexOf(section) }}
                 className={`group flex items-center px-4 py-3 rounded-xl text-sm font-medium transition-all duration-300 cursor-pointer ${
                   activeSection === section.id
-                    ? "bg-gradient-to-r from-blue-600 to-blue-500 text-white shadow-lg"
+                    ? "bg-gradient-to-r from-brand-600 to-brand-500 text-white shadow-lg"
                     : "text-gray-300 hover:bg-gray-700 hover:text-white"
                 }`}
                 onClick={() => {

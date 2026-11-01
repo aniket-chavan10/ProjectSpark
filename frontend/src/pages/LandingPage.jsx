@@ -11,21 +11,21 @@ export default function LandingPage() {
 
   return (
     <PublicLayout>
-      <section className="-mx-4 -mt-8 mb-8 bg-gradient-to-br from-slate-900 via-slate-800 to-emerald-900 px-4 py-12 text-white sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8">
+      <section className="-mx-4 -mt-8 mb-8 bg-ink-900 px-4 py-12 text-white sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8">
         <div className="mx-auto max-w-7xl">
-          <p className="text-xs font-semibold uppercase tracking-[0.3em] text-emerald-300">Local cricket, properly recorded</p>
+          <p className="text-xs font-semibold uppercase tracking-[0.3em] text-ink-300">Local cricket, properly recorded</p>
           <h1 className="mt-2 max-w-2xl text-3xl font-extrabold leading-tight sm:text-5xl">Every match. Every team. Every run.</h1>
           <p className="mt-3 max-w-xl text-slate-300">Results, scorecards and rankings of the tournaments played under the association.</p>
           <div className="mt-6 flex flex-wrap gap-3">
-            <Link to="/results" className="rounded-lg bg-emerald-500 px-5 py-2.5 text-sm font-bold text-white shadow hover:bg-emerald-400">
+            <Link to="/results" className="rounded-lg bg-white px-5 py-2.5 text-sm font-semibold text-ink-900 shadow hover:bg-ink-100">
               Latest results
             </Link>
-            <Link to="/rankings" className="rounded-lg bg-white/10 px-5 py-2.5 text-sm font-bold text-white ring-1 ring-white/30 hover:bg-white/20">
+            <Link to="/rankings" className="rounded-lg bg-white/10 px-5 py-2.5 text-sm font-semibold text-white ring-1 ring-white/25 hover:bg-white/15">
               See the rankings
             </Link>
           </div>
           {data && (
-            <div className="mt-8 grid max-w-xl grid-cols-4 gap-3 text-slate-900">
+            <div className="mt-8 grid max-w-xl grid-cols-2 gap-3 text-slate-900 sm:grid-cols-4">
               <StatBox label="Teams" value={data.counts.teams} />
               <StatBox label="Players" value={data.counts.players} />
               <StatBox label="Tournaments" value={data.counts.tournaments} />
@@ -47,7 +47,7 @@ export default function LandingPage() {
               {data.announcements.map((a) => (
                 <div key={a.id} className="rounded-xl border border-amber-200 bg-amber-50 px-5 py-4">
                   <p className="text-sm font-bold text-amber-900">
-                    📢 {a.title} <span className="ml-2 text-xs font-medium text-amber-700">{shortDate(a.createdAt)}</span>
+                    {a.title} <span className="ml-2 text-xs font-medium text-amber-700">{shortDate(a.createdAt)}</span>
                   </p>
                   <p className="mt-1 whitespace-pre-line text-sm text-amber-900">{a.body}</p>
                 </div>
@@ -57,7 +57,7 @@ export default function LandingPage() {
 
           {data.upcoming.length > 0 && (
             <Section title="Coming up">
-              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
                 {data.upcoming.map((f) => (
                   <FixtureCard key={f.fixtureId} f={f} />
                 ))}
@@ -67,7 +67,7 @@ export default function LandingPage() {
 
           <Section title="Latest results" link={{ to: "/results", label: "All results" }}>
             {data.recentResults.length === 0 && <Empty>No finished matches yet.</Empty>}
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
               {data.recentResults.map((m) => (
                 <ResultCard key={m.matchId} m={m} />
               ))}

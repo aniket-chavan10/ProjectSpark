@@ -49,6 +49,26 @@ export const overlayApi = {
   get: (matchId) => get(`/overlay/${matchId}`),
   setScene: (matchId, body) => run(axiosInstance.put(`/overlay/${matchId}/scene`, body)),
   setPlayerOfMatch: (matchId, playerId) => run(axiosInstance.put(`/overlay/${matchId}/player-of-match`, { playerId })),
+  /** The scorer (logged in) makes a link; its key lets one person run this match's overlay and nothing else. */
+  createOperatorLink: (matchId) => run(axiosInstance.post(`/overlay/${matchId}/operator-link`)),
+};
+
+/**
+ * The overlay operator's calls. They carry the key from the operator link, so the operator needs no login.
+ * Without a key (a scorer who opened the console while logged in) the normal login token is used.
+ */
+export const operatorApi = (key) => {
+  const client = axios.create({ baseURL: axiosInstance.defaults.baseURL, headers: { "Content-Type": "application/json" } });
+  client.interceptors.request.use((config) => {
+    const token = key || localStorage.getItem("authToken");
+    if (token) config.headers.Authorization = `Bearer ${token}`;
+    return config;
+  });
+  return {
+    get: (matchId) => run(client.get(`/overlay/${matchId}`)),
+    setScene: (matchId, body) => run(client.put(`/overlay/${matchId}/scene`, body)),
+    setPlayerOfMatch: (matchId, playerId) => run(client.put(`/overlay/${matchId}/player-of-match`, { playerId })),
+  };
 };
 
 /** Settling a tied match, and the tournament's tie rules (host). */

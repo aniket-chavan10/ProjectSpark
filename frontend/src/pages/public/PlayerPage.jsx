@@ -13,7 +13,7 @@ export default function PlayerPage() {
       {error && <ErrorBox>{error}</ErrorBox>}
       {p && (
         <>
-          <section className="flex flex-wrap items-center gap-5 rounded-2xl bg-gradient-to-r from-slate-900 via-slate-800 to-emerald-900 p-6 text-white shadow">
+          <section className="flex flex-wrap items-center gap-5 rounded-2xl bg-ink-900 p-6 text-white shadow">
             <PlayerPhoto player={p} size={88} />
             <div className="min-w-0 flex-1">
               <h1 className="text-2xl font-extrabold sm:text-3xl">{p.name}</h1>

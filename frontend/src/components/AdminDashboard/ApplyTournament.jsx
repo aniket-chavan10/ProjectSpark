@@ -161,7 +161,7 @@ export default function ApplyTournament() {
                       ) : tournament.alreadyApplied ? (
                         <button
                           disabled
-                          className="px-4 py-2 rounded-lg text-white text-sm font-medium bg-green-500 cursor-not-allowed"
+                          className="px-4 py-2 rounded-lg text-white text-sm font-medium bg-brand-500 cursor-not-allowed"
                         >
                           Applied
                         </button>
@@ -175,7 +175,7 @@ export default function ApplyTournament() {
                           className={`px-4 py-2 rounded-lg text-white text-sm font-medium transition ${
                             tournament.available_slots <= 0
                               ? "bg-gray-400 cursor-not-allowed"
-                              : "bg-blue-600 hover:bg-blue-700"
+                              : "bg-brand-600 hover:bg-brand-700"
                           }`}
                         >
                           {applyingId === tournament.id ? "Applying..." : "Apply"}

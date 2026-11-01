@@ -1,5 +1,6 @@
 // Small pieces shared by the public pages and the team dashboard: layout, data loading, cards, tables.
 import { useEffect, useState } from "react";
+import { LuMapPin } from "react-icons/lu";
 import { Link } from "react-router-dom";
 import Navbar from "../Navbar";
 import { fileUrl, shortDate } from "../../api/sparkApi";
@@ -43,7 +44,7 @@ export function PublicLayout({ title, subtitle, actions, children, tight }) {
     <div className="min-h-screen bg-slate-50">
       <Navbar />
       {title && (
-        <header className="bg-gradient-to-r from-slate-900 via-slate-800 to-emerald-900 text-white">
+        <header className="bg-ink-900 text-white">
           <div className="mx-auto flex max-w-7xl flex-wrap items-end justify-between gap-4 px-4 py-8 sm:px-6 lg:px-8">
             <div>
               <h1 className="text-2xl font-extrabold tracking-tight sm:text-3xl">{title}</h1>
@@ -76,7 +77,7 @@ export const Section = ({ title, link, children, className = "" }) => (
   </section>
 );
 
-const COLORS = ["bg-emerald-600", "bg-sky-600", "bg-indigo-600", "bg-rose-600", "bg-amber-600", "bg-teal-600", "bg-fuchsia-600", "bg-slate-600"];
+const COLORS = ["bg-emerald-600", "bg-brand-600", "bg-brand-600", "bg-slate-600", "bg-amber-600", "bg-brand-600", "bg-slate-600", "bg-slate-600"];
 const initialsOf = (name = "") =>
   name
     .split(/\s+/)
@@ -110,9 +111,14 @@ export function PlayerPhoto({ player, size = 40 }) {
   );
 }
 
+const MEDAL = { 1: ["bg-amber-400 text-amber-950", "Champion"], 2: ["bg-slate-300 text-slate-800", "Runner-up"], 3: ["bg-slate-300 text-slate-950", "Third"], 4: ["bg-slate-100 text-slate-600", "Fourth"] };
 export const Medal = ({ position }) => {
-  const m = { 1: ["🥇", "Champion"], 2: ["🥈", "Runner-up"], 3: ["🥉", "Third"], 4: ["4th", "Fourth"] }[position];
-  return m ? <span title={m[1]}>{m[0]}</span> : null;
+  const m = MEDAL[position];
+  return m ? (
+    <span title={m[1]} className={`inline-flex h-6 w-6 items-center justify-center rounded-full text-xs font-extrabold ${m[0]}`}>
+      {position}
+    </span>
+  ) : null;
 };
 
 /** A finished match as a card; click opens the scorecard. */
@@ -178,7 +184,7 @@ export function FixtureCard({ f }) {
           </div>
         ))}
       </div>
-      {f.venue && <p className="mt-2 text-xs text-slate-500">📍 {f.venue}</p>}
+      {f.venue && <p className="mt-2 flex items-center gap-1.5 text-xs text-slate-500"><LuMapPin className="h-3.5 w-3.5" aria-hidden="true" /> {f.venue}</p>}
     </div>
   );
 }

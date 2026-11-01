@@ -1,5 +1,6 @@
 const {
   normalizeExtraType,
+  normalizeNoBallRunsType,
   isLegalDelivery,
   calculateTotalRuns,
   shouldRotateStrike,
@@ -83,7 +84,7 @@ const lockLiveScorecard = async (conn, inningId) => {
 // Sum of runs charged to the bowler in an over (bat runs + wides + no-balls).
 const overRunsConceded = async (conn, overId) => {
   const [[row]] = await conn.execute(
-    `SELECT COALESCE(SUM(runs_scored + CASE WHEN extra_type IN ('wide', 'no-ball') THEN extras ELSE 0 END), 0) AS conceded
+    `SELECT COALESCE(SUM(runs_scored + CASE WHEN extra_type = 'wide' THEN extras WHEN extra_type = 'no-ball' THEN (CASE WHEN nb_runs_type IS NULL THEN extras ELSE 1 END) ELSE 0 END), 0) AS conceded
      FROM balls WHERE over_id = ?`,
     [overId]
   );
@@ -217,6 +218,8 @@ exports.registerBallEvent = async (conn, inputData) => {
   // ----- the delivery -----
   const runsScored = toCount(inputData.runsScored, "runsScored", 8);
   const extraType = normalizeExtraType(inputData.extraType);
+  // a no-ball can carry byes or leg-byes (the batters ran them without hitting it): they are not bat runs
+  const noBallRunsType = normalizeNoBallRunsType(inputData.noBallRunsAs, extraType);
   let extras = toCount(inputData.extras, "extras", 12);
   const legalDelivery = isLegalDelivery(extraType);
 
@@ -229,6 +232,10 @@ exports.registerBallEvent = async (conn, inputData) => {
   }
   if ((extraType === "wide" || extraType === "bye" || extraType === "leg-bye") && runsScored > 0) {
     throw new ScoringError(`Runs off the bat cannot be scored on a ${extraType}`);
+  }
+  if (noBallRunsType) {
+    if (runsScored > 0) throw new ScoringError(`A no-ball cannot have both bat runs and ${noBallRunsType}s`);
+    if (extras < 2) throw new ScoringError(`Enter the ${noBallRunsType} runs: the no-ball itself is 1, the ${noBallRunsType}s come on top`);
   }
 
   // ----- the wicket -----
@@ -282,8 +289,8 @@ exports.registerBallEvent = async (conn, inputData) => {
       batsman_id, bowler_id, runs_scored,
       is_wicket, wicket_type, dismissed_player_id, fielder_id,
       extras, extra_type, legal_delivery, is_retired_hurt,
-      shot_type, ball_outcome, wagon_wheel_region
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      shot_type, ball_outcome, wagon_wheel_region, nb_runs_type
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       inningId,
       currentOverId,
@@ -303,6 +310,7 @@ exports.registerBallEvent = async (conn, inputData) => {
       inputData.shotType ?? null,
       inputData.ballOutcome ?? null,
       inputData.wagonWheelRegion ?? null,
+      noBallRunsType,
     ]
   );
 
@@ -319,7 +327,7 @@ exports.registerBallEvent = async (conn, inputData) => {
   const crease = { striker: strikerBefore, nonStriker: nonStrikerBefore };
   let batsman1Id = num(live.batsman1_id);
   let batsman2Id = num(live.batsman2_id);
-  const crossed = shouldRotateStrike(runsScored, extras, extraType);
+  const crossed = shouldRotateStrike(runsScored, extras, extraType, noBallRunsType);
 
   if (outEvent) {
     // A run out with an odd number of completed runs happened after the batters crossed.
@@ -413,6 +421,7 @@ exports.registerBallEvent = async (conn, inputData) => {
     runsScored,
     extras,
     extraType,
+    noBallRunsType,
     legalDelivery,
     isWicket: outEvent,
     wicketType,
@@ -619,7 +628,7 @@ exports.undoLastBallEvent = async (conn, inningId, matchId, options = {}) => {
   const crease = { striker: num(live.on_strike_batsman_id), nonStriker: num(live.non_striker_batsman_id) };
   let batsman1Id = num(live.batsman1_id);
   let batsman2Id = num(live.batsman2_id);
-  const crossed = shouldRotateStrike(runsScored, extras, extraType);
+  const crossed = shouldRotateStrike(runsScored, extras, extraType, lastBall.nb_runs_type || null);
 
   if (overWasComplete) swap(crease);
 

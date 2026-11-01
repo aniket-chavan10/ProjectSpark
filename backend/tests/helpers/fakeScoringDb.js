@@ -263,7 +263,7 @@ class FakeScoringDb {
       const b = {
         ball_id: this.ids.ball++, inning_id: p[0], over_id: p[1], over_number: p[2], ball_number: p[3],
         batsman_id: p[4], bowler_id: p[5], runs_scored: p[6], is_wicket: p[7], wicket_type: p[8],
-        dismissed_player_id: p[9], fielder_id: p[10], extras: p[11], extra_type: p[12], legal_delivery: p[13], is_retired_hurt: p[14],
+        dismissed_player_id: p[9], fielder_id: p[10], extras: p[11], extra_type: p[12], legal_delivery: p[13], is_retired_hurt: p[14], nb_runs_type: p[18] ?? null,
       };
       this.balls.push(b);
       return ok({ insertId: b.ball_id });
@@ -315,7 +315,7 @@ class FakeScoringDb {
     if (s.startsWith("SELECT COALESCE(SUM(runs_scored + CASE")) {
       const conceded = this.balls
         .filter((b) => b.over_id === p[0])
-        .reduce((a, b) => a + b.runs_scored + (b.extra_type === "wide" || b.extra_type === "no-ball" ? b.extras : 0), 0);
+        .reduce((a, b) => a + b.runs_scored + (b.extra_type === "wide" ? b.extras : b.extra_type === "no-ball" ? (b.nb_runs_type ? 1 : b.extras) : 0), 0);
       return rows([{ conceded }]);
     }
     if (s.startsWith("SELECT COALESCE(SUM(runs_scored + extras), 0) AS runs FROM balls")) {

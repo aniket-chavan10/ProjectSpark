@@ -101,7 +101,7 @@ const RankingPoints = () => {
         <h2 className="text-base font-bold text-slate-900">Season schedule</h2>
         <p className="mb-3 text-sm text-slate-600">When the plan of hosting dates is ready, send it to every team.</p>
         <button type="button" className={btn.secondary} disabled={busy} onClick={release}>
-          📣 Release the season schedule to all teams
+          Release the season schedule to all teams
         </button>
       </section>
 

@@ -24,7 +24,7 @@ export default function MatchPage() {
           <Link to="/results" className="text-sm font-semibold text-emerald-700 hover:underline">
             ← All results
           </Link>
-          <section className="mt-3 overflow-hidden rounded-2xl bg-gradient-to-r from-slate-900 via-slate-800 to-emerald-900 p-6 text-white shadow">
+          <section className="mt-3 overflow-hidden rounded-2xl bg-ink-900 p-6 text-white shadow">
             <p className="text-xs font-semibold uppercase tracking-widest text-emerald-300">
               {m.tournamentId ? (
                 <Link to={`/tournaments/${m.tournamentId}`} className="hover:underline">
@@ -52,12 +52,12 @@ export default function MatchPage() {
               })}
             </div>
             <p className="mt-4 text-xl font-bold text-amber-300">{m.result}</p>
-            <p className="mt-1 text-sm text-slate-300">{[m.toss, m.venue && `📍 ${m.venue}`, m.overs && `${m.overs} overs a side`].filter(Boolean).join(" · ")}</p>
+            <p className="mt-1 text-sm text-slate-300">{[m.toss, m.venue && m.venue, m.overs && `${m.overs} overs a side`].filter(Boolean).join(" · ")}</p>
             {m.playerOfMatch && (
               <Link to={`/players/${m.playerOfMatch.id}`} className="mt-4 inline-flex items-center gap-3 rounded-full bg-white/10 py-1.5 pl-1.5 pr-4 hover:bg-white/15">
                 <PlayerPhoto player={m.playerOfMatch} size={36} />
                 <span className="text-sm">
-                  <span className="text-amber-300">🏅 Player of the match</span> · <strong>{m.playerOfMatch.name}</strong>
+                  <span className="text-amber-300">Player of the match</span> · <strong>{m.playerOfMatch.name}</strong>
                 </span>
               </Link>
             )}

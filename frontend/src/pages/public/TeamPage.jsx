@@ -14,7 +14,7 @@ export default function TeamPage() {
       {error && <ErrorBox>{error}</ErrorBox>}
       {t && (
         <>
-          <section className="flex flex-wrap items-center gap-5 rounded-2xl bg-gradient-to-r from-slate-900 via-slate-800 to-emerald-900 p-6 text-white shadow">
+          <section className="flex flex-wrap items-center gap-5 rounded-2xl bg-ink-900 p-6 text-white shadow">
             <TeamLogo team={t} size={88} />
             <div className="min-w-0 flex-1">
               <h1 className="text-2xl font-extrabold sm:text-3xl">{t.name}</h1>

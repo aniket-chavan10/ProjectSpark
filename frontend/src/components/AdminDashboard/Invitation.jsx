@@ -19,7 +19,7 @@ function Invitation() {
   }, []);
 
   return (
-    <div className="bg-gray-50 min-h-screen py-10 px-5">
+    <div className="">
       <h1 className="text-center text-3xl font-extrabold text-gray-800 mb-10">
         Tournament Invitations
       </h1>
@@ -49,7 +49,7 @@ function Invitation() {
             </p>
             <a
               href={invitation.applyUrl}
-              className="block w-full text-center bg-blue-600 text-white font-semibold py-3 rounded-md hover:bg-blue-700 transition duration-200"
+              className="block w-full text-center bg-brand-600 text-white font-semibold py-3 rounded-md hover:bg-brand-700 transition duration-200"
             >
               Apply Now
             </a>

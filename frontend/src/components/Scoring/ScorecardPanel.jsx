@@ -1,18 +1,6 @@
 import { useMemo, useState } from "react";
-import { card } from "../ui/classes";
+import { Card, PlayerAvatar, Tabs } from "../ui/kit";
 import { ballText } from "./scoreUtils";
-
-const TabButton = ({ on, onClick, children }) => (
-  <button
-    type="button"
-    role="tab"
-    aria-selected={on}
-    onClick={onClick}
-    className={`shrink-0 border-b-2 px-4 py-2.5 text-sm font-semibold transition ${on ? "border-emerald-600 text-emerald-700" : "border-transparent text-slate-500 hover:text-slate-800"}`}
-  >
-    {children}
-  </button>
-);
 
 function Scorecard({ card: c }) {
   return (
@@ -117,12 +105,14 @@ function Scorecard({ card: c }) {
 function SquadList({ team }) {
   return (
     <div>
-      <h4 className="mb-1.5 text-sm font-bold text-slate-900">{team.name}</h4>
-      <ol className="space-y-0.5 text-sm text-slate-700">
-        {team.players.map((p, i) => (
-          <li key={p.playerId}>
-            <span className="inline-block w-6 text-xs text-slate-400">{i + 1}</span>
-            {p.name}
+      <h4 className="mb-2 text-sm font-semibold text-slate-900">{team.name}</h4>
+      <ol className="space-y-1.5">
+        {team.players.map((p) => (
+          <li key={p.playerId} className="flex items-center gap-2.5 text-sm text-slate-700">
+            <PlayerAvatar name={p.name} photo={p.profilePicture} id={p.playerId} size={26} />
+            <span className="min-w-0 flex-1 truncate">{p.name}</span>
+            {p.isCaptain && <span className="rounded bg-amber-100 px-1 text-[10px] font-bold text-amber-800">C</span>}
+            {p.isKeeper && <span className="rounded bg-brand-100 px-1 text-[10px] font-bold text-brand-800">WK</span>}
           </li>
         ))}
       </ol>
@@ -131,7 +121,7 @@ function SquadList({ team }) {
 }
 
 /** Scorecard, the latest balls, and the match information (toss, squads). */
-export default function ScorecardPanel({ sb, scorecard, inningId, overlayUrl }) {
+export default function ScorecardPanel({ sb, scorecard, inningId }) {
   const [tab, setTab] = useState("card");
   const [picked, setPicked] = useState(null);
   const innings = scorecard?.innings || [];
@@ -148,20 +138,20 @@ export default function ScorecardPanel({ sb, scorecard, inningId, overlayUrl }) 
   const tossTeam = sb.tossWinnerId ? (Number(sb.teams.team1.id) === Number(sb.tossWinnerId) ? sb.teams.team1 : sb.teams.team2) : null;
 
   return (
-    <section className={`${card} overflow-hidden`} aria-label="Scorecard and match information">
-      <div role="tablist" className="flex overflow-x-auto border-b border-slate-200 px-2">
-        <TabButton on={tab === "card"} onClick={() => setTab("card")}>
-          Scorecard
-        </TabButton>
-        <TabButton on={tab === "balls"} onClick={() => setTab("balls")}>
-          Recent balls
-        </TabButton>
-        <TabButton on={tab === "info"} onClick={() => setTab("info")}>
-          Match info
-        </TabButton>
+    <Card padded={false} className="flex max-h-[calc(100vh-7rem)] flex-col overflow-hidden" aria-label="Scorecard and match information">
+      <div className="shrink-0 border-b border-slate-100 px-4 py-3">
+        <Tabs
+          value={tab}
+          onChange={setTab}
+          tabs={[
+            { id: "card", label: "Scorecard" },
+            { id: "balls", label: "Ball by ball" },
+            { id: "info", label: "Match info" },
+          ]}
+        />
       </div>
 
-      <div className="p-4">
+      <div className="scroll-y min-h-0 flex-1 p-4">
         {tab === "card" && (
           <>
             {innings.length > 1 && (
@@ -171,7 +161,7 @@ export default function ScorecardPanel({ sb, scorecard, inningId, overlayUrl }) 
                     key={i.inningId}
                     type="button"
                     onClick={() => setPicked(i.inningId)}
-                    className={`rounded-full px-3 py-1 text-xs font-semibold ${shown && shown.inningId === i.inningId ? "bg-slate-900 text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200"}`}
+                    className={`rounded-lg px-3 py-1.5 text-xs font-semibold ${shown && shown.inningId === i.inningId ? "bg-ink-900 text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200"}`}
                   >
                     {i.teamName} {i.runs}/{i.wickets}
                   </button>
@@ -209,12 +199,6 @@ export default function ScorecardPanel({ sb, scorecard, inningId, overlayUrl }) 
               <dd className="font-medium text-slate-900">{sb.venue || "—"}</dd>
               <dt className="text-slate-500">Toss</dt>
               <dd className="font-medium text-slate-900">{tossTeam ? `${tossTeam.name} won and chose to ${sb.tossDecision === "bat" ? "bat" : "bowl"}` : "—"}</dd>
-              {overlayUrl && (
-                <>
-                  <dt className="text-slate-500">Overlay</dt>
-                  <dd className="break-all font-medium text-emerald-700">{overlayUrl}</dd>
-                </>
-              )}
             </dl>
             <div className="grid gap-6 sm:grid-cols-2">
               <SquadList team={sb.teams.team1} />
@@ -223,7 +207,6 @@ export default function ScorecardPanel({ sb, scorecard, inningId, overlayUrl }) 
           </div>
         )}
       </div>
-    </section>
+    </Card>
   );
 }
-

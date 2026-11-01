@@ -81,7 +81,7 @@ const AwardsAdmin = () => {
             </select>
           </div>
           <button type="button" className={btn.secondary} disabled={busy} onClick={() => run(() => associationApi.generateAwards(season), (r) => `${r.written} awards worked out from the season's matches. Awards you already confirmed were left as they are.`)}>
-            ✨ Work out suggestions
+            Work out suggestions
           </button>
           <button type="button" className={btn.secondary} disabled={busy || !counts.suggested} onClick={() => run(() => associationApi.confirmAwards(season), (r) => `${r.confirmed} awards confirmed.`)}>
             Confirm all suggestions

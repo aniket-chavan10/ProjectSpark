@@ -1,13 +1,13 @@
 import React, { useEffect, useMemo, useState } from "react";
-import OrganizerDashboard from "../Organizer";
-import AppliedTeams from "../ViewAppliedTeams";
-import GroupCreation from "../GroupTeams";
-import ViewAssignedGroups from "../ViewAssignedGroups";
+import { LuArrowLeft, LuCalendarDays, LuMapPin, LuPencilRuler, LuPlay, LuRadio } from "react-icons/lu";
+import TournamentList from "./TournamentList";
+import TeamsStep from "./TeamsStep";
+import GroupsStep from "./GroupsStep";
 import ScheduleBuilder from "../Schedule/ScheduleBuilder";
 import ScheduleView from "../Schedule/ScheduleView";
 import Standings from "../Schedule/Standings";
 import api from "../../../api/tournamentApi1";
-import { btn, card } from "../../ui/classes";
+import { Alert, Badge, Button, Card, Spinner, Stepper } from "../../ui/kit";
 
 const STEPS = [
   { id: 1, label: "Tournaments" },
@@ -17,6 +17,14 @@ const STEPS = [
   { id: 5, label: "Matches" },
 ];
 
+const HEADLINES = {
+  1: ["Your tournaments", "Pick the tournament you want to run."],
+  2: ["Registered teams", "Check who has applied before you make the groups."],
+  3: ["Groups", "Divide the teams into groups. Every group plays a mini league that ends with a group final."],
+  4: ["Schedule", "Plan the days, set the first-round pairs and let Spark fit the matches in."],
+  5: ["Matches", "Start a match to open the scorer. Everything the scorer needs opens in its own tab."],
+};
+
 const formatRange = (start, end) => {
   if (!start) return "";
   const opts = { day: "numeric", month: "short" };
@@ -25,58 +33,22 @@ const formatRange = (start, end) => {
   return e ? `${s} – ${e}` : s;
 };
 
-function Stepper({ step, onStep, reachable }) {
-  return (
-    <nav aria-label="Tournament set-up steps" className="overflow-x-auto">
-      <ol className="flex min-w-max items-center gap-2 sm:gap-3">
-        {STEPS.map((s, i) => {
-          const state = s.id < step ? "done" : s.id === step ? "current" : "todo";
-          const enabled = s.id <= reachable;
-          return (
-            <li key={s.id} className="flex items-center gap-2 sm:gap-3">
-              <button
-                type="button"
-                disabled={!enabled}
-                onClick={() => onStep(s.id)}
-                aria-current={state === "current" ? "step" : undefined}
-                className={`flex items-center gap-2 rounded-full py-1.5 pl-1.5 pr-3.5 text-sm font-medium transition focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 ${
-                  state === "current" ? "bg-emerald-600 text-white" : state === "done" ? "bg-emerald-50 text-emerald-800 hover:bg-emerald-100" : "bg-slate-100 text-slate-500"
-                } ${!enabled ? "cursor-not-allowed opacity-60" : ""}`}
-              >
-                <span
-                  className={`flex h-6 w-6 items-center justify-center rounded-full text-xs font-bold ${
-                    state === "current" ? "bg-white/20" : state === "done" ? "bg-emerald-600 text-white" : "bg-white text-slate-500"
-                  }`}
-                >
-                  {state === "done" ? "✓" : s.id}
-                </span>
-                {s.label}
-              </button>
-              {i < STEPS.length - 1 && <span className="h-px w-4 bg-slate-300 sm:w-8" aria-hidden="true" />}
-            </li>
-          );
-        })}
-      </ol>
-    </nav>
-  );
-}
+const messageOf = (err, fallback) => (err && (err.response?.data?.error || err.response?.data?.message || err.error || err.message)) || fallback;
 
 export default function OrganizerFlow() {
   const [step, setStep] = useState(1);
   const [selectedTournamentId, setSelectedTournamentId] = useState(null);
 
   const [tournaments, setTournaments] = useState([]);
+  const [tournamentsLoaded, setTournamentsLoaded] = useState(false);
   const [appliedTeams, setAppliedTeams] = useState([]);
-  const [groups, setGroups] = useState([]);
   const [loading, setLoading] = useState(false);
   const [progress, setProgress] = useState(null);
   const [scheduledMatches, setScheduledMatches] = useState([]);
   const [error, setError] = useState("");
 
-  const selected = useMemo(
-    () => tournaments.find((t) => String(t.tournament_id || t.id) === String(selectedTournamentId)),
-    [tournaments, selectedTournamentId]
-  );
+  const selected = useMemo(() => tournaments.find((t) => String(t.tournament_id || t.id) === String(selectedTournamentId)), [tournaments, selectedTournamentId]);
+  const started = !!Number(progress?.matches_started);
 
   // Furthest step that makes sense for this tournament
   const reachable = useMemo(() => {
@@ -86,8 +58,6 @@ export default function OrganizerFlow() {
     if (Number(progress?.teams_created)) return 3;
     return 2;
   }, [selectedTournamentId, progress]);
-
-  const fail = (message) => setError(message);
 
   /* ------------------------------ data ------------------------------ */
 
@@ -99,10 +69,10 @@ export default function OrganizerFlow() {
       if (Number(result?.matches_started) || Number(result?.schedule_created)) setStep(5);
       else if (Number(result?.groups_created)) setStep(3);
       else if (Number(result?.teams_created)) setStep(2);
-      else setStep(1);
+      else setStep(2);
     } catch {
       setProgress(null);
-      setStep(1);
+      setStep(2);
     }
   };
 
@@ -121,8 +91,9 @@ export default function OrganizerFlow() {
       const res = await api.getTournamentsByOrganizer();
       setTournaments(Array.isArray(res) ? res : Array.isArray(res?.data) ? res.data : []);
     } catch {
-      fail("Could not load your tournaments.");
+      setError("Could not load your tournaments.");
     }
+    setTournamentsLoaded(true);
     setLoading(false);
   };
 
@@ -134,21 +105,9 @@ export default function OrganizerFlow() {
       setAppliedTeams(Array.isArray(res) ? res : Array.isArray(res?.data) ? res.data : []);
     } catch {
       setAppliedTeams([]);
-      fail("Could not load the registered teams.");
+      setError("Could not load the registered teams.");
     }
     setLoading(false);
-  };
-
-  const fetchGroups = async () => {
-    if (!selectedTournamentId) return [];
-    try {
-      const data = await api.getGroupsWithTeams(selectedTournamentId);
-      setGroups(data);
-      return data;
-    } catch {
-      setGroups([]);
-      return [];
-    }
   };
 
   const fetchScheduledMatches = async () => {
@@ -159,7 +118,7 @@ export default function OrganizerFlow() {
       setScheduledMatches(Array.isArray(res) ? res : res?.matches || []);
     } catch {
       setScheduledMatches([]);
-      fail("Could not load the scheduled matches.");
+      setError("Could not load the scheduled matches.");
     }
     setLoading(false);
   };
@@ -174,36 +133,36 @@ export default function OrganizerFlow() {
 
   /* ------------------------------ actions ------------------------------ */
 
-  const onTournamentCreated = async (newTournamentId) => {
-    if (!newTournamentId) return;
-    setSelectedTournamentId(newTournamentId);
-    await fetchProgress(newTournamentId);
-    setStep(2);
-  };
-
-  const goToAppliedTeams = async (tournamentId) => {
+  const open = async (tournamentId) => {
     setError("");
     setSelectedTournamentId(tournamentId);
     await fetchAppliedTeams(tournamentId);
     await fetchProgress(tournamentId);
   };
 
-  const handleCreateTeams = async () => {
+  const onTournamentCreated = async (newTournamentId) => {
+    if (!newTournamentId) return;
+    setSelectedTournamentId(newTournamentId);
+    await fetchAppliedTeams(newTournamentId);
+    await fetchProgress(newTournamentId);
+    setStep(2);
+  };
+
+  const goToGroups = async () => {
     await updateProgressStep("teams_created");
+    await fetchAppliedTeams(selectedTournamentId);
     setStep(3);
   };
 
-  const handleCreateGroups = async (groupData) => {
-    if (!selectedTournamentId) return;
+  const saveGroups = async (assignments) => {
     try {
-      await api.assignTournamentGroups(selectedTournamentId, groupData);
-      await updateProgressStep("groups_created");
-      await fetchGroups();
-      await fetchAppliedTeams(selectedTournamentId);
-      setStep(4);
-    } catch {
-      fail("Could not save the groups.");
+      await api.assignTournamentGroups(selectedTournamentId, assignments);
+    } catch (err) {
+      throw new Error(messageOf(err, "Could not save the groups."));
     }
+    await updateProgressStep("groups_created");
+    await fetchAppliedTeams(selectedTournamentId);
+    setStep(4);
   };
 
   const onScheduleSaved = async () => {
@@ -211,7 +170,7 @@ export default function OrganizerFlow() {
     setStep(5);
   };
 
-  // The match opens in its own tab: squads, toss, then the scoring dashboard
+  // The match opens in its own tab: squads, toss, then the scoring console
   const openMatch = async (match) => {
     window.open(`/match/${match.id}`, "_blank");
     if (match.status === "scheduled") await updateProgressStep("matches_started");
@@ -219,71 +178,92 @@ export default function OrganizerFlow() {
 
   const startAction = (match) =>
     match.status === "scheduled" && match.team1_id && match.team2_id ? (
-      <button type="button" className={btn.primary} onClick={() => openMatch(match)}>
+      <Button size="sm" icon={LuPlay} onClick={() => openMatch(match)}>
         Start
-      </button>
+      </Button>
     ) : match.status === "completed" ? (
-      <button type="button" className={btn.secondary} onClick={() => openMatch(match)} title="Open the scorecard">
+      <Button size="sm" variant="secondary" onClick={() => openMatch(match)} title="Open the match">
         {match.winner_team_name ? `${match.winner_team_name} won` : "Tied"}
-      </button>
+      </Button>
     ) : match.status === "live" ? (
-      <button type="button" className="inline-flex items-center gap-2 rounded-lg bg-red-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-red-700" onClick={() => openMatch(match)}>
-        <span className="h-2 w-2 animate-pulse rounded-full bg-white" /> Live · Score
-      </button>
+      <Button size="sm" variant="danger" icon={LuRadio} onClick={() => openMatch(match)}>
+        Live · Score
+      </Button>
     ) : null;
+
+  const counts = useMemo(() => {
+    const c = { scheduled: 0, live: 0, completed: 0 };
+    scheduledMatches.forEach((m) => {
+      c[m.status] = (c[m.status] || 0) + 1;
+    });
+    return c;
+  }, [scheduledMatches]);
 
   /* ------------------------------ render ------------------------------ */
 
+  const [title, subtitle] = HEADLINES[step];
+
   return (
-    <div className="mx-auto max-w-5xl">
+    <div className="space-y-6">
       {selected && step > 1 && (
-        <header className="mb-4 flex flex-wrap items-end justify-between gap-2">
-          <div>
-            <button type="button" onClick={() => setStep(1)} className="text-xs font-medium text-emerald-700 hover:underline">
-              ← All tournaments
-            </button>
-            <h1 className="text-2xl font-bold text-slate-900">{selected.name || "Your tournament"}</h1>
-            <p className="text-sm text-slate-500">
-              {formatRange(selected.start_date, selected.end_date)}
-              {selected.venue ? ` · ${selected.venue}` : ""}
-            </p>
+        <Card className="!p-4 sm:!p-5">
+          <div className="flex flex-wrap items-center justify-between gap-4">
+            <div className="min-w-0">
+              <button type="button" onClick={() => setStep(1)} className="mb-1 inline-flex items-center gap-1 text-xs font-semibold text-emerald-700 hover:underline">
+                <LuArrowLeft className="h-3.5 w-3.5" /> All tournaments
+              </button>
+              <h2 className="truncate text-xl font-bold text-slate-900">{selected.name || "Your tournament"}</h2>
+              <p className="mt-1 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-slate-500">
+                <span className="inline-flex items-center gap-1.5">
+                  <LuCalendarDays className="h-4 w-4" aria-hidden="true" /> {formatRange(selected.start_date, selected.end_date)}
+                </span>
+                {selected.venue && (
+                  <span className="inline-flex items-center gap-1.5">
+                    <LuMapPin className="h-4 w-4" aria-hidden="true" /> {selected.venue}
+                  </span>
+                )}
+              </p>
+            </div>
+            {started ? <Badge tone="red" dot="live">Matches under way</Badge> : <Badge tone="slate">Set-up</Badge>}
           </div>
-        </header>
+          <div className="mt-4 overflow-x-auto border-t border-slate-100 pt-4">
+            <Stepper steps={STEPS} current={step} onSelect={(id) => id <= reachable && setStep(id)} />
+          </div>
+        </Card>
       )}
 
-      <div className={`${card} mb-5 p-3 sm:p-4`}>
-        <Stepper step={step} onStep={setStep} reachable={reachable} />
+      <div>
+        <h1 className="text-2xl font-bold tracking-tight text-slate-900">{title}</h1>
+        <p className="mt-1 max-w-2xl text-sm text-slate-500">{subtitle}</p>
       </div>
 
       {error && (
-        <p className="mb-4 rounded-lg bg-red-50 p-3 text-sm text-red-700" role="alert">
+        <Alert tone="error" onClose={() => setError("")}>
           {error}
-        </p>
+        </Alert>
       )}
-      {loading && step !== 4 && <p className="mb-4 text-sm text-slate-500">Loading…</p>}
+      {loading && step !== 4 && step !== 1 && <Spinner label="Loading…" className="!py-4" />}
 
-      {step === 1 && (
-        <OrganizerDashboard tournaments={tournaments} onViewTeams={goToAppliedTeams} onRefresh={fetchTournaments} onTournamentCreated={onTournamentCreated} />
-      )}
+      {step === 1 && <TournamentList loaded={tournamentsLoaded} tournaments={tournaments} onViewTeams={open} onRefresh={fetchTournaments} onTournamentCreated={onTournamentCreated} />}
 
-      {step === 2 && <AppliedTeams tournamentId={selectedTournamentId} teams={appliedTeams} onContinue={() => handleCreateTeams()} onTeamsCreated={handleCreateTeams} />}
+      {step === 2 && <TeamsStep teams={appliedTeams} onContinue={goToGroups} />}
 
-      {step === 3 &&
-        (appliedTeams.some((team) => team.group_name) ? (
-          <ViewAssignedGroups teams={appliedTeams} onContinue={async () => { await fetchGroups(); setStep(4); }} />
-        ) : (
-          <GroupCreation teams={appliedTeams} groups={groups} onCreateGroups={handleCreateGroups} onContinue={async () => { await fetchGroups(); setStep(4); }} />
-        ))}
+      {step === 3 && <GroupsStep teams={appliedTeams} locked={started} onSave={saveGroups} onContinue={() => setStep(4)} />}
 
       {step === 4 && selectedTournamentId && <ScheduleBuilder tournamentId={selectedTournamentId} onSaved={onScheduleSaved} />}
 
       {step === 5 && (
         <div className="space-y-5">
           <div className="flex flex-wrap items-center justify-between gap-3">
-            <h2 className="text-xl font-bold text-slate-900">Match schedule</h2>
-            <button type="button" className={btn.secondary} onClick={() => setStep(4)}>
+            <div className="flex flex-wrap items-center gap-2">
+              <Badge tone="slate">{scheduledMatches.length} matches</Badge>
+              {counts.live > 0 && <Badge tone="red" dot="live">{counts.live} live</Badge>}
+              <Badge tone="green">{counts.completed} played</Badge>
+              <Badge tone="amber">{counts.scheduled} to play</Badge>
+            </div>
+            <Button variant="secondary" icon={LuPencilRuler} disabled={started} title={started ? "Matches have started" : undefined} onClick={() => setStep(4)}>
               Change the schedule
-            </button>
+            </Button>
           </div>
           <Standings tournamentId={selectedTournamentId} matches={scheduledMatches} />
           <ScheduleView matches={scheduledMatches} renderAction={startAction} />

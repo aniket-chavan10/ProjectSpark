@@ -1,103 +1,65 @@
 import React, { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
-import logo from "../../../backend/uploads/images/logo.webp"
+import { Link, NavLink } from "react-router-dom";
+import { LuMenu, LuX } from "react-icons/lu";
+import { SparkMark } from "./layout/AppShell";
 
 // the public site
 const LINKS = [
-  { to: "/", name: "Home" },
+  { to: "/", name: "Home", end: true },
   { to: "/tournaments", name: "Tournaments" },
   { to: "/results", name: "Results" },
   { to: "/teams", name: "Teams" },
   { to: "/rankings", name: "Rankings" },
-  { to: "/rankings?tab=ratings", name: "Players" },
   { to: "/awards", name: "Awards" },
 ];
 
+const link = ({ isActive }) => `rounded-md px-3 py-2 text-sm font-medium transition-colors ${isActive ? "bg-white/10 text-white" : "text-ink-200 hover:bg-white/5 hover:text-white"}`;
+
 const Navbar = () => {
-  const [isOpen, setIsOpen] = useState(false);
-  const navigate = useNavigate();
+  const [open, setOpen] = useState(false);
 
   return (
-    <nav className="bg-gray-800">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex items-center justify-between h-16">
-          <div className="flex items-center">
-          <div className="flex-shrink-0">
-  <img
-    src={logo} // Update this path
-    alt="logo"
-    className="w-16 h-16 object-contain transform transition-transform duration-500 hover:scale-105"
-  />
-</div>
-            <div className="hidden md:block">
-              <div className="ml-10 flex items-baseline space-x-4">
-                {LINKS.map((l) => (
-                  <Link key={l.name} to={l.to} className="text-gray-300 hover:text-white px-3 py-2 rounded-md text-sm font-medium">
-                    {l.name}
-                  </Link>
-                ))}
-              </div>
-            </div>
-          </div>
-          <div className="flex items-center space-x-4">
-            <button
-              onClick={() => navigate("/sign-in")}
-              className="text-gray-300 hover:text-white px-3 py-2 rounded-md text-sm font-medium"
-            >
-              Log In
-            </button>
-            <button
-              onClick={() => navigate("/sign-up")}
-              className="bg-blue-500 text-white px-3 py-2 rounded-md text-sm font-medium hover:bg-blue-600"
-            >
-              Sign Up
-            </button>
-          </div>
-          <div className="-mr-2 flex md:hidden">
-            <button
-              onClick={() => setIsOpen(!isOpen)}
-              type="button"
-              className="bg-gray-900 text-gray-400 hover:text-white hover:bg-gray-700 inline-flex items-center justify-center p-2 rounded-md focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-800 focus:ring-white"
-            >
-              <span className="sr-only">Open main menu</span>
-              {!isOpen ? (
-                <svg
-                  className="h-6 w-6"
-                  xmlns="http://www.w3.org/2000/svg"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                  aria-hidden="true"
-                >
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6h16M4 12h16m-7 6h7" />
-                </svg>
-              ) : (
-                <svg
-                  className="h-6 w-6"
-                  xmlns="http://www.w3.org/2000/svg"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                  aria-hidden="true"
-                >
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              )}
-            </button>
-          </div>
+    <header className="bg-ink-950 text-white">
+      <div className="mx-auto flex h-16 max-w-7xl items-center gap-4 px-4 sm:px-6 lg:px-8">
+        <Link to="/" className="flex items-center gap-3" aria-label="Spark home">
+          <SparkMark size={34} />
+          <span className="text-[17px] font-bold tracking-tight">Spark</span>
+        </Link>
+
+        <nav className="ml-6 hidden items-center gap-1 md:flex" aria-label="Main">
+          {LINKS.map((l) => (
+            <NavLink key={l.name} to={l.to} end={l.end} className={link}>
+              {l.name}
+            </NavLink>
+          ))}
+        </nav>
+
+        <div className="ml-auto flex items-center gap-2">
+          <Link to="/sign-in" className="hidden rounded-md px-3 py-2 text-sm font-medium text-ink-200 hover:bg-white/5 hover:text-white sm:inline-block">
+            Log in
+          </Link>
+          <Link to="/sign-up" className="rounded-md bg-white px-3.5 py-2 text-sm font-semibold text-ink-900 hover:bg-ink-100">
+            Register a team
+          </Link>
+          <button type="button" onClick={() => setOpen((o) => !o)} aria-expanded={open} aria-label={open ? "Close menu" : "Open menu"} className="rounded-md p-2 text-ink-200 hover:bg-white/10 md:hidden">
+            {open ? <LuX className="h-5 w-5" /> : <LuMenu className="h-5 w-5" />}
+          </button>
         </div>
       </div>
 
-      <div className={`${isOpen ? "block" : "hidden"} md:hidden`} id="mobile-menu">
-        <div className="px-2 pt-2 pb-3 space-y-1 sm:px-3">
+      {open && (
+        <nav className="border-t border-white/10 px-4 pb-4 pt-2 md:hidden" aria-label="Menu">
           {LINKS.map((l) => (
-            <Link key={l.name} to={l.to} onClick={() => setIsOpen(false)} className="text-gray-300 hover:text-white block px-3 py-2 rounded-md text-base font-medium">
+            <NavLink key={l.name} to={l.to} end={l.end} onClick={() => setOpen(false)} className={(s) => `block ${link(s)} !text-base`}>
               {l.name}
-            </Link>
+            </NavLink>
           ))}
-        </div>
-      </div>
-    </nav>
+          <Link to="/sign-in" onClick={() => setOpen(false)} className="block rounded-md px-3 py-2 text-base font-medium text-ink-200 hover:bg-white/5 hover:text-white">
+            Log in
+          </Link>
+        </nav>
+      )}
+    </header>
   );
 };
 

@@ -6,7 +6,7 @@ import { Empty, ErrorBox, Loading, PublicLayout, SearchBox, useDebounced, useLoa
 export const STATUS = {
   completed: ["Completed", "bg-emerald-100 text-emerald-800"],
   live: ["Live now", "bg-red-100 text-red-700"],
-  in_progress: ["In progress", "bg-sky-100 text-sky-800"],
+  in_progress: ["In progress", "bg-brand-100 text-brand-800"],
   upcoming: ["Upcoming", "bg-amber-100 text-amber-800"],
 };
 
@@ -32,7 +32,7 @@ export default function TournamentsPage() {
       <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
         {(data || []).map((t) => (
           <Link key={t.id} to={`/tournaments/${t.id}`} className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm transition hover:border-emerald-400 hover:shadow-md focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500">
-            <div className="h-28 bg-gradient-to-br from-slate-800 to-emerald-800" style={t.banner ? { backgroundImage: `url(${fileUrl(t.banner)})`, backgroundSize: "cover", backgroundPosition: "center" } : undefined} />
+            <div className="h-28 bg-ink-800" style={t.banner ? { backgroundImage: `url(${fileUrl(t.banner)})`, backgroundSize: "cover", backgroundPosition: "center" } : undefined} />
             <div className="p-4">
               <div className="flex items-start justify-between gap-2">
                 <h2 className="text-base font-bold text-slate-900">{t.name}</h2>
@@ -44,8 +44,8 @@ export default function TournamentsPage() {
               </p>
               {t.champion ? (
                 <p className="mt-3 rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-900">
-                  🥇 <strong>{t.champion}</strong>
-                  {t.runnerUp ? <span className="text-amber-800"> · 🥈 {t.runnerUp}</span> : null}
+                  Champions <strong>{t.champion}</strong>
+                  {t.runnerUp ? <span className="text-amber-800"> · Runners-up {t.runnerUp}</span> : null}
                 </p>
               ) : (
                 <p className="mt-3 text-sm text-slate-500">

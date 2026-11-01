@@ -1,92 +1,78 @@
-import { card } from "../ui/classes";
-import { overChips } from "./scoreUtils";
+import { LuUserRoundX } from "react-icons/lu";
+import { Card, PlayerAvatar } from "../ui/kit";
 
-const CHIP = {
-  dot: "bg-slate-200 text-slate-600",
-  run: "bg-white text-slate-900 ring-1 ring-slate-300",
-  four: "bg-sky-600 text-white",
-  six: "bg-violet-600 text-white",
-  wicket: "bg-red-600 text-white",
-  extra: "bg-amber-200 text-amber-900",
-};
-
-/** The two batters, the bowler and the balls of this over. */
+/** The two batters and the bowler: what the scorer is watching ball by ball. */
 export default function PlayersPanel({ inning, onRetire, awaitingBowler }) {
-  const chips = overChips(inning);
   const bowler = inning.currentBowler;
 
   return (
-    <section className={`${card} overflow-hidden`} aria-label="Batters and bowler">
+    <Card padded={false} className="overflow-hidden" aria-label="Batters and bowler">
       <table className="w-full text-sm">
-        <thead className="bg-slate-50 text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500">
+        <thead className="border-b border-slate-100 bg-slate-50/80 text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500">
           <tr>
-            <th className="px-4 py-2">Batter</th>
-            <th className="px-2 py-2 text-right">R</th>
-            <th className="px-2 py-2 text-right">B</th>
-            <th className="px-2 py-2 text-right">4s</th>
-            <th className="px-2 py-2 text-right">6s</th>
-            <th className="px-4 py-2 text-right">SR</th>
+            <th className="px-5 py-2.5">At the crease</th>
+            <th className="px-2 py-2.5 text-right">R</th>
+            <th className="px-2 py-2.5 text-right">B</th>
+            <th className="px-2 py-2.5 text-right">4s</th>
+            <th className="px-2 py-2.5 text-right">6s</th>
+            <th className="px-5 py-2.5 text-right">SR</th>
           </tr>
         </thead>
         <tbody className="divide-y divide-slate-100">
           {inning.currentBatsmen.length === 0 && (
             <tr>
-              <td colSpan={6} className="px-4 py-4 text-center text-slate-500">
+              <td colSpan={6} className="px-5 py-5 text-center text-slate-500">
                 No batter at the crease
               </td>
             </tr>
           )}
           {inning.currentBatsmen.map((b) => (
-            <tr key={b.playerId} className={b.isOnStrike ? "bg-emerald-50/60" : ""}>
-              <td className="px-4 py-3 font-semibold text-slate-900">
-                {b.name}
-                {b.isOnStrike && <span className="ml-1.5 text-emerald-600" title="On strike">🏏</span>}
+            <tr key={b.playerId} className={b.isOnStrike ? "bg-slate-50 shadow-[inset_3px_0_0_0_#374c6b]" : ""}>
+              <td className="px-5 py-3">
+                <div className="flex items-center gap-3">
+                  <PlayerAvatar name={b.name} photo={b.profilePicture} id={b.playerId} size={38} />
+                  <div className="min-w-0">
+                    <p className="truncate font-semibold text-slate-900">{b.name}</p>
+                    {b.isOnStrike ? <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-700">On strike</p> : <p className="text-[11px] uppercase tracking-wider text-slate-400">Non-striker</p>}
+                  </div>
+                </div>
               </td>
-              <td className="px-2 py-3 text-right text-lg font-bold tabular-nums">{b.runs}</td>
-              <td className="px-2 py-3 text-right tabular-nums text-slate-600">{b.balls}</td>
-              <td className="px-2 py-3 text-right tabular-nums text-slate-600">{b.fours}</td>
-              <td className="px-2 py-3 text-right tabular-nums text-slate-600">{b.sixes}</td>
-              <td className="px-4 py-3 text-right tabular-nums text-slate-600">{b.strikeRate}</td>
+              <td className="tabular px-2 py-3 text-right text-xl font-bold text-slate-900">{b.runs}</td>
+              <td className="tabular px-2 py-3 text-right text-slate-600">{b.balls}</td>
+              <td className="tabular px-2 py-3 text-right text-slate-600">{b.fours}</td>
+              <td className="tabular px-2 py-3 text-right text-slate-600">{b.sixes}</td>
+              <td className="tabular px-5 py-3 text-right text-slate-600">{b.strikeRate}</td>
             </tr>
           ))}
         </tbody>
       </table>
-      {inning.currentBatsmen.length > 0 && onRetire && (
-        <div className="border-t border-slate-100 px-4 py-2 text-right">
-          <button type="button" onClick={onRetire} className="text-xs font-semibold text-slate-500 hover:text-slate-800">
-            Batter retires…
-          </button>
-        </div>
-      )}
 
-      <div className="border-t border-slate-200 bg-slate-50 px-4 py-3">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          {bowler ? (
+      <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-200 bg-slate-50 px-5 py-3">
+        {bowler ? (
+          <div className="flex min-w-0 items-center gap-3">
+            <PlayerAvatar name={bowler.name} photo={bowler.profilePicture} id={bowler.playerId} size={38} />
             <div className="min-w-0">
-              <div className="truncate font-semibold text-slate-900">
+              <p className="truncate font-semibold text-slate-900">
                 {bowler.name} <span className="ml-1 text-xs font-normal text-slate-500">bowling</span>
-              </div>
-              <div className="text-xs text-slate-600">
-                <span className="font-bold tabular-nums text-slate-900">
+              </p>
+              <p className="text-xs text-slate-600">
+                <span className="tabular font-bold text-slate-900">
                   {bowler.overs}-{bowler.maidens}-{bowler.runsConceded}-{bowler.wickets}
                 </span>{" "}
                 · Econ {bowler.economy}
-              </div>
+              </p>
             </div>
-          ) : (
-            <div className="text-sm text-slate-500">{awaitingBowler ? "Choose the next bowler" : "No bowler yet"}</div>
-          )}
-          <div className="flex items-center gap-1.5" aria-label={bowler ? "This over" : "Last over"}>
-            <span className="mr-1 text-[11px] font-semibold uppercase tracking-wider text-slate-400">{bowler ? "This over" : "Last over"}</span>
-            {chips.length === 0 && <span className="text-xs text-slate-400">—</span>}
-            {chips.map((c, i) => (
-              <span key={i} className={`flex h-8 min-w-8 items-center justify-center rounded-full px-1.5 text-sm font-bold ${CHIP[c.kind]}`}>
-                {c.text}
-              </span>
-            ))}
           </div>
-        </div>
+        ) : (
+          <p className="text-sm text-slate-500">{awaitingBowler ? "Choose the next bowler" : "No bowler yet"}</p>
+        )}
+        {inning.currentBatsmen.length > 0 && onRetire && (
+          <button type="button" onClick={onRetire} className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-slate-500 hover:bg-white hover:text-slate-800">
+            <LuUserRoundX className="h-4 w-4" aria-hidden="true" />
+            Batter retires
+          </button>
+        )}
       </div>
-    </section>
+    </Card>
   );
 }

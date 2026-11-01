@@ -2,15 +2,16 @@ import React, { useEffect, useState } from 'react';
 import { shortDate, teamNewsApi } from '../../api/sparkApi';
 import { Banner, Pill, Spinner } from './Team/common';
 import { btn } from '../ui/classes';
+import { LuBan, LuBell, LuCalendarDays, LuCalendarRange, LuCircleCheck, LuMegaphone, LuTrophy, LuUsers } from 'react-icons/lu';
 
 const KIND = {
-  match_scheduled: { icon: '📅', tone: 'blue', name: 'Match' },
-  season_plan: { icon: '🗓️', tone: 'blue', name: 'Season' },
-  match_result: { icon: '🏏', tone: 'green', name: 'Result' },
-  tournament_winner: { icon: '🏆', tone: 'amber', name: 'Winner' },
-  announcement: { icon: '📢', tone: 'amber', name: 'Announcement' },
-  ban: { icon: '⛔', tone: 'red', name: 'Ban' },
-  ban_revoked: { icon: '✅', tone: 'green', name: 'Ban lifted' },
+  match_scheduled: { icon: LuCalendarDays, tone: 'blue', name: 'Match' },
+  season_plan: { icon: LuCalendarRange, tone: 'blue', name: 'Season' },
+  match_result: { icon: LuUsers, tone: 'green', name: 'Result' },
+  tournament_winner: { icon: LuTrophy, tone: 'amber', name: 'Winner' },
+  announcement: { icon: LuMegaphone, tone: 'amber', name: 'Announcement' },
+  ban: { icon: LuBan, tone: 'red', name: 'Ban' },
+  ban_revoked: { icon: LuCircleCheck, tone: 'green', name: 'Ban lifted' },
 };
 
 const when = (d) => {
@@ -75,7 +76,7 @@ const Alerts = ({ onOpenMatch, onUnread, goTo }) => {
       {data && data.items.length === 0 && <Banner>Nothing yet. You will be told here when matches are scheduled, results come in, and the association has news.</Banner>}
       <ul className="space-y-2">
         {(data ? data.items : []).map((n) => {
-          const k = KIND[n.type] || { icon: '🔔', tone: 'slate', name: 'News' };
+          const k = KIND[n.type] || { icon: LuBell, tone: 'slate', name: 'News' };
           const actionable = n.link && (n.link.startsWith('match:') || n.link.startsWith('tournament:') || n.link === 'announcements');
           return (
             <li key={n.id}>
@@ -86,7 +87,7 @@ const Alerts = ({ onOpenMatch, onUnread, goTo }) => {
                   n.read ? 'border-slate-200 bg-white' : 'border-emerald-300 bg-emerald-50'
                 } ${actionable ? 'hover:border-emerald-400' : 'cursor-default'}`}
               >
-                <span className="text-xl leading-none" aria-hidden="true">{k.icon}</span>
+                <span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-slate-600"><k.icon className="h-[18px] w-[18px]" aria-hidden="true" /></span>
                 <span className="min-w-0 flex-1">
                   <span className="flex flex-wrap items-center gap-2">
                     <span className={`text-sm ${n.read ? 'font-semibold' : 'font-bold'} text-slate-900`}>{n.title}</span>

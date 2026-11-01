@@ -1,5 +1,7 @@
 import { useState } from "react";
-import { btn, card, field, label } from "../ui/classes";
+import { LuPlay } from "react-icons/lu";
+import { field, label } from "../ui/classes";
+import { Alert, Button, Card, PlayerAvatar } from "../ui/kit";
 
 /** Before the first ball of an innings: the two openers and the first bowler. */
 export default function InningsSetup({ inningsNumber, battingTeam, bowlingTeam, banner, onSubmit, busy }) {
@@ -10,11 +12,34 @@ export default function InningsSetup({ inningsNumber, battingTeam, bowlingTeam, 
   const same = strikerId && strikerId === nonStrikerId;
   const ready = strikerId && nonStrikerId && bowlerId && !same;
   const thin = battingTeam.players.length < 2 || bowlingTeam.players.length < 1;
+  const find = (team, id) => team.players.find((p) => String(p.playerId) === String(id));
+
+  const Pick = ({ id, title, value, onChange, team, skip }) => {
+    const chosen = find(team, value);
+    return (
+      <div>
+        <label className={label} htmlFor={id}>
+          {title}
+        </label>
+        <div className="flex items-center gap-3">
+          <PlayerAvatar name={chosen ? chosen.name : "?"} photo={chosen && chosen.profilePicture} id={chosen && chosen.playerId} size={44} />
+          <select id={id} className={field} value={value} onChange={(e) => onChange(e.target.value)}>
+            <option value="">Choose…</option>
+            {team.players.map((p) => (
+              <option key={p.playerId} value={p.playerId} disabled={skip && String(p.playerId) === skip}>
+                {p.name}
+              </option>
+            ))}
+          </select>
+        </div>
+      </div>
+    );
+  };
 
   return (
-    <section className={`${card} p-5 sm:p-6`} aria-labelledby="setup-title">
-      {banner && <div className="mb-4 rounded-lg bg-slate-900 px-4 py-3 text-sm text-white">{banner}</div>}
-      <h2 id="setup-title" className="text-xl font-bold text-slate-900">
+    <Card className="!p-6" aria-labelledby="setup-title">
+      {banner && <div className="mb-5 rounded-xl bg-ink-900 px-4 py-3 text-sm text-white">{banner}</div>}
+      <h2 id="setup-title" className="text-xl font-bold tracking-tight text-slate-900">
         {inningsNumber === 1 ? "Start the match" : "Start the second innings"}
       </h2>
       <p className="mt-1 text-sm text-slate-500">
@@ -22,59 +47,23 @@ export default function InningsSetup({ inningsNumber, battingTeam, bowlingTeam, 
       </p>
 
       {thin ? (
-        <p className="mt-4 rounded-lg bg-amber-50 p-3 text-sm text-amber-800" role="alert">
+        <Alert tone="warn" className="mt-4">
           A playing XI has not been set for one of the teams, so there is nobody to choose. Set the playing XI first.
-        </p>
+        </Alert>
       ) : (
-        <div className="mt-5 grid gap-4 sm:grid-cols-3">
-          <div>
-            <label className={label} htmlFor="open-striker">
-              Opener on strike
-            </label>
-            <select id="open-striker" className={field} value={strikerId} onChange={(e) => setStrikerId(e.target.value)}>
-              <option value="">Choose…</option>
-              {battingTeam.players.map((p) => (
-                <option key={p.playerId} value={p.playerId}>
-                  {p.name}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label className={label} htmlFor="open-non">
-              Opener at the other end
-            </label>
-            <select id="open-non" className={field} value={nonStrikerId} onChange={(e) => setNonStrikerId(e.target.value)}>
-              <option value="">Choose…</option>
-              {battingTeam.players.map((p) => (
-                <option key={p.playerId} value={p.playerId} disabled={String(p.playerId) === strikerId}>
-                  {p.name}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label className={label} htmlFor="open-bowler">
-              Opening bowler ({bowlingTeam.name})
-            </label>
-            <select id="open-bowler" className={field} value={bowlerId} onChange={(e) => setBowlerId(e.target.value)}>
-              <option value="">Choose…</option>
-              {bowlingTeam.players.map((p) => (
-                <option key={p.playerId} value={p.playerId}>
-                  {p.name}
-                </option>
-              ))}
-            </select>
-          </div>
+        <div className="mt-6 grid gap-5 lg:grid-cols-3">
+          <Pick id="open-striker" title="Opener on strike" value={strikerId} onChange={setStrikerId} team={battingTeam} />
+          <Pick id="open-non" title="Opener at the other end" value={nonStrikerId} onChange={setNonStrikerId} team={battingTeam} skip={strikerId} />
+          <Pick id="open-bowler" title={`Opening bowler (${bowlingTeam.name})`} value={bowlerId} onChange={setBowlerId} team={bowlingTeam} />
         </div>
       )}
-      {same && <p className="mt-2 text-sm text-red-600">The two openers must be different players.</p>}
+      {same && <p className="mt-3 text-sm text-red-600">The two openers must be different players.</p>}
 
-      <div className="mt-6">
-        <button type="button" className={btn.primary} disabled={!ready || busy || thin} onClick={() => onSubmit({ strikerId: Number(strikerId), nonStrikerId: Number(nonStrikerId), bowlerId: Number(bowlerId) })}>
-          {busy ? "Saving…" : "Start scoring"}
-        </button>
+      <div className="mt-7">
+        <Button size="lg" icon={LuPlay} busy={busy} disabled={!ready || thin} onClick={() => onSubmit({ strikerId: Number(strikerId), nonStrikerId: Number(nonStrikerId), bowlerId: Number(bowlerId) })}>
+          Start scoring
+        </Button>
       </div>
-    </section>
+    </Card>
   );
 }

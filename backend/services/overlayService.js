@@ -12,6 +12,8 @@ const playerStats = require("./playerStatsService");
 
 const SCENES = [
   "none", // only the score bar
+  "preview", // the two teams, the match and the tournament (before the toss)
+  "over_summary", // the over just bowled: balls, runs, the bowler
   "squads", // playing XI of one or both teams        { teamId?: id | null for both }
   "toss", // who won the toss and what they chose
   "openers", // opening batters + opening bowler
@@ -65,6 +67,8 @@ async function assertMatch(conn, matchId) {
 }
 
 exports.SCENES = SCENES;
+
+exports.assertMatchExists = (matchId) => assertMatch(db, matchId);
 
 exports.getState = async (matchId, conn = db) => {
   const [[row]] = await conn.query(`SELECT scene, payload, auto_hide, shown_at, updated_at FROM match_overlay WHERE match_id = ?`, [matchId]);

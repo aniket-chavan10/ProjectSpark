@@ -2,6 +2,7 @@
 // how its players are rated, and the dates reserved for it to host.
 
 const db = require("../dbconfigure");
+const dateOnly = require("../utils/dateOnly");
 const points = require("./pointsService");
 const ratings = require("./ratingService");
 
@@ -36,6 +37,6 @@ exports.rankings = async (teamId, adminId, { season } = {}) => {
     season: year, seasons, table, mine, teamCount: table.length,
     breakdown: [...byTournament.values()],
     players,
-    hosting: hosting.map((h) => ({ id: h.id, startDate: String(h.start_date).slice(0, 10), endDate: String(h.end_date).slice(0, 10), days: h.reserved_days, status: h.status, tournamentId: h.tournament_id || null })),
+    hosting: hosting.map((h) => ({ id: h.id, startDate: dateOnly(h.start_date), endDate: dateOnly(h.end_date), days: h.reserved_days, status: h.status, tournamentId: h.tournament_id || null })),
   };
 };

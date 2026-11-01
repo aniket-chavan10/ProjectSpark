@@ -1,3 +1,4 @@
+const dateOnly = require("../utils/dateOnly");
 const playerService = require("../services/playerService");
 const squadService = require("../services/squadService");
 const { sendScoringError } = require("../utils/errors");
@@ -58,8 +59,8 @@ exports.overview = handle("Could not load your overview", 200, async (req) => {
   );
   return {
     ...profile,
-    hosting: hosting.map((h) => ({ id: h.id, startDate: String(h.start_date).slice(0, 10), endDate: String(h.end_date).slice(0, 10), tournamentId: h.tournament_id || null })),
-    ban: ban ? { reason: ban.reason, endsOn: ban.ends_on ? String(ban.ends_on).slice(0, 10) : null } : null,
+    hosting: hosting.map((h) => ({ id: h.id, startDate: dateOnly(h.start_date), endDate: dateOnly(h.end_date), tournamentId: h.tournament_id || null })),
+    ban: ban ? { reason: ban.reason, endsOn: dateOnly(ban.ends_on) } : null,
   };
 });
 

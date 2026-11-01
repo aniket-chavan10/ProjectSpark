@@ -83,7 +83,7 @@ function Row({ fixture, slot, teams, issues, editing, onEdit, days, onSlot, read
           </div>
           {issues.map((i, k) => (
             <p key={k} className={`mt-1.5 text-xs ${i.level === "error" ? "text-red-600" : "text-amber-700"}`}>
-              {i.level === "error" ? "⛔ " : "⚠ "}
+              {i.level === "error" ? "Fix: " : "Check: "}
               {i.message}
             </p>
           ))}

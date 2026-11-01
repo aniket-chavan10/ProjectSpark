@@ -1,5 +1,6 @@
 // My Squad: for each tournament the team is in, the team admin names the playing XI + reserves, and can change
 // the XI for a single match until its toss. Works on a phone.
+import { LuTrophy } from "react-icons/lu";
 import React, { useCallback, useEffect, useState } from "react";
 import teamAdminApi from "../../../api/teamAdminApi";
 import { btn, card, stageName, stageStyle } from "../../ui/classes";
@@ -9,7 +10,7 @@ import SquadEditor from "./SquadEditor";
 const when = (m) => [m.date && new Date(`${m.date}T00:00:00`).toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "short" }), m.time].filter(Boolean).join(" · ");
 
 const sourceTag = (m) =>
-  m.locked ? <Pill tone="slate">🔒 Locked</Pill> : m.squadSource === "match" ? <Pill tone="blue">Changed for this match</Pill> : m.squadSource === "tournament" ? <Pill tone="green">Tournament squad</Pill> : <Pill tone="amber">No squad yet</Pill>;
+  m.locked ? <Pill tone="slate">Locked</Pill> : m.squadSource === "match" ? <Pill tone="blue">Changed for this match</Pill> : m.squadSource === "tournament" ? <Pill tone="green">Tournament squad</Pill> : <Pill tone="amber">No squad yet</Pill>;
 
 /** Loads a squad payload and keeps it; `version` makes the editor start afresh after a reset. */
 const useSquad = (load) => {
@@ -212,7 +213,7 @@ const SquadScreen = ({ goToPlayers }) => {
       ) : (
         <>
           <div className="flex items-center justify-between gap-3">
-            <p className="truncate font-semibold text-slate-800">🏆 {tournament.name}</p>
+            <p className="flex items-center gap-2 truncate font-semibold text-slate-800"><LuTrophy className="h-4 w-4 text-amber-600" aria-hidden="true" /> {tournament.name}</p>
             {tournaments.length > 1 && <button type="button" className={btn.ghost} onClick={() => setTournamentId(null)}>Change</button>}
           </div>
           <Tabs value={tab} onChange={setTab} />

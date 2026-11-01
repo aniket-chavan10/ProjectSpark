@@ -45,8 +45,8 @@ const TeamRequests = () => {
   );
 
   return (
-    <div className="p-6 bg-gray-100 min-h-screen">
-      <h1 className="text-3xl font-bold text-gray-800 mb-6">Team Requests</h1>
+    <div className="">
+      <h1 className="text-2xl font-bold tracking-tight text-slate-900 mb-6">Team Requests</h1>
 
       {/* Tabs */}
       <div className="flex border-b border-gray-300 mb-4">
@@ -56,8 +56,8 @@ const TeamRequests = () => {
             onClick={() => setActiveTab(tab)}
             className={`px-4 py-2 text-sm font-medium transition-colors duration-300 ${
               activeTab === tab
-                ? "border-b-4 border-blue-500 text-blue-600"
-                : "text-gray-600 hover:text-blue-500"
+                ? "border-b-4 border-brand-500 text-brand-600"
+                : "text-gray-600 hover:text-brand-500"
             }`}
           >
             {tab.charAt(0).toUpperCase() + tab.slice(1)} Requests
@@ -117,7 +117,7 @@ const TeamRequests = () => {
                           onClick={() =>
                             handleStatusChange(request.id, "approved")
                           }
-                          className="bg-green-500 hover:bg-green-600 text-white px-3 py-1 rounded mr-2 text-sm"
+                          className="bg-brand-500 hover:bg-brand-600 text-white px-3 py-1 rounded mr-2 text-sm"
                         >
                           Approve
                         </button>

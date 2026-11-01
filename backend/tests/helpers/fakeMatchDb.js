@@ -153,9 +153,16 @@ class FakeMatchDb extends FakeScoringDb {
           }))
       );
     }
-    if (s.startsWith("SELECT extra_type, COALESCE(SUM(extras), 0) AS total FROM balls")) {
+    if (s.startsWith("SELECT extra_type, COALESCE(SUM(")) {
+      // extras per type; the byes run off a no-ball (nb_runs_type) are counted as byes, the no-ball itself as 1
       const out = {};
-      this.balls.filter((b) => b.inning_id === p[0] && b.extra_type).forEach((b) => (out[b.extra_type] = (out[b.extra_type] || 0) + b.extras));
+      const add = (k, n) => (out[k] = (out[k] || 0) + n);
+      this.balls.filter((b) => b.inning_id === p[0] && b.extra_type).forEach((b) => {
+        if (b.extra_type === "no-ball" && b.nb_runs_type) {
+          add("no-ball", 1);
+          add(b.nb_runs_type, b.extras - 1);
+        } else add(b.extra_type, b.extras);
+      });
       return rows(Object.entries(out).map(([extra_type, total]) => ({ extra_type, total })));
     }
     if (s.startsWith("SELECT DISTINCT dismissed_player_id FROM balls WHERE inning_id = ? AND is_retired_hurt = 1")) {

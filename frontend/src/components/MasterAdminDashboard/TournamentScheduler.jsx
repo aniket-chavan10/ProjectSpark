@@ -127,9 +127,9 @@ export default function TournamentScheduler() {
       <button
         type="button"
         onClick={() => setCurrentMonth(subMonths(currentMonth, 1))}
-        className="group p-2 bg-white border border-gray-300 hover:border-blue-400 rounded-lg shadow-sm hover:shadow-md transition-all duration-200 flex items-center justify-center"
+        className="group p-2 bg-white border border-gray-300 hover:border-brand-400 rounded-lg shadow-sm hover:shadow-md transition-all duration-200 flex items-center justify-center"
       >
-        <svg className="w-4 h-4 text-gray-600 group-hover:text-blue-600 transition-colors" fill="currentColor" viewBox="0 0 20 20">
+        <svg className="w-4 h-4 text-gray-600 group-hover:text-brand-600 transition-colors" fill="currentColor" viewBox="0 0 20 20">
           <path fillRule="evenodd" d="M12.707 5.293a1 1 0 010 1.414L9.414 10l3.293 3.293a1 1 0 01-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z" clipRule="evenodd" />
         </svg>
       </button>
@@ -143,9 +143,9 @@ export default function TournamentScheduler() {
       <button
         type="button"
         onClick={() => setCurrentMonth(addMonths(currentMonth, 1))}
-        className="group p-2 bg-white border border-gray-300 hover:border-blue-400 rounded-lg shadow-sm hover:shadow-md transition-all duration-200 flex items-center justify-center"
+        className="group p-2 bg-white border border-gray-300 hover:border-brand-400 rounded-lg shadow-sm hover:shadow-md transition-all duration-200 flex items-center justify-center"
       >
-        <svg className="w-4 h-4 text-gray-600 group-hover:text-blue-600 transition-colors" fill="currentColor" viewBox="0 0 20 20">
+        <svg className="w-4 h-4 text-gray-600 group-hover:text-brand-600 transition-colors" fill="currentColor" viewBox="0 0 20 20">
           <path fillRule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clipRule="evenodd" />
         </svg>
       </button>
@@ -179,23 +179,23 @@ export default function TournamentScheduler() {
 
     const statusBgMap = {
       pending: "bg-gradient-to-br from-amber-50 to-amber-100 border-amber-200",
-      open: "bg-gradient-to-br from-blue-50 to-blue-100 border-blue-200",
+      open: "bg-gradient-to-br from-brand-50 to-brand-100 border-brand-200",
       ongoing: "bg-gradient-to-br from-emerald-50 to-emerald-100 border-emerald-200",
       completed: "bg-gradient-to-br from-gray-50 to-gray-100 border-gray-200"
     };
 
     const statusLabelMap = {
       pending: "bg-amber-500 text-white",
-      open: "bg-blue-500 text-white",
+      open: "bg-brand-500 text-white",
       ongoing: "bg-emerald-500 text-white",
       completed: "bg-gray-500 text-white"
     };
 
     const statusIconMap = {
-      pending: "⏳",
-      open: "🎯",
-      ongoing: "🚀",
-      completed: "✅"
+      pending: "",
+      open: "",
+      ongoing: "",
+      completed: ""
     };
 
     const today = new Date();
@@ -220,7 +220,7 @@ export default function TournamentScheduler() {
         const isPastDate = cloneDay < today;
         const isClickable = cloneDay >= today && !isReserved;
 
-        let bgClass = "bg-white hover:bg-blue-50";
+        let bgClass = "bg-white hover:bg-brand-50";
         let borderClass = "border-gray-200";
         let textColor = "text-gray-900";
         let cursorClass = "cursor-pointer";
@@ -230,8 +230,8 @@ export default function TournamentScheduler() {
           textColor = "text-gray-400";
           cursorClass = "cursor-not-allowed";
         } else if (isSelected) {
-          bgClass = "bg-blue-500 text-white";
-          borderClass = "border-blue-500";
+          bgClass = "bg-brand-500 text-white";
+          borderClass = "border-brand-500";
           textColor = "text-white";
         } else if (isReserved) {
           const status = match.tournament_status || "pending";
@@ -251,13 +251,13 @@ export default function TournamentScheduler() {
             key={cloneDay}
             onClick={() => isClickable && handleDateClick(cloneDay)}
             className={`flex flex-col h-16 border transition-all duration-200 hover:shadow-sm ${bgClass} ${borderClass} ${cursorClass} ${
-              isToday ? "ring-2 ring-blue-400 ring-opacity-50" : ""
+              isToday ? "ring-2 ring-brand-400 ring-opacity-50" : ""
             }`}
           >
             <div className={`text-center p-1 font-bold text-sm ${isSelected ? "text-white" : textColor}`}>
               {format(day, "d")}
               {isToday && !isSelected && (
-                <div className="w-1 h-1 bg-blue-500 rounded-full mx-auto mt-0.5"></div>
+                <div className="w-1 h-1 bg-brand-500 rounded-full mx-auto mt-0.5"></div>
               )}
             </div>
 
@@ -286,24 +286,20 @@ export default function TournamentScheduler() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 via-blue-50 to-indigo-100 py-6">
+    <div className="py-0">
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
         
         {/* Header */}
-        <div className="text-center mb-6">
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">
-            🏆 Tournament Scheduler
-          </h1>
-          <p className="text-gray-600">
-            Plan and organize tournament dates with an intuitive calendar interface
-          </p>
+        <div className="mb-6">
+          <h1 className="text-2xl font-bold tracking-tight text-slate-900">Tournament scheduler</h1>
+          <p className="mt-1 text-sm text-slate-500">Reserve dates for a host team. They set the tournament up from their own dashboard.</p>
         </div>
 
         {/* Assignment Form */}
         <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-6 mb-6">
           <div className="flex items-center space-x-3 mb-4">
-            <div className="p-2 bg-blue-100 rounded-lg">
-              <svg className="w-5 h-5 text-blue-600" fill="currentColor" viewBox="0 0 20 20">
+            <div className="p-2 bg-brand-100 rounded-lg">
+              <svg className="w-5 h-5 text-brand-600" fill="currentColor" viewBox="0 0 20 20">
                 <path fillRule="evenodd" d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z" clipRule="evenodd" />
               </svg>
             </div>
@@ -324,7 +320,7 @@ export default function TournamentScheduler() {
                   <select
                     value={organizerAdminId}
                     onChange={(e) => setOrganizerAdminId(e.target.value)}
-                    className="w-full p-3 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white text-gray-900 appearance-none cursor-pointer transition-all duration-200"
+                    className="w-full p-3 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-brand-500 focus:border-brand-500 bg-white text-gray-900 appearance-none cursor-pointer transition-all duration-200"
                     disabled={loadingTeams || teams.length === 0}
                   >
                     <option value="">Choose organizer team...</option>
@@ -347,7 +343,7 @@ export default function TournamentScheduler() {
                 </label>
                 <input
                   type="date"
-                  className="w-full p-3 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200"
+                  className="w-full p-3 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-brand-500 focus:border-brand-500 transition-all duration-200"
                   value={startDate}
                   onChange={(e) => setStartDate(e.target.value)}
                   min={format(new Date(), "yyyy-MM-dd")}
@@ -358,7 +354,7 @@ export default function TournamentScheduler() {
               <div className="flex items-end">
                 <button
                   type="submit"
-                  className="w-full bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white font-bold py-3 px-4 rounded-lg shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
+                  className="w-full bg-gradient-to-r from-brand-600 to-brand-700 hover:from-brand-700 hover:to-brand-800 text-white font-bold py-3 px-4 rounded-lg shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
                   disabled={loadingTeams || teams.length === 0 || !organizerAdminId || !startDate}
                 >
                   {loadingTeams ? (
@@ -390,7 +386,7 @@ export default function TournamentScheduler() {
                   </div>
                 )}
                 {startDate && (
-                  <div className="flex items-center space-x-2 text-green-600 bg-green-50 p-2 rounded-lg">
+                  <div className="flex items-center space-x-2 text-brand-600 bg-brand-50 p-2 rounded-lg">
                     <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
                       <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
                     </svg>
@@ -416,28 +412,28 @@ export default function TournamentScheduler() {
           <div className="bg-gray-50 px-6 py-3 border-t border-gray-200">
             <div className="flex flex-wrap justify-center gap-4 text-xs">
               <div className="flex items-center space-x-1">
-                <div className="w-3 h-3 bg-blue-500 rounded"></div>
+                <div className="w-3 h-3 bg-brand-500 rounded"></div>
                 <span>Selected</span>
               </div>
               <div className="flex items-center space-x-1">
                 <div className="w-3 h-3 bg-amber-500 rounded"></div>
-                <span>⏳ Pending</span>
+                <span>Pending</span>
               </div>
               <div className="flex items-center space-x-1">
-                <div className="w-3 h-3 bg-blue-500 rounded"></div>
-                <span>🎯 Open</span>
+                <div className="w-3 h-3 bg-brand-500 rounded"></div>
+                <span>Open</span>
               </div>
               <div className="flex items-center space-x-1">
                 <div className="w-3 h-3 bg-emerald-500 rounded"></div>
-                <span>🚀 Ongoing</span>
+                <span>Ongoing</span>
               </div>
               <div className="flex items-center space-x-1">
                 <div className="w-3 h-3 bg-gray-500 rounded"></div>
-                <span>✅ Completed</span>
+                <span>Completed</span>
               </div>
             </div>
             <p className="text-center text-xs text-gray-500 mt-2">
-              💡 Click on available dates to select them
+              Click on available dates to select them
             </p>
           </div>
         </div>

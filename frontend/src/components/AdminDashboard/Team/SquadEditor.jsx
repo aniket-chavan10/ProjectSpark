@@ -1,5 +1,6 @@
 // Picks a team's playing XI (in batting order) and reserves from its players. Used for the tournament squad and
 // for a single match. Phone first: big tap targets, one column, the save bar stays in view.
+import { LuLock, LuX } from "react-icons/lu";
 import React, { useMemo, useState } from "react";
 import { btn, card } from "../../ui/classes";
 import { Avatar, Banner, Pill } from "./common";
@@ -142,7 +143,7 @@ const SquadEditor = ({ data, onSave, onReset, saveLabel = "Save squad" }) => {
         <div className="flex items-center gap-3">
           <Avatar name={p.name} photo={p.photo} size={36} />
           <span className="min-w-0 flex-1 truncate text-sm font-semibold text-slate-900">{p.name}</span>
-          <IconBtn onClick={() => drop(id)} disabled={readOnly} aria-label={`Take ${p.name} out of the squad`}>✕</IconBtn>
+          <IconBtn onClick={() => drop(id)} disabled={readOnly} aria-label={`Take ${p.name} out of the squad`}><LuX className="h-4 w-4" /></IconBtn>
         </div>
         <div className="mt-2 flex flex-wrap items-center gap-1.5 pl-1">{children}</div>
       </li>
@@ -151,7 +152,7 @@ const SquadEditor = ({ data, onSave, onReset, saveLabel = "Save squad" }) => {
 
   return (
     <div className="space-y-4 pb-28">
-      {locked && <Banner tone="warn">🔒 {locked}</Banner>}
+      {locked && <Banner tone="warn"><span className="inline-flex items-center gap-1.5"><LuLock className="h-4 w-4" aria-hidden="true" /> {locked}</span></Banner>}
       {error && <Banner tone="error" onClose={() => setError("")}>{error}</Banner>}
       {saved && !dirty && <Banner tone="success">Saved.</Banner>}
 

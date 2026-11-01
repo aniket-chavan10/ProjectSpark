@@ -1,3 +1,4 @@
+const dateOnly = require("../utils/dateOnly");
 // Announcements from the association head. Every team sees the active ones on its dashboard,
 // the public site shows them too, and each team also gets a notification when a new one is posted.
 
@@ -12,7 +13,7 @@ const card = (r) => ({
   title: r.title,
   body: r.body,
   pinned: !!r.pinned,
-  expiresOn: r.expires_on ? String(r.expires_on).slice(0, 10) : null,
+  expiresOn: dateOnly(r.expires_on),
   createdAt: r.created_at,
 });
 

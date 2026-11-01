@@ -53,7 +53,7 @@ export default function TieRulesCard({ tournamentId }) {
       </div>
       <div className="mt-3 flex items-center gap-3">
         <button type="button" className={btn.secondary} disabled={state.busy} onClick={save}>{state.busy ? "Saving…" : "Save"}</button>
-        {state.saved && <span className="text-sm font-medium text-emerald-700">Saved ✓</span>}
+        {state.saved && <span className="text-sm font-medium text-emerald-700">Saved</span>}
         {state.error && <span role="alert" className="text-sm text-red-700">{state.error}</span>}
       </div>
     </section>

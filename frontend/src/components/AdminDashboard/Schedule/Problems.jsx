@@ -1,4 +1,5 @@
 import React from "react";
+import { LuCircleX, LuTriangleAlert } from "react-icons/lu";
 import { card } from "../../ui/classes";
 
 // All the matches that do not fit are reported as one problem, not one line each
@@ -28,7 +29,7 @@ export default function Problems({ errors: rawErrors = [], warnings = [], onFocu
         }`}
       >
         <span className="mr-2" aria-hidden="true">
-          {tone === "error" ? "⛔" : "⚠"}
+          {tone === "error" ? <LuCircleX className="h-4 w-4" aria-hidden="true" /> : <LuTriangleAlert className="h-4 w-4" aria-hidden="true" />}
         </span>
         {p.message}
       </button>

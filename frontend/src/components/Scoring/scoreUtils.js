@@ -47,7 +47,7 @@ export const teamCode = (name) => {
   return words[0].slice(0, 3).toUpperCase();
 };
 
-const PALETTE = ["#e11d48", "#2563eb", "#16a34a", "#d97706", "#7c3aed", "#0891b2", "#ea580c", "#db2777"];
+const PALETTE = ["#9a4a55", "#3f6296", "#4a7a66", "#9a7340", "#6a5b96", "#3f7585", "#9a5a3f", "#8a4a72"];
 export const teamColor = (id) => PALETTE[Math.abs(Number(id) || 0) % PALETTE.length];
 
 /* ------------------------------ balls ------------------------------ */
@@ -59,6 +59,7 @@ export const teamColor = (id) => PALETTE[Math.abs(Number(id) || 0) % PALETTE.len
 export const ballChip = (b) => {
   if (b.wicket) return { text: "W", kind: "wicket" };
   if (b.extras === "wide") return { text: b.extraRuns > 1 ? `Wd+${b.extraRuns - 1}` : "Wd", kind: "extra" };
+  if (b.extras === "no-ball" && b.noBallRunsType) return { text: `Nb+${b.extraRuns - 1}${b.noBallRunsType === "bye" ? "b" : "lb"}`, kind: "extra" };
   if (b.extras === "no-ball") return { text: b.runs > 0 ? `Nb+${b.runs}` : "Nb", kind: "extra" };
   if (b.extras === "bye") return { text: `${b.extraRuns}b`, kind: "extra" };
   if (b.extras === "leg-bye") return { text: `${b.extraRuns}lb`, kind: "extra" };
@@ -78,6 +79,7 @@ export const ballText = (ball, nameOf) => {
   if (ball.ball_outcome === "retired" && !ball.extra_type) return `${nameOf(ball.dismissed_player_id)} retired${ball.is_wicket ? " (out)" : " hurt"}`;
   if (ball.is_wicket) return `WICKET ${nameOf(ball.dismissed_player_id)} ${ball.wicket_type}${ball.runs_scored ? ` (${ball.runs_scored} run${ball.runs_scored > 1 ? "s" : ""})` : ""}`;
   if (extra === "wide") return `Wide${ball.extras > 1 ? ` +${ball.extras - 1}` : ""}`;
+  if (extra === "no-ball" && ball.nb_runs_type) return `No-ball, ${ball.extras - 1} ${ball.nb_runs_type === "bye" ? "bye" : "leg-bye"}${ball.extras - 1 > 1 ? "s" : ""}`;
   if (extra === "no-ball") return `No-ball${ball.runs_scored ? `, ${who} hits ${ball.runs_scored}` : ""}`;
   if (extra === "bye" || extra === "leg-bye") return `${ball.extras} ${extra === "bye" ? "bye" : "leg-bye"}${ball.extras > 1 ? "s" : ""}`;
   if (ball.runs_scored === 0) return `${who}: no run`;
@@ -97,6 +99,7 @@ export const ballToRedo = (row) => {
       runsScored: row.runs_scored,
       extraType: row.extra_type || null,
       extras: row.extra_type ? row.extras : 0,
+      ...(row.nb_runs_type ? { noBallRunsAs: row.nb_runs_type } : {}),
       ...(out ? { isWicket: 1, wicketType: row.wicket_type, dismissedPlayerId: row.dismissed_player_id, fielderId: row.fielder_id || null } : {}),
     },
   };
@@ -113,6 +116,7 @@ export const DISMISSALS = [
   { id: "hit wicket", label: "Hit wicket", who: "striker", dead: true, fielder: "none" },
   { id: "run out", label: "Run out", who: "either", dead: false, fielder: "required" },
   { id: "obstructing the field", label: "Obstructing the field", who: "either", dead: false, fielder: "none" },
+  { id: "hit the ball twice", label: "Hit the ball twice", who: "striker", dead: false, fielder: "none" },
 ];
 
 export const DELIVERIES = [
@@ -192,18 +196,18 @@ export const detectEvent = (prev, next) => {
 
   if (Number(ball.is_wicket) === 1 && ball.ball_outcome !== "retired") {
     const w = b.wicketFalls[b.wicketFalls.length - 1];
-    return w ? { kind: "wicket", title: "WICKET", name: w.playerOutName, detail: dismissalText(w), key: b.lastBallId } : null;
+    return w ? { kind: "wicket", title: "WICKET", name: w.playerOutName, detail: dismissalText(w), playerId: w.playerOutId, key: b.lastBallId } : null;
   }
   // a batter reaching 50 or 100
   const now = batter(ball.batsman_id);
   const before = a.currentBatsmen.find((x) => x.playerId === ball.batsman_id);
   if (now && before) {
     for (const mark of [100, 50]) {
-      if (before.runs < mark && now.runs >= mark) return { kind: "milestone", title: mark === 100 ? "HUNDRED" : "FIFTY", name: now.name, detail: `${now.runs} off ${now.balls} balls`, key: b.lastBallId };
+      if (before.runs < mark && now.runs >= mark) return { kind: "milestone", title: mark === 100 ? "HUNDRED" : "FIFTY", name: now.name, detail: `${now.runs} off ${now.balls} balls`, playerId: now.playerId, key: b.lastBallId };
     }
   }
   const runs = Number(ball.runs_scored);
-  if (runs === 6) return { kind: "six", title: "SIX", name: now ? now.name : "", detail: now ? `${now.runs} (${now.balls})` : "", key: b.lastBallId };
-  if (runs === 4) return { kind: "four", title: "FOUR", name: now ? now.name : "", detail: now ? `${now.runs} (${now.balls})` : "", key: b.lastBallId };
+  if (runs === 6) return { kind: "six", title: "SIX", name: now ? now.name : "", detail: now ? `${now.runs} (${now.balls})` : "", playerId: now && now.playerId, key: b.lastBallId };
+  if (runs === 4) return { kind: "four", title: "FOUR", name: now ? now.name : "", detail: now ? `${now.runs} (${now.balls})` : "", playerId: now && now.playerId, key: b.lastBallId };
   return null;
 };

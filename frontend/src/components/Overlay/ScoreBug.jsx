@@ -1,97 +1,117 @@
 import { AnimatePresence, motion } from "framer-motion";
-import { apiOrigin } from "../../api/matchSocket";
 import { ballsLeft, overChips, projectedScore, runsNeeded, sides, teamCode, teamColor } from "../Scoring/scoreUtils";
+import { C, caps, Divider, draw, EASE, FONT, GLASS, graphic, Label, Letters, Logo, Photo, pop, Roll, SHADOW, slideIn, SLANT, stagger, Tag } from "./bc";
 
-// Everything is drawn on a fixed 1920 x 1080 canvas (see OverlayPage), so sizes here are in canvas pixels.
-const FONT = "'Barlow Condensed', 'Roboto Condensed', 'Arial Narrow', Impact, sans-serif";
+// The score bar along the bottom of the picture. Restrained on purpose:
+// a solid navy bar, the batting team's colour as one block and one hairline, white type, thin dividers.
+// It rises into place and its parts follow in an even stagger; a four, six, wicket or fifty slides a
+// plain banner up over it.
 
 const CHIP = {
-  dot: { background: "rgba(255,255,255,0.14)", color: "#cbd5e1" },
-  run: { background: "#ffffff", color: "#0b1330" },
-  four: { background: "#0ea5e9", color: "#ffffff" },
-  six: { background: "#a855f7", color: "#ffffff" },
-  wicket: { background: "#ef4444", color: "#ffffff" },
-  extra: { background: "#f59e0b", color: "#1f1300" },
+  dot: { background: "transparent", color: "#8a96ab", boxShadow: "inset 0 0 0 2px rgba(255,255,255,.22)" },
+  run: { background: "rgba(255,255,255,.14)", color: "#f2f5fa" },
+  four: { background: "#4a6c9d", color: "#fff" },
+  six: { background: "#5d5497", color: "#fff" },
+  wicket: { background: "#b8433e", color: "#fff" },
+  extra: { background: "rgba(255,255,255,.28)", color: "#fff" },
 };
 
-const BANNER = {
-  four: ["#0369a1", "#0ea5e9"],
-  six: ["#6b21a8", "#c026d3"],
-  wicket: ["#991b1b", "#ef4444"],
-  milestone: ["#a16207", "#fbbf24"],
-};
+const BANNER = { four: "#4a6c9d", six: "#5d5497", wicket: "#b8433e", milestone: "#b99a5c" };
 
-const logoUrl = (team) => (team.logo ? (/^https?:/.test(team.logo) ? team.logo : `${apiOrigin()}/${String(team.logo).replace(/\\/g, "/").replace(/^\/+/, "")}`) : null);
-
-function TeamSlab({ team, width = 190 }) {
-  const logo = logoUrl(team);
+/** FOUR / SIX / WICKET / FIFTY: a plain panel with a coloured edge, the title arriving letter by letter. */
+function EventBanner({ event, photo }) {
+  const color = BANNER[event.kind] || BANNER.four;
   return (
-    <div style={{ width, background: teamColor(team.id), display: "flex", alignItems: "center", justifyContent: "center", gap: 14, height: "100%", clipPath: "polygon(0 0, 100% 0, 92% 100%, 0 100%)", paddingRight: 14 }}>
-      {logo ? <img src={logo} alt="" style={{ width: 66, height: 66, borderRadius: 33, objectFit: "cover", background: "#fff" }} /> : null}
-      <span style={{ fontFamily: FONT, fontWeight: 800, fontSize: 56, letterSpacing: 2, color: "#fff", textShadow: "0 2px 6px rgba(0,0,0,.35)" }}>{teamCode(team.name)}</span>
-    </div>
+    <motion.div key={event.key} initial="hidden" animate="show" exit="exit" variants={graphic(0.06, 0.18)} style={{ position: "absolute", right: 0, bottom: "calc(100% + 26px)", width: 820, height: 108, display: "flex", alignItems: "stretch", background: GLASS, boxShadow: SHADOW, borderLeft: `10px solid ${color}` }}>
+      <motion.div variants={slideIn(-20)} style={{ width: 250, display: "flex", alignItems: "center", paddingLeft: 30 }}>
+        <Letters text={event.title} size={event.title.length > 6 ? 54 : 68} delay={0.3} style={{ letterSpacing: 3 }} />
+      </motion.div>
+      <div style={{ width: 1, margin: "18px 0", background: "rgba(255,255,255,.16)" }} />
+      <motion.div variants={slideIn(24)} style={{ flex: 1, paddingLeft: 30, display: "flex", flexDirection: "column", justifyContent: "center", minWidth: 0 }}>
+        <span style={{ ...caps, fontWeight: 700, fontSize: 40, color: "#fff", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{event.name}</span>
+        <span style={{ ...caps, fontWeight: 500, fontSize: 25, color: C.muted, letterSpacing: 1.5 }}>{event.detail}</span>
+      </motion.div>
+      {photo !== undefined && (
+        <motion.div variants={pop} style={{ display: "flex", alignItems: "center", padding: "0 26px" }}>
+          <Photo src={photo} name={event.name} size={80} />
+        </motion.div>
+      )}
+    </motion.div>
   );
 }
 
-const Divider = () => <div style={{ width: 2, alignSelf: "stretch", margin: "14px 0", background: "linear-gradient(transparent, rgba(255,255,255,.25), transparent)" }} />;
-
-const Label = ({ children, style }) => <div style={{ fontFamily: FONT, fontWeight: 600, fontSize: 20, letterSpacing: 3, color: "#94a3b8", textTransform: "uppercase", ...style }}>{children}</div>;
-
-function Banner({ event }) {
-  const [from, to] = BANNER[event.kind] || BANNER.four;
+/** The bar: the label on top, the dark body that holds the content, one hairline in the team colour. */
+function Frame({ tag, accent, event, eventPhoto, modeKey, children, freeHit }) {
   return (
-    <motion.div
-      key={event.key}
-      initial={{ opacity: 0, y: 40, scale: 0.96 }}
-      animate={{ opacity: 1, y: 0, scale: 1 }}
-      exit={{ opacity: 0, y: 24 }}
-      transition={{ type: "spring", stiffness: 260, damping: 24 }}
-      style={{ position: "absolute", right: 0, bottom: 132, minWidth: 560, height: 96, display: "flex", alignItems: "stretch", filter: "drop-shadow(0 10px 24px rgba(0,0,0,.45))" }}
-    >
-      <div style={{ background: `linear-gradient(90deg, ${from}, ${to})`, display: "flex", alignItems: "center", padding: "0 34px", clipPath: "polygon(0 0, 100% 0, 100% 100%, 5% 100%)" }}>
-        <span style={{ fontFamily: FONT, fontWeight: 800, fontSize: 68, letterSpacing: 4, color: "#fff", lineHeight: 1 }}>{event.title}</span>
-      </div>
-      <div style={{ background: "#0b1330", color: "#fff", display: "flex", flexDirection: "column", justifyContent: "center", padding: "0 30px", minWidth: 280 }}>
-        <span style={{ fontFamily: FONT, fontWeight: 700, fontSize: 34, textTransform: "uppercase", letterSpacing: 1 }}>{event.name}</span>
-        <span style={{ fontFamily: FONT, fontWeight: 500, fontSize: 24, color: "#cbd5e1", letterSpacing: 1 }}>{event.detail}</span>
+    <motion.div initial="hidden" animate="show" variants={graphic(0, 0)} style={{ position: "absolute", left: 96, right: 96, bottom: 56 }}>
+      <AnimatePresence>{event && <EventBanner key={event.key} event={event} photo={eventPhoto} />}</AnimatePresence>
+      <Tag color={accent}>{tag}</Tag>
+      <div style={{ position: "relative", height: 108, filter: "drop-shadow(0 16px 30px rgba(0,0,0,.5))" }}>
+        <div style={{ position: "absolute", inset: 0, clipPath: "polygon(0 0, 100% 0, calc(100% - 26px) 100%, 0 100%)", background: GLASS, boxShadow: "inset 0 1px 0 rgba(255,255,255,.1)" }}>
+          <AnimatePresence mode="wait">
+            <motion.div key={modeKey} initial="hidden" animate="show" exit="exit" variants={stagger(0.05, 0.28)} style={{ position: "absolute", inset: 0, display: "flex", alignItems: "stretch", color: "#fff", paddingRight: 40 }}>
+              {children}
+            </motion.div>
+          </AnimatePresence>
+          <motion.div variants={draw(0.25)} style={{ position: "absolute", left: 0, right: 0, bottom: 0, height: 4, background: accent, transformOrigin: "left" }} />
+        </div>
+        {freeHit && (
+          <div style={{ position: "absolute", right: 60, top: -22, background: "#fff", color: C.ink, ...caps, fontWeight: 800, fontSize: 24, letterSpacing: 4, padding: "3px 18px 1px" }}>FREE HIT</div>
+        )}
       </div>
     </motion.div>
   );
 }
 
-function Shell({ tag, children, event }) {
-  return (
-    <div style={{ position: "absolute", left: 96, right: 96, bottom: 52 }}>
-      <AnimatePresence>{event && <Banner event={event} />}</AnimatePresence>
-      {tag && (
-        <div style={{ display: "inline-block", fontFamily: FONT, fontWeight: 700, fontSize: 22, letterSpacing: 3, textTransform: "uppercase", color: "#0b1330", background: "#fbbf24", padding: "4px 22px 3px", clipPath: "polygon(0 0, 100% 0, 96% 100%, 0 100%)", marginLeft: 0 }}>{tag}</div>
-      )}
-      <div style={{ display: "flex", alignItems: "stretch", height: 112, background: "linear-gradient(90deg, #0a1128 0%, #15235a 55%, #0a1128 100%)", borderRadius: "0 14px 14px 14px", overflow: "hidden", boxShadow: "0 16px 40px rgba(0,0,0,.5), inset 0 0 0 1px rgba(255,255,255,.08)", color: "#fff" }}>{children}</div>
+const Message = ({ big, small, logos }) => (
+  <motion.div variants={slideIn(30)} style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 28, padding: "0 30px", textAlign: "center" }}>
+    {logos && logos[0]}
+    <div style={{ display: "flex", flexDirection: "column", alignItems: "center" }}>
+      <span style={{ ...caps, fontWeight: 700, fontSize: 48, letterSpacing: 2.5, lineHeight: 1.05 }}>{big}</span>
+      {small && <span style={{ ...caps, fontWeight: 500, fontSize: 26, color: C.soft, letterSpacing: 2 }}>{small}</span>}
     </div>
-  );
-}
+    {logos && logos[1]}
+  </motion.div>
+);
 
-const Message = ({ big, small }) => (
-  <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column", padding: "0 40px", textAlign: "center" }}>
-    <span style={{ fontFamily: FONT, fontWeight: 800, fontSize: 52, letterSpacing: 3, textTransform: "uppercase", lineHeight: 1.05 }}>{big}</span>
-    {small && <span style={{ fontFamily: FONT, fontWeight: 500, fontSize: 28, color: "#cbd5e1", letterSpacing: 2, textTransform: "uppercase" }}>{small}</span>}
+/** The batting team: logo and code on its colour. */
+const TeamBlock = ({ team }) => (
+  <motion.div variants={slideIn(-40)} style={{ width: 226, display: "flex", alignItems: "center", justifyContent: "center", gap: 14, background: `linear-gradient(180deg, ${teamColor(team.id)}, ${teamColor(team.id)}cc)`, clipPath: SLANT(16), paddingRight: 14 }}>
+    <Logo team={team} size={54} />
+    <span style={{ ...caps, fontWeight: 700, fontSize: 52, letterSpacing: 1.5, lineHeight: 1 }}>{teamCode(team.name)}</span>
+  </motion.div>
+);
+
+const BatterRow = ({ b }) => (
+  <div style={{ display: "flex", alignItems: "center", gap: 12, height: 48, fontFamily: FONT, textTransform: "uppercase" }}>
+    <span style={{ width: 10, color: C.accent, fontSize: 18 }}>{b.isOnStrike ? "▶" : ""}</span>
+    <Photo src={b.profilePicture} name={b.name} size={38} />
+    <span style={{ flex: 1, fontWeight: b.isOnStrike ? 700 : 500, fontSize: 31, letterSpacing: 1, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", color: b.isOnStrike ? "#fff" : C.soft }}>{b.name}</span>
+    <Roll value={b.runs} style={{ fontWeight: 700, fontSize: 38, minWidth: 54, textAlign: "right" }} />
+    <span style={{ fontWeight: 500, fontSize: 25, color: C.muted, minWidth: 56 }}>({b.balls})</span>
   </div>
 );
 
 /** The broadcast-style bar along the bottom of the picture. */
-export default function ScoreBug({ sb, inning, event, tournamentTag }) {
+export default function ScoreBug({ sb, inning, event, tournamentTag, photoOf }) {
   const tag = tournamentTag || `Match ${sb.matchNo}`;
+  const eventPhoto = event && photoOf ? photoOf(event.playerId) : undefined;
 
   /* ---- match over ---- */
   if (sb.status === "completed") {
     const r = sb.matchResult;
     const [a, b] = sb.innings;
-    const nameOf = (i) => (i.teamId === sb.teams.team1.id ? sb.teams.team1.name : sb.teams.team2.name);
+    const teamOfInnings = (i) => (i.teamId === sb.teams.team1.id ? sb.teams.team1 : sb.teams.team2);
     const margin = r && r.marginType === "tiebreak" ? "after a tie" : r && r.marginType === "wickets" ? `by ${r.marginValue} wicket${r.marginValue === 1 ? "" : "s"}` : r && r.marginType === "runs" ? `by ${r.marginValue} run${r.marginValue === 1 ? "" : "s"}` : "";
+    const winner = r && r.winnerTeamId ? (r.winnerTeamId === sb.teams.team1.id ? sb.teams.team1 : sb.teams.team2) : null;
     return (
-      <Shell tag={tag}>
-        <Message big={!r ? "Match complete" : r.marginType === "tie" ? "Match tied" : `${r.winnerTeamName} won ${margin}`} small={[a, b].filter(Boolean).map((i) => `${teamCode(nameOf(i))} ${i.totalRuns}/${i.wickets} (${i.overs})`).join("   ·   ")} />
-      </Shell>
+      <Frame tag="Result" accent={winner ? teamColor(winner.id) : C.accent} modeKey="done" event={event} eventPhoto={eventPhoto}>
+        <Message
+          big={!r ? "Match complete" : r.marginType === "tie" ? "Match tied" : `${r.winnerTeamName} won ${margin}`}
+          small={[a, b].filter(Boolean).map((i) => `${teamCode(teamOfInnings(i).name)} ${i.totalRuns}/${i.wickets} (${i.overs})`).join("   ·   ")}
+          logos={winner ? [<Logo key="w" team={winner} size={64} />, null] : undefined}
+        />
+      </Frame>
     );
   }
 
@@ -104,21 +124,25 @@ export default function ScoreBug({ sb, inning, event, tournamentTag }) {
     if (inning.inningsNumber === 2) {
       const firstTeam = first.teamId === sb.teams.team1.id ? sb.teams.team1 : sb.teams.team2;
       return (
-        <Shell tag="Innings break">
-          <TeamSlab team={firstTeam} />
-          <div style={{ display: "flex", alignItems: "center", padding: "0 34px", fontFamily: FONT, fontWeight: 800, fontSize: 64 }}>
-            {first.totalRuns}-{first.wickets} <span style={{ fontSize: 28, color: "#94a3b8", marginLeft: 14 }}>({first.overs})</span>
-          </div>
+        <Frame tag="Innings break" accent={teamColor(firstTeam.id)} modeKey="break" event={event} eventPhoto={eventPhoto}>
+          <TeamBlock team={firstTeam} />
+          <motion.div variants={slideIn(-30)} style={{ display: "flex", alignItems: "center", padding: "0 34px", ...caps, fontWeight: 700, fontSize: 62 }}>
+            {first.totalRuns}/{first.wickets} <span style={{ fontSize: 26, color: C.muted, marginLeft: 14 }}>({first.overs})</span>
+          </motion.div>
           <Divider />
           <Message big={`${batting.name} need ${inning.targetScore || first.totalRuns + 1} to win`} small={`from ${sb.maxOvers} overs`} />
-        </Shell>
+        </Frame>
       );
     }
     const tossTeam = sb.tossWinnerId ? (sb.tossWinnerId === sb.teams.team1.id ? sb.teams.team1 : sb.teams.team2) : null;
     return (
-      <Shell tag={tag}>
-        <Message big={`${sb.teams.team1.name}  v  ${sb.teams.team2.name}`} small={tossTeam ? `${tossTeam.name} won the toss and chose to ${sb.tossDecision === "bat" ? "bat" : "bowl"}` : "Match starting soon"} />
-      </Shell>
+      <Frame tag={tag} accent={C.accent} modeKey="pre" event={event} eventPhoto={eventPhoto}>
+        <Message
+          big={`${sb.teams.team1.name}  v  ${sb.teams.team2.name}`}
+          small={tossTeam ? `${tossTeam.name} won the toss and chose to ${sb.tossDecision === "bat" ? "bat" : "bowl"}` : "Match starting soon"}
+          logos={[<Logo key="a" team={sb.teams.team1} size={66} />, <Logo key="b" team={sb.teams.team2} size={66} />]}
+        />
+      </Frame>
     );
   }
 
@@ -131,92 +155,85 @@ export default function ScoreBug({ sb, inning, event, tournamentTag }) {
   const bowler = inning.currentBowler;
 
   return (
-    <Shell tag={tag} event={event}>
-      {/* team and score */}
-      <TeamSlab team={batting} />
-      <div style={{ display: "flex", alignItems: "center", gap: 18, padding: "0 30px", minWidth: 330 }}>
-        <AnimatePresence mode="popLayout">
-          <motion.span key={`${inning.totalRuns}-${inning.wickets}`} initial={{ y: -14, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.25 }} style={{ fontFamily: FONT, fontWeight: 800, fontSize: 78, lineHeight: 1, letterSpacing: 1 }}>
-            {inning.totalRuns}-{inning.wickets}
-          </motion.span>
-        </AnimatePresence>
+    <Frame tag={tag} accent={teamColor(batting.id)} modeKey="live" event={event} eventPhoto={eventPhoto} freeHit={inning.freeHit}>
+      <TeamBlock team={batting} />
+
+      {/* the score */}
+      <motion.div variants={slideIn(-24)} style={{ display: "flex", alignItems: "center", gap: 16, padding: "0 28px", minWidth: 310 }}>
+        <span style={{ ...caps, fontWeight: 700, fontSize: 80, lineHeight: 1, letterSpacing: 0.5, display: "inline-flex", alignItems: "baseline" }}>
+          <Roll value={inning.totalRuns} />
+          <span style={{ color: C.muted, margin: "0 3px", fontWeight: 400 }}>/</span>
+          <Roll value={inning.wickets} />
+        </span>
         <div style={{ lineHeight: 1.05 }}>
-          <div style={{ fontFamily: FONT, fontWeight: 700, fontSize: 38 }}>{inning.overs}</div>
-          <Label style={{ fontSize: 17 }}>of {sb.maxOvers} ov</Label>
+          <div style={{ ...caps, fontWeight: 600, fontSize: 36 }}>{inning.overs}</div>
+          <Label style={{ fontSize: 15 }}>of {sb.maxOvers} ov</Label>
         </div>
-      </div>
+      </motion.div>
 
       <Divider />
 
       {/* batters */}
-      <div style={{ display: "flex", flexDirection: "column", justifyContent: "center", gap: 6, padding: "0 28px", minWidth: 440 }}>
+      <motion.div variants={slideIn(-24)} style={{ display: "flex", flexDirection: "column", justifyContent: "center", padding: "0 24px", width: 440 }}>
         {inning.currentBatsmen.map((b) => (
-          <div key={b.playerId} style={{ display: "flex", alignItems: "baseline", gap: 12, fontFamily: FONT, textTransform: "uppercase" }}>
-            <span style={{ width: 22, color: "#fbbf24", fontSize: 26 }}>{b.isOnStrike ? "▶" : ""}</span>
-            <span style={{ flex: 1, fontWeight: b.isOnStrike ? 800 : 600, fontSize: 34, letterSpacing: 1, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", color: b.isOnStrike ? "#fff" : "#cbd5e1" }}>{b.name}</span>
-            <span style={{ fontWeight: 800, fontSize: 38, minWidth: 54, textAlign: "right" }}>{b.runs}</span>
-            <span style={{ fontWeight: 500, fontSize: 26, color: "#94a3b8", minWidth: 62 }}>({b.balls})</span>
-          </div>
+          <BatterRow key={b.playerId} b={b} />
         ))}
         {inning.currentBatsmen.length === 0 && <Label>New batter</Label>}
-      </div>
+      </motion.div>
 
       <Divider />
 
       {/* bowler and this over */}
-      <div style={{ display: "flex", flexDirection: "column", justifyContent: "center", gap: 8, padding: "0 28px", minWidth: 470 }}>
+      <motion.div variants={slideIn(-24)} style={{ display: "flex", flexDirection: "column", justifyContent: "center", gap: 8, padding: "0 24px", width: 430 }}>
         {bowler ? (
-          <div style={{ display: "flex", alignItems: "baseline", gap: 14, fontFamily: FONT, textTransform: "uppercase" }}>
-            <span style={{ fontWeight: 700, fontSize: 34, letterSpacing: 1, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: 250 }}>{bowler.name}</span>
-            <span style={{ fontWeight: 600, fontSize: 30, color: "#cbd5e1" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 12, fontFamily: FONT, textTransform: "uppercase" }}>
+            <Photo src={bowler.profilePicture} name={bowler.name} size={38} />
+            <span style={{ fontWeight: 600, fontSize: 31, letterSpacing: 1, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", flex: 1 }}>{bowler.name}</span>
+            <span style={{ fontWeight: 600, fontSize: 28, color: C.soft }}>
               {bowler.overs}-{bowler.maidens}-{bowler.runsConceded}-{bowler.wickets}
             </span>
           </div>
         ) : (
           <Label>Next bowler</Label>
         )}
-        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          <Label style={{ fontSize: 17, marginRight: 6 }}>{bowler ? "This over" : "Last over"}</Label>
+        <motion.div variants={stagger(0.04, 0.1)} style={{ display: "flex", alignItems: "center", gap: 7, minHeight: 32 }}>
+          <Label style={{ fontSize: 15, marginRight: 4 }}>{bowler ? "This over" : "Last over"}</Label>
           {chips.slice(-8).map((c, i) => (
-            <span key={i} style={{ ...CHIP[c.kind], width: 38, minWidth: 38, height: 38, borderRadius: 19, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: FONT, fontWeight: 800, fontSize: c.text.length > 2 ? 17 : 24, padding: c.text.length > 2 ? "0 6px" : 0 }}>
+            <motion.span key={i} variants={pop} style={{ ...CHIP[c.kind], width: 33, minWidth: 33, height: 33, borderRadius: 17, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: FONT, fontWeight: 700, fontSize: c.text.length > 2 ? 14 : 21, padding: c.text.length > 2 ? "0 5px" : 0 }}>
               {c.text}
-            </span>
+            </motion.span>
           ))}
-        </div>
-      </div>
+        </motion.div>
+      </motion.div>
 
       <Divider />
 
       {/* the state of the game */}
-      <div style={{ flex: 1, display: "flex", flexDirection: "column", justifyContent: "center", padding: "0 30px", gap: 0, fontFamily: FONT, textTransform: "uppercase", overflow: "hidden" }}>
+      <motion.div variants={slideIn(-20)} style={{ flex: 1, display: "flex", flexDirection: "column", justifyContent: "center", padding: "0 24px", fontFamily: FONT, textTransform: "uppercase", overflow: "hidden", minWidth: 0 }}>
         {chase ? (
           <>
-            <div style={{ display: "flex", gap: 20, alignItems: "baseline" }}>
+            <div style={{ display: "flex", gap: 14, alignItems: "baseline" }}>
               <Label>Target</Label>
-              <span style={{ fontWeight: 800, fontSize: 34 }}>{inning.targetScore}</span>
+              <span style={{ fontWeight: 700, fontSize: 34 }}>{inning.targetScore}</span>
             </div>
-            <div style={{ fontWeight: 700, fontSize: 28, color: need === 0 ? "#4ade80" : "#fbbf24", letterSpacing: 1, lineHeight: 1.05 }}>{need === 0 ? "Target reached" : `Need ${need} off ${left}`}</div>
-            <Label style={{ fontSize: 16 }}>RRR {inning.requiredRunRate ? inning.requiredRunRate.toFixed(2) : "0.00"} · CRR {inning.runRate ? inning.runRate.toFixed(2) : "0.00"}</Label>
+            <div style={{ fontWeight: 700, fontSize: 28, color: need === 0 ? C.green : "#fff", letterSpacing: 1, lineHeight: 1.05, whiteSpace: "nowrap" }}>{need === 0 ? "Target reached" : `Need ${need} off ${left}`}</div>
+            <Label style={{ fontSize: 15 }}>
+              RRR {inning.requiredRunRate ? inning.requiredRunRate.toFixed(2) : "0.00"} · CRR {inning.runRate ? inning.runRate.toFixed(2) : "0.00"}
+            </Label>
           </>
         ) : (
           <>
-            <div style={{ display: "flex", gap: 20, alignItems: "baseline" }}>
+            <div style={{ display: "flex", gap: 14, alignItems: "baseline" }}>
               <Label>CRR</Label>
-              <span style={{ fontWeight: 800, fontSize: 34 }}>{inning.runRate ? inning.runRate.toFixed(2) : "0.00"}</span>
+              <span style={{ fontWeight: 700, fontSize: 34 }}>{inning.runRate ? inning.runRate.toFixed(2) : "0.00"}</span>
             </div>
-            {projected ? <div style={{ fontWeight: 700, fontSize: 26, color: "#cbd5e1", lineHeight: 1.05 }}>Projected {projected}</div> : null}
-            <Label style={{ fontSize: 16 }}>
-              {bowling.name} bowling · Partnership {inning.partnershipRuns}
+            {projected ? <div style={{ fontWeight: 600, fontSize: 27, color: C.soft, lineHeight: 1.05 }}>Projected {projected}</div> : null}
+            <Label style={{ fontSize: 15, whiteSpace: "nowrap" }}>
+              {bowling.name} bowling · Stand {inning.partnershipRuns}
             </Label>
           </>
         )}
-      </div>
-
-      {inning.freeHit && (
-        <motion.div animate={{ opacity: [1, 0.55, 1] }} transition={{ duration: 1, repeat: Infinity }} style={{ position: "absolute", right: 22, top: -20, background: "#fbbf24", color: "#1f1300", fontFamily: FONT, fontWeight: 800, fontSize: 26, letterSpacing: 4, padding: "4px 20px 2px", borderRadius: 6 }}>
-          FREE HIT
-        </motion.div>
-      )}
-    </Shell>
+      </motion.div>
+    </Frame>
   );
 }

@@ -1,68 +1,61 @@
-import React, { useState } from "react";
+import React, { useRef, useState } from "react";
+import { LuImagePlus } from "react-icons/lu";
 import adminApi from "../../api/adminApi";
+import { Alert, Button, Card, CardHeader, PageHeader, Spinner, TeamLogo } from "../ui/kit";
 
+// The team's logo: it is on the scorecards, the rankings and the broadcast overlay.
+const Profile = ({ team, onChanged }) => {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const [done, setDone] = useState("");
+  const [preview, setPreview] = useState(null);
+  const input = useRef(null);
 
-const Profile = ({ profilePhoto, setProfilePhoto }) => {
-  const [isUploading, setIsUploading] = useState(false);
-  const [error, setError] = useState(null);
-  const [successMessage, setSuccessMessage] = useState(null);
+  if (!team) return <Spinner />;
 
-  const handlePhotoUpload = (e) => {
-    const file = e.target.files[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onload = () => {
-        setProfilePhoto(reader.result); // Display the selected image before upload
-      };
-      reader.readAsDataURL(file);
-      uploadTeamLogo(file); // Call the upload function
-    }
-  };
-
-  const uploadTeamLogo = async (file) => {
-    setIsUploading(true);
-    setError(null);
-    setSuccessMessage(null);
-
-    const token = localStorage.getItem("authToken"); // Get the token from localStorage
-
+  const upload = async (e) => {
+    const file = e.target.files && e.target.files[0];
+    if (!file) return;
+    if (!/^image\//.test(file.type)) return setError("Choose a picture (PNG or JPG).");
+    setError("");
+    setDone("");
+    setPreview(URL.createObjectURL(file));
+    setBusy(true);
     try {
-      const response = await adminApi.updateTeamLogo(file, token);
-
-      if (response.status === 200) {
-        setSuccessMessage("Team logo updated successfully!");
-        console.log("Updated team logo:", response.data);
-      } else {
-        setError("Failed to update team logo.");
-      }
+      const res = await adminApi.updateTeamLogo(file, localStorage.getItem("authToken"));
+      if (res.status !== 200) throw new Error("Failed to update the team logo.");
+      setDone("Logo saved. It now shows on scorecards and the broadcast.");
+      if (onChanged) onChanged();
     } catch (err) {
-      console.error("Error during logo update:", err);
-      setError("An error occurred while updating the team logo.");
+      setError(err.response?.data?.message || err.message || "Could not save the logo.");
     } finally {
-      setIsUploading(false);
+      setBusy(false);
+      if (input.current) input.current.value = "";
     }
   };
 
   return (
-    <div>
-      <h1 className="text-2xl font-bold mb-4">Profile</h1>
-      <div className="bg-white p-4 rounded-lg shadow">
-        <img
-          src={profilePhoto}
-          alt="Profile"
-          className="w-24 h-24 rounded-full mb-4"
-        />
-        <input
-          type="file"
-          onChange={handlePhotoUpload}
-          className="block text-sm text-gray-600 mb-4"
-        />
-        {isUploading && <p>Uploading...</p>}
-        {error && <p className="text-red-500">{error}</p>}
-        {successMessage && <p className="text-green-500">{successMessage}</p>}
-        <p className="mt-4">Name: Team Manager</p>
-        <p>Email: manager@example.com</p>
-      </div>
+    <div className="max-w-2xl space-y-6">
+      <PageHeader title="Team profile" subtitle="How your team looks on scorecards, rankings and the live broadcast." />
+      <Card>
+        <CardHeader title="Team logo" subtitle="A square picture works best. It is shown round." />
+        <div className="mt-5 flex flex-wrap items-center gap-6">
+          {preview ? <img src={preview} alt="New logo" className="h-24 w-24 rounded-full object-cover ring-1 ring-slate-200" /> : <TeamLogo team={team} size={96} />}
+          <div>
+            <p className="text-lg font-semibold text-slate-900">{team.name}</p>
+            <div className="mt-3">
+              <input ref={input} type="file" accept="image/*" className="sr-only" id="team-logo" onChange={upload} />
+              <Button variant="secondary" icon={LuImagePlus} busy={busy} onClick={() => input.current && input.current.click()}>
+                {team.logo ? "Change logo" : "Upload logo"}
+              </Button>
+            </div>
+          </div>
+        </div>
+        <div className="mt-4 space-y-3">
+          {error && <Alert tone="error">{error}</Alert>}
+          {done && <Alert tone="success">{done}</Alert>}
+        </div>
+      </Card>
     </div>
   );
 };

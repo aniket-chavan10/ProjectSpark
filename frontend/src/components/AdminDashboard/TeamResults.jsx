@@ -43,7 +43,7 @@ const TeamResults = ({ teamId, openMatchId, clearOpen }) => {
               </p>
               <p className="mt-2 text-lg font-bold">{detail.data.teams.map((t) => t.name).join(' vs ')}</p>
               <p className="text-amber-300">{detail.data.result}</p>
-              {detail.data.playerOfMatch && <p className="mt-1 text-sm text-slate-300">🏅 Player of the match: {detail.data.playerOfMatch.name}</p>}
+              {detail.data.playerOfMatch && <p className="mt-1 text-sm text-slate-300">Player of the match: {detail.data.playerOfMatch.name}</p>}
             </div>
             <Scorecard innings={detail.data.scorecard} />
           </>

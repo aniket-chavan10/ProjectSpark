@@ -1,14 +1,8 @@
 import React from "react";
-import Registartion from "../components/Registration";
-import Navbar from "../components/Navbar";
-function SignUpPage() {
+import Registration from "../components/Registration";
 
-  return (
-    <>
-    <Navbar/>
-      <Registartion />
-    </>
-  );
+function SignUpPage() {
+  return <Registration />;
 }
 
 export default SignUpPage;

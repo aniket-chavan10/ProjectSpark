@@ -1,3 +1,4 @@
+const dateOnly = require("../utils/dateOnly");
 // Sponsors of the association, shown on the public pages. Each sponsor has a tier (how prominent), the places it
 // appears (home page, footer strip, results pages, awards page) and an optional start and end date.
 
@@ -15,8 +16,8 @@ const shape = (r) => ({
   tagline: r.tagline || null,
   tier: r.tier,
   placements: String(r.placements || "").split(",").filter(Boolean),
-  startsOn: r.starts_on ? String(r.starts_on).slice(0, 10) : null,
-  endsOn: r.ends_on ? String(r.ends_on).slice(0, 10) : null,
+  startsOn: dateOnly(r.starts_on),
+  endsOn: dateOnly(r.ends_on),
   order: r.sort_order,
   active: !!r.active,
 });

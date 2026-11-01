@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from "react";
+import { LuMonitor } from "react-icons/lu";
 import { btn, card } from "./classes";
 
 const QUERY = "(min-width: 1024px)";
@@ -24,7 +25,7 @@ const DesktopOnly = ({ title = "This needs a bigger screen", what = "This", alt,
   if (desktop) return children;
   return (
     <div className={`${card} mx-auto mt-6 max-w-md p-6 text-center`}>
-      <div className="text-4xl" aria-hidden="true">🖥️</div>
+      <LuMonitor className="mx-auto h-10 w-10 text-slate-400" aria-hidden="true" />
       <h2 className="mt-3 text-lg font-bold text-slate-900">{title}</h2>
       <p className="mt-2 text-sm text-slate-600">
         {what} is done from a laptop or desktop computer. Open Spark there to continue. On your phone you can still manage your players and your squads.

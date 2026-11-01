@@ -4,13 +4,13 @@ exports.insertBall = async (conn, data) => {
       inning_id, over_number, ball_number, batsman_id, bowler_id, runs_scored,
       is_wicket, wicket_type, dismissed_player_id, fielder_id,
       extras, extra_type, legal_delivery, is_retired_hurt,
-      shot_type, ball_outcome, wagon_wheel_region
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      shot_type, ball_outcome, wagon_wheel_region, nb_runs_type
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       data.inningId, data.overNumber, data.ballNumber, data.batsmanId, data.bowlerId, data.runsScored,
       data.isWicket, data.wicketType, data.dismissedPlayerId, data.fielderId,
       data.extras, data.extraType, data.legalDelivery ? 1 : 0, data.isRetiredHurt,
-      data.shotType, data.ballOutcome, data.wagonWheelRegion
+      data.shotType, data.ballOutcome, data.wagonWheelRegion, data.noBallRunsType || null
     ]
   );
 };
@@ -26,7 +26,7 @@ exports.getRecentBallsByInnings = async (conn, inningId, limit = 6) => {
     SELECT ball_id, inning_id, over_number, ball_number, batsman_id, bowler_id,
            runs_scored, is_wicket, wicket_type, dismissed_player_id, fielder_id, extras,
            extra_type, legal_delivery, ball_timestamp, is_retired_hurt, shot_type,
-           ball_outcome, wagon_wheel_region
+           ball_outcome, wagon_wheel_region, nb_runs_type
     FROM balls
     WHERE inning_id = ?
     ORDER BY over_number DESC, ball_number DESC
@@ -56,11 +56,16 @@ exports.getWicketFallByInnings = async (conn, inningId) => {
 // Extras per type for an innings: [{ extra_type: 'wide', total: 4 }, ...]
 exports.getExtrasBreakdownByInnings = async (conn, inningId) => {
   const [rows] = await conn.execute(
-    `SELECT extra_type, COALESCE(SUM(extras), 0) AS total
+    `SELECT extra_type, COALESCE(SUM(CASE WHEN extra_type = 'no-ball' AND nb_runs_type IS NOT NULL THEN 1 ELSE extras END), 0) AS total
      FROM balls
      WHERE inning_id = ? AND extra_type IS NOT NULL
-     GROUP BY extra_type`,
-    [inningId]
+     GROUP BY extra_type
+     UNION ALL
+     SELECT nb_runs_type AS extra_type, COALESCE(SUM(extras - 1), 0) AS total
+     FROM balls
+     WHERE inning_id = ? AND extra_type = 'no-ball' AND nb_runs_type IS NOT NULL
+     GROUP BY nb_runs_type`,
+    [inningId, inningId]
   );
   return rows;
 };

@@ -10,6 +10,7 @@ import ProtectedRoute from "./components/ProtectedRoute";
 import SignInMasterAdmin from "./pages/SignInMasterAdmin";
 import MatchRoom from "./pages/match/MatchRoom";
 import OverlayPage from "./pages/overlay/OverlayPage";
+import OperatorConsole from "./pages/operator/OperatorConsole";
 import ResultsPage from "./pages/public/ResultsPage";
 import MatchPage from "./pages/public/MatchPage";
 import TeamsPage from "./pages/public/TeamsPage";
@@ -48,6 +49,9 @@ function App() {
 
           {/* Broadcast score bar for the streaming software: public, no login */}
           <Route path="/overlay/:matchId" element={<OverlayPage />} />
+
+          {/* The graphics operator's own console. The key in the scorer's link is the login, for this match only */}
+          <Route path="/operator/:matchId" element={<OperatorConsole />} />
 
           {/* Protected routes */}
           <Route element={<ProtectedRoute allowedRoles={["admin"]} />}>

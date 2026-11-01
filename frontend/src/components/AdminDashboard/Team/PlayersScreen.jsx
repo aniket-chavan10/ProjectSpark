@@ -1,4 +1,5 @@
 // My Players: the team admin adds, edits and removes the players of their own team. Works on a phone.
+import { LuPencil, LuTrash2, LuUserPlus } from "react-icons/lu";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import teamAdminApi from "../../../api/teamAdminApi";
 import { btn, card, field, label } from "../../ui/classes";
@@ -128,10 +129,12 @@ const PlayersScreen = () => {
     <div className="mx-auto max-w-2xl space-y-4">
       <div className="flex items-center justify-between gap-3">
         <div>
-          <h1 className="text-xl font-bold text-slate-900">My Players</h1>
+          <h1 className="text-xl font-bold tracking-tight text-slate-900">My players</h1>
           <p className="text-sm text-slate-500">{players ? `${players.length} in your team` : " "}</p>
         </div>
-        <button type="button" className={btn.primary} onClick={() => setForm({})}>+ Add player</button>
+        <button type="button" className={btn.primary} onClick={() => setForm({})}>
+          <LuUserPlus className="h-4 w-4" aria-hidden="true" /> Add player
+        </button>
       </div>
 
       {error && <Banner tone="error" onClose={() => setError("")}>{error}</Banner>}
@@ -152,15 +155,19 @@ const PlayersScreen = () => {
           {shown.map((p) => (
             <li key={p.id} className={`${card} p-3`}>
               <div className="flex items-center gap-3">
-                <Avatar name={p.name} photo={p.photo} />
+                <Avatar name={p.name} photo={p.photo} id={p.id} size={44} />
                 <div className="min-w-0 flex-1">
                   <p className="truncate font-semibold text-slate-900">{p.name} {p.banned && <Pill tone="red">Banned</Pill>}</p>
                   {p.mobile && <a href={`tel:${p.mobile}`} className="text-sm text-slate-500">{p.mobile}</a>}
                 </div>
                 {removing !== p.id && (
                   <div className="flex shrink-0 gap-1">
-                    <button type="button" className={btn.ghost} onClick={() => setForm({ player: p })} aria-label={`Edit ${p.name}`}>Edit</button>
-                    <button type="button" className={`${btn.ghost} !text-red-600 hover:!bg-red-50`} onClick={() => setRemoving(p.id)} aria-label={`Remove ${p.name}`}>Remove</button>
+                    <button type="button" className="rounded-lg p-2 text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-900" onClick={() => setForm({ player: p })} aria-label={`Edit ${p.name}`} title="Edit">
+                      <LuPencil className="h-[18px] w-[18px]" />
+                    </button>
+                    <button type="button" className="rounded-lg p-2 text-slate-500 transition-colors hover:bg-red-50 hover:text-red-700" onClick={() => setRemoving(p.id)} aria-label={`Remove ${p.name}`} title="Remove">
+                      <LuTrash2 className="h-[18px] w-[18px]" />
+                    </button>
                   </div>
                 )}
               </div>

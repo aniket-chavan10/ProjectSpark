@@ -13,20 +13,23 @@ const STAGES = [
 ];
 
 function FixtureRow({ f }) {
+  const when = f.status === "completed" ? f.result : f.date ? `${shortDate(f.date)} ${f.time || ""}` : "Not scheduled";
   const body = (
-    <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-3 text-sm">
-      <span className="w-14 shrink-0 text-xs font-semibold text-slate-500">#{f.matchNo}</span>
-      <span className="min-w-0 flex-1 font-semibold text-slate-800">
-        {f.team1 ? f.team1.name : "To be decided"} <span className="font-normal text-slate-400">vs</span> {f.team2 ? f.team2.name : "To be decided"}
-      </span>
-      <span className="text-xs text-slate-500">{f.stage === "group" ? f.stageLabel : ""}</span>
-      <span className={`text-xs font-semibold ${f.status === "completed" ? "text-emerald-700" : "text-slate-500"}`}>
-        {f.status === "completed" ? f.result : f.date ? `${shortDate(f.date)} ${f.time || ""}` : "Not scheduled"}
-      </span>
+    <div className="grid gap-1 px-4 py-3 text-sm sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center sm:gap-4">
+      <div className="min-w-0">
+        <p className="text-xs font-medium text-slate-500">
+          Match {f.matchNo}
+          {f.stage === "group" && f.stageLabel ? ` · ${f.stageLabel}` : ""}
+        </p>
+        <p className="font-semibold text-slate-900">
+          {f.team1 ? f.team1.name : "To be decided"} <span className="font-normal text-slate-400">v</span> {f.team2 ? f.team2.name : "To be decided"}
+        </p>
+      </div>
+      <p className={`text-xs ${f.status === "completed" ? "font-semibold text-slate-800" : "text-slate-500"}`}>{when}</p>
     </div>
   );
   return f.matchId ? (
-    <Link to={`/matches/${f.matchId}`} className="block hover:bg-emerald-50">
+    <Link to={`/matches/${f.matchId}`} className="block hover:bg-slate-50">
       {body}
     </Link>
   ) : (
@@ -46,7 +49,7 @@ export default function TournamentPage() {
       {error && <ErrorBox>{error}</ErrorBox>}
       {t && (
         <>
-          <section className="rounded-2xl bg-gradient-to-r from-slate-900 via-slate-800 to-emerald-900 p-6 text-white shadow">
+          <section className="rounded-2xl bg-ink-900 p-6 text-white shadow">
             <div className="flex flex-wrap items-center gap-3">
               <h1 className="text-2xl font-extrabold sm:text-3xl">{t.name}</h1>
               <StatusPill status={t.status} />

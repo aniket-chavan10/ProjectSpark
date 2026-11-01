@@ -10,12 +10,13 @@ const verifyAdminToken = (req, res, next) => {
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET); // Verify the token
 
-    // Attach decoded admin info to request object
-    // In verifyAdminToken middleware
-    req.user = decoded; // Use 'user' to match downstream code
-    // Assuming the token contains the 'id' or 'adminId' in the payload as 'id'
+    // An overlay-operator key (see overlayOperatorAuth) only opens the overlay of one match, nothing else.
+    if (decoded.scope) {
+      return res.status(403).json({ error: "This key cannot be used here" });
+    }
 
-    console.log("Decoded Admin Info:", decoded); // Debugging log to ensure correct token data
+    // Attach decoded admin info to request object
+    req.user = decoded; // Use 'user' to match downstream code
 
     next(); // Proceed to the next middleware or route handler
   } catch (error) {

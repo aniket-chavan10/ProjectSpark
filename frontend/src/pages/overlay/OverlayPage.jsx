@@ -5,6 +5,7 @@ import { overlayApi, publicApi } from "../../api/sparkApi";
 import { watchMatch } from "../../api/matchSocket";
 import ScoreBug from "../../components/Overlay/ScoreBug";
 import SceneLayer, { NEEDS_RANKINGS, NEEDS_SCORECARD } from "../../components/Overlay/Scenes";
+import { photoLookup } from "../../components/Overlay/bc";
 import { currentInnings, detectEvent } from "../../components/Scoring/scoreUtils";
 
 const CANVAS_W = 1920;
@@ -15,13 +16,14 @@ const EVENT_MS = 4200;
 /**
  * /overlay/:matchId  -  for the streaming software (OBS: Browser source, 1920x1080, transparent).
  * The score bar runs along the bottom; the operator's desk can put more on air (squads, openers, scorecard ...).
- * ?bg=green|dark|light shows a colour behind it for testing.
+ * ?bg=green|dark|light shows a colour behind it for testing; ?tag=Text replaces the "Match 5" tag; ?event=8 sets how long banners stay.
  */
 export default function OverlayPage() {
   const { matchId } = useParams();
   const [params] = useSearchParams();
   const bg = BACKGROUNDS[params.get("bg")] || "transparent";
   const tag = params.get("tag") || undefined;
+  const eventMs = (Number(params.get("event")) || 0) * 1000 || EVENT_MS; // ?event=8 keeps the four / six / wicket banner up for 8 seconds
 
   const [sb, setSb] = useState(null);
   const [event, setEvent] = useState(null);
@@ -68,7 +70,7 @@ export default function OverlayPage() {
     if (found) {
       setEvent(found);
       clearTimeout(timer.current);
-      timer.current = setTimeout(() => setEvent(null), EVENT_MS);
+      timer.current = setTimeout(() => setEvent(null), eventMs);
     }
   };
 
@@ -153,12 +155,13 @@ export default function OverlayPage() {
   }, [scene]);
 
   const inning = sb ? currentInnings(sb) : null;
+  const photoOf = photoLookup(sb, data);
 
   return (
     <div style={{ position: "fixed", inset: 0, background: bg, overflow: "hidden" }}>
       <div style={{ position: "absolute", left: 0, bottom: 0, width: CANVAS_W, height: CANVAS_H, transform: `scale(${scale})`, transformOrigin: "bottom left" }}>
         <SceneLayer state={state} data={data} sb={sb} inning={inning} scorecard={scorecard} rankings={rankings} />
-        {sb && inning && <ScoreBug sb={sb} inning={inning} event={event} tournamentTag={tag} />}
+        {sb && inning && <ScoreBug sb={sb} inning={inning} event={event} tournamentTag={tag} photoOf={photoOf} />}
         {problem && <div style={{ position: "absolute", left: 96, bottom: 52, color: "#fff", background: "rgba(220,38,38,.85)", padding: "12px 24px", borderRadius: 8, fontFamily: "sans-serif", fontSize: 24 }}>{problem}</div>}
       </div>
     </div>

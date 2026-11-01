@@ -1,34 +1,22 @@
 import { useCallback, useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
+import { LuX } from "react-icons/lu";
 import scoringApi from "../../api/scoringApi";
+import { SparkMark } from "../../components/layout/AppShell";
+import { Alert, Button, Spinner, Stepper } from "../../components/ui/kit";
 import MatchDetailsStep from "./MatchDetailsStep";
 import ScoringDashboard from "./ScoringDashboard";
 import TossStep from "./TossStep";
 
 const STEPS = [
-  { id: "details", label: "Match & squads" },
+  { id: "details", label: "Squads" },
   { id: "toss", label: "Toss" },
   { id: "scoring", label: "Scoring" },
 ];
 
-function Steps({ step }) {
-  const at = STEPS.findIndex((s) => s.id === step);
-  return (
-    <ol className="flex items-center gap-2 text-sm" aria-label="Steps">
-      {STEPS.map((s, i) => (
-        <li key={s.id} className="flex items-center gap-2" aria-current={i === at ? "step" : undefined}>
-          <span className={`flex h-7 w-7 items-center justify-center rounded-full text-xs font-bold ${i < at ? "bg-emerald-600 text-white" : i === at ? "bg-slate-900 text-white" : "bg-slate-200 text-slate-500"}`}>{i < at ? "✓" : i + 1}</span>
-          <span className={`hidden font-medium sm:inline ${i === at ? "text-slate-900" : "text-slate-500"}`}>{s.label}</span>
-          {i < STEPS.length - 1 && <span className="mx-1 h-px w-5 bg-slate-300" />}
-        </li>
-      ))}
-    </ol>
-  );
-}
-
 /**
  * /match/:fixtureId  (opens in its own tab from the schedule)
- * Match & squads -> toss -> scoring dashboard. A match that already had its toss goes straight to scoring.
+ * Squads -> toss -> scoring console. A match that already had its toss goes straight to scoring.
  */
 export default function MatchRoom() {
   const { fixtureId } = useParams();
@@ -86,39 +74,46 @@ export default function MatchRoom() {
   if (loadError) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-slate-100 p-6">
-        <div className="max-w-md rounded-2xl bg-white p-8 text-center shadow-lg">
-          <h1 className="text-lg font-bold text-slate-900">Could not open this match</h1>
-          <p className="mt-2 text-sm text-red-600" role="alert">{loadError}</p>
-          <div className="mt-5 flex justify-center gap-3">
-            <button type="button" onClick={load} className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-700">
-              Try again
-            </button>
-            <button type="button" onClick={exit} className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">
+        <div className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-8 text-center shadow-pop">
+          <h1 className="text-lg font-semibold text-slate-900">Could not open this match</h1>
+          <div className="mt-4 text-left">
+            <Alert tone="error">{loadError}</Alert>
+          </div>
+          <div className="mt-6 flex justify-center gap-3">
+            <Button onClick={load}>Try again</Button>
+            <Button variant="secondary" onClick={exit}>
               Close
-            </button>
+            </Button>
           </div>
         </div>
       </div>
     );
   }
 
-  if (!step) {
-    return <div className="flex min-h-screen items-center justify-center bg-slate-100 text-sm text-slate-500">Opening the match…</div>;
-  }
+  if (!step) return <div className="flex min-h-screen items-center justify-center bg-slate-100"><Spinner label="Opening the match…" /></div>;
 
   if (step === "scoring") return <ScoringDashboard matchId={liveMatchId} initial={scoreboard} onExit={exit} />;
 
   return (
     <div className="min-h-screen bg-slate-100">
-      <header className="border-b border-slate-200 bg-white">
-        <div className="mx-auto flex max-w-5xl items-center justify-between gap-4 px-4 py-3 sm:px-6">
-          <Steps step={step} />
-          <button type="button" onClick={exit} className="text-sm font-semibold text-slate-500 hover:text-slate-800">
-            Close
+      <header className="sticky top-0 z-30 border-b border-white/10 bg-ink-950 text-white">
+        <div className="mx-auto flex h-16 max-w-6xl items-center gap-4 px-4 sm:px-6">
+          <SparkMark size={34} />
+          <div className="min-w-0 flex-1">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-emerald-300">Match set-up</p>
+            <p className="truncate text-sm font-semibold">
+              {details.team1 && details.team2 ? `${details.team1.team_name} v ${details.team2.team_name}` : "Match"}
+            </p>
+          </div>
+          <div className="hidden rounded-xl bg-white px-3 py-1.5 sm:block">
+            <Stepper steps={STEPS} current={step} />
+          </div>
+          <button type="button" onClick={exit} aria-label="Close" className="inline-flex h-9 w-9 items-center justify-center rounded-lg bg-white/10 ring-1 ring-inset ring-white/15 hover:bg-white/15">
+            <LuX className="h-5 w-5" />
           </button>
         </div>
       </header>
-      <main className="mx-auto max-w-5xl px-4 py-6 sm:px-6">
+      <main className="mx-auto max-w-6xl px-4 py-6 sm:px-6">
         {step === "details" && <MatchDetailsStep details={details} onNext={() => setStep("toss")} />}
         {step === "toss" && <TossStep details={details} onBack={() => setStep("details")} onConfirm={confirmToss} busy={busy} error={tossError} />}
       </main>

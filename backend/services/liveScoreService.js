@@ -6,7 +6,7 @@ const playerModel = require("../models/playerModel");
 const teamModel = require("../models/teamModel");
 const performanceModel = require("../models/playerPerformanceModel");
 const squadModel = require("../models/squadModel");
-const { isFreeHit, isInningsOver } = require("../utils/cricketRules/cricketRules");
+const { isFreeHit, isInningsOver, oversToBalls, ballsToOversString } = require("../utils/cricketRules/cricketRules");
 
 exports.getLiveScoreboard = async (conn, matchId) => {
   // Fetch match data
@@ -88,7 +88,7 @@ exports.getLiveScoreboard = async (conn, matchId) => {
     const rows = await ballsModel.getExtrasBreakdownByInnings(conn, inning.inning_id);
     const byType = {};
     rows.forEach((r) => {
-      byType[r.extra_type] = Number(r.total) || 0;
+      byType[r.extra_type] = (byType[r.extra_type] || 0) + (Number(r.total) || 0); // a no-ball's byes arrive as their own rows
     });
     extrasPerInnings[inning.inning_id] = byType;
   }
@@ -154,6 +154,7 @@ exports.getLiveScoreboard = async (conn, matchId) => {
         runs: ball.runs_scored,
         extras: ball.extra_type || null,
         extraRuns: ball.extras || 0,
+        noBallRunsType: ball.nb_runs_type || null,
         wicket: Number(ball.is_wicket) === 1,
         ballOutcome: ball.ball_outcome,
         shotType: ball.shot_type,
@@ -217,7 +218,7 @@ exports.getLiveScoreboard = async (conn, matchId) => {
         name: bow.name || null,
         profilePicture: bow.profilePicture || null,
         jerseyNumber: bow.jerseyNumber || null,
-        overs: perf.overs_bowled ?? "0.0",
+        overs: ballsToOversString(oversToBalls(perf.overs_bowled ?? 0)), // the database keeps 0.40; cricket writes 0.4
         maidens: perf.maiden_overs ?? 0,
         runsConceded: perf.total_runs_conceded ?? 0,
         wickets: perf.wickets_taken ?? 0,

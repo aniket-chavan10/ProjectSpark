@@ -30,6 +30,29 @@ function normalizeExtraType(extraType) {
   return canonical;
 }
 
+/**
+ * What the batters ran on a no-ball besides the bat: null (the runs came off the bat), "bye" or "leg-bye".
+ * Only a no-ball can carry them (the other extras are already byes or leg-byes, or cannot be run).
+ */
+function normalizeNoBallRunsType(value, extraType) {
+  if (value === null || value === undefined || value === "" || value === "bat") return null;
+  const key = String(value).trim().toLowerCase().replace(/[s_]+/g, "-");
+  if (key !== "bye" && key !== "leg-bye") throw new ScoringError(`Unknown kind of runs off a no-ball: "${value}"`);
+  if (extraType !== "no-ball") throw new ScoringError("Byes and leg-byes off a no-ball can only be entered on a no-ball");
+  return key;
+}
+
+/**
+ * Runs charged to the bowler for a delivery: bat runs, plus the penalty of a wide or no-ball.
+ * Byes and leg-byes are never his, also when they were run off a no-ball (only its one penalty run is).
+ */
+function bowlerRunsCharged(runsScored, extras, extraType, noBallRunsType) {
+  const bat = runsScored || 0;
+  if (extraType === "wide") return bat + (extras || 0);
+  if (extraType === "no-ball") return bat + (noBallRunsType ? Math.min(extras || 0, 1) : extras || 0);
+  return bat;
+}
+
 /** Wides and no-balls do not count as one of the six balls in an over. */
 function isLegalDelivery(extraType) {
   const t = normalizeExtraType(extraType);
@@ -48,16 +71,18 @@ function calculateTotalRuns(runsScored, extras) {
  *  - bye / leg-bye: the extras were run
  *  - otherwise: the bat runs
  */
-function getRunsRun(runsScored, extras, extraType) {
+function getRunsRun(runsScored, extras, extraType, noBallRunsType) {
   const t = normalizeExtraType(extraType);
   if (t === "wide") return Math.max((extras || 0) - 1, 0);
+  // a no-ball whose runs were byes / leg-byes: everything after the penalty run was run
+  if (t === "no-ball" && normalizeNoBallRunsType(noBallRunsType, t)) return Math.max((extras || 0) - 1, 0);
   if (t === "bye" || t === "leg-bye") return extras || 0;
   return runsScored || 0;
 }
 
 /** True when an odd number of runs was run, so the batters changed ends. */
-function shouldRotateStrike(runsScored, extras, extraType /* , isLegal (unused, kept for callers) */) {
-  return getRunsRun(runsScored, extras, extraType) % 2 === 1;
+function shouldRotateStrike(runsScored, extras, extraType, noBallRunsType) {
+  return getRunsRun(runsScored, extras, extraType, noBallRunsType) % 2 === 1;
 }
 
 /** Partnership runs (batter runs + extras). */
@@ -243,6 +268,8 @@ module.exports = {
   isLegalDelivery,
   calculateTotalRuns,
   getRunsRun,
+  normalizeNoBallRunsType,
+  bowlerRunsCharged,
   shouldRotateStrike,
   getPartnershipRuns,
   normalizeWicketType,

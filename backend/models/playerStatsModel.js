@@ -29,6 +29,7 @@ exports.updateStatsOnBall = async (conn, data) => {
     runsScored = 0,
     extras = 0,
     extraType = null,
+    noBallRunsType = null,
     legalDelivery,
     isWicket,
     wicketType,
@@ -61,7 +62,7 @@ exports.updateStatsOnBall = async (conn, data) => {
        total_overs_bowled = ?,
        total_wickets = total_wickets + ?
      WHERE player_id = ?`,
-    [bowlerRuns(runsScored, extras, extraType), newOvers, isWicket && isBowlerWicket(wicketType) ? 1 : 0, bowlerId]
+    [bowlerRuns(runsScored, extras, extraType, noBallRunsType), newOvers, isWicket && isBowlerWicket(wicketType) ? 1 : 0, bowlerId]
   );
 };
 
@@ -76,6 +77,7 @@ exports.revertStatsOnBall = async (conn, lastBall, { dismissedRuns = null } = {}
     dismissed_player_id: dismissedPlayerId,
     legal_delivery: legalDelivery,
     extra_type: extraType = null,
+    nb_runs_type: noBallRunsType = null,
     extras = 0,
   } = lastBall;
 
@@ -102,6 +104,6 @@ exports.revertStatsOnBall = async (conn, lastBall, { dismissedRuns = null } = {}
        total_overs_bowled = ?,
        total_wickets = GREATEST(total_wickets - ?, 0)
      WHERE player_id = ?`,
-    [bowlerRuns(runsScored, extras, extraType), newOvers, isWicket && isBowlerWicket(wicketType) ? 1 : 0, safe(bowlerId)]
+    [bowlerRuns(runsScored, extras, extraType, noBallRunsType), newOvers, isWicket && isBowlerWicket(wicketType) ? 1 : 0, safe(bowlerId)]
   );
 };

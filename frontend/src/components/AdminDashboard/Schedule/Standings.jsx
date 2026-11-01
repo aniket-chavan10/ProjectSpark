@@ -3,9 +3,9 @@ import api from "../../../api/tournamentApi1";
 import { card } from "../../ui/classes";
 
 const PLACES = [
-  { position: 1, name: "1st", medal: "🥇" },
-  { position: 2, name: "2nd", medal: "🥈" },
-  { position: 3, name: "3rd", medal: "🥉" },
+  { position: 1, name: "1st", medal: "1" },
+  { position: 2, name: "2nd", medal: "2" },
+  { position: 3, name: "3rd", medal: "3" },
   { position: 4, name: "4th", medal: "4" },
 ];
 
@@ -38,7 +38,7 @@ export default function Standings({ tournamentId, matches }) {
           return (
             <li key={pl.position} className={`rounded-lg px-3 py-3 ${p ? "bg-emerald-50" : "bg-slate-50"}`}>
               <div className="text-xs font-semibold text-slate-500">
-                {pl.medal} {pl.name} place
+                {pl.name} place
               </div>
               <div className={`mt-0.5 text-sm font-semibold ${p ? "truncate text-slate-900" : "text-slate-400"}`}>
                 {p ? p.teamName : data.hasThirdPlaceMatch && pl.position > 2 ? <span className="text-xs font-medium">Decided by the third-place match</span> : "—"}
