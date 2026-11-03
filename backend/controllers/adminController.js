@@ -82,35 +82,34 @@ const getAllAdminsAndTeams = async (req, res) => {
   }
 };
 
-// Controller: Update Team Logo
+// Controller: Update Team Logo  (PUT /api/admin/teams/logo, multipart field "logo")
 const updateTeamLogo = async (req, res) => {
   const { id: adminId } = req.admin;
 
   if (!req.file) {
-    return res.status(400).json({ error: "No file uploaded" });
+    return res.status(400).json({ error: "No file uploaded", message: "Choose a picture first." });
   }
 
-  const logoPath = req.file.path;
-
-  const sql = `
-    UPDATE teams
-    SET logo = ?
-    WHERE admin_id = ?
-  `;
+  const upload = require("../middlewares/uploadMiddleware");
+  const logoPath = upload.storedPath(req.file); // "uploads/<file>", forward slashes on every system
 
   try {
-    const [result] = await db.query(sql, [logoPath, adminId]);
+    const [[before]] = await db.query("SELECT logo FROM teams WHERE admin_id = ? LIMIT 1", [adminId]);
+    const [result] = await db.query("UPDATE teams SET logo = ? WHERE admin_id = ?", [logoPath, adminId]);
 
     if (result.affectedRows === 0) {
-      return res.status(404).json({ error: "No team associated with this admin" });
+      upload.removeStored(logoPath);
+      return res.status(404).json({ error: "No team associated with this admin", message: "No team is linked to this login." });
     }
+    if (before && before.logo) upload.removeStored(before.logo); // the picture it replaces
 
     res.status(200).json({
       message: "Logo updated successfully",
       logo: logoPath,
     });
   } catch (error) {
-    res.status(500).json({ error: "Error updating team logo", details: error.message });
+    upload.removeStored(logoPath);
+    res.status(500).json({ error: "Error updating team logo", message: "Could not save the logo.", details: error.message });
   }
 };
 

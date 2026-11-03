@@ -48,17 +48,17 @@ const Registration = () => {
       footer={
         <>
           Already approved?{" "}
-          <Link to="/sign-in" className="font-semibold text-emerald-700 hover:underline">
+          <Link to="/sign-in" className="font-bold text-spark-600 hover:underline">
             Sign in
           </Link>
         </>
       }
     >
       {success ? (
-        <div className="rounded-xl border border-slate-200 bg-slate-50 p-6 text-center">
-          <LuCircleCheck className="mx-auto h-9 w-9 text-slate-700" aria-hidden="true" />
-          <h2 className="mt-3 text-lg font-semibold text-slate-900">Request sent</h2>
-          <p className="mt-1 text-sm text-slate-600">The association will review it. You will be contacted on the email and phone you gave.</p>
+        <div className="rounded-2xl border border-green-200 bg-green-50 p-6 text-center">
+          <LuCircleCheck className="mx-auto h-10 w-10 text-green-600" aria-hidden="true" />
+          <h2 className="mt-3 font-display text-2xl font-extrabold uppercase tracking-wide text-ink-950">Request sent</h2>
+          <p className="mt-1 text-sm text-ink-600">The association will review it. You will be contacted on the email and phone you gave.</p>
           <Button variant="secondary" className="mt-5" onClick={() => setSuccess(false)}>
             Register another team
           </Button>

@@ -81,6 +81,38 @@ const whole = (v, max) => {
   return n;
 };
 
+/** Lock a match that ended level and make sure it is still waiting for its tie-break. */
+async function lockTied(conn, matchId) {
+  const [[m]] = await conn.query(`SELECT match_id, status, winner_team_id, team1_id, team2_id FROM matches WHERE match_id = ? FOR UPDATE`, [matchId]);
+  if (!m) throw new ScoringError("Match not found", 404);
+  if (m.status !== "completed" || m.winner_team_id) throw new ScoringError("This match is not waiting for a tie-break", 409);
+  return m;
+}
+
+/**
+ * Write the winner of a tied match (inside the caller's transaction): the match, its fixture, the tie-break record, the next round
+ * of the bracket, and everything that follows from a result (points, figures, final positions, notifications).
+ */
+async function applyDecision(conn, m, { method, winner, runs = [null, null], wkts = [null, null], note = "", by = null }) {
+  const matchId = m.match_id;
+  const loser = Number(winner) === Number(m.team1_id) ? m.team2_id : m.team1_id;
+  const decidedBy = DECIDED[method];
+
+  await conn.query(`UPDATE matches SET winner_team_id = ?, decided_by = ? WHERE match_id = ?`, [winner, decidedBy, matchId]);
+  await conn.query(`UPDATE tournament_matches SET winner_team_id = ?, status = 'completed' WHERE match_id = ?`, [winner, matchId]);
+  await conn.query(
+    `INSERT INTO match_tiebreaks (match_id, method, team1_runs, team1_wickets, team2_runs, team2_wickets, winner_team_id, note, decided_by)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+     ON DUPLICATE KEY UPDATE method = VALUES(method), team1_runs = VALUES(team1_runs), team1_wickets = VALUES(team1_wickets), team2_runs = VALUES(team2_runs),
+       team2_wickets = VALUES(team2_wickets), winner_team_id = VALUES(winner_team_id), note = VALUES(note), decided_by = VALUES(decided_by)`,
+    [matchId, method, runs[0], wkts[0], runs[1], wkts[1], winner, String(note || "").trim().slice(0, 300) || null, by]
+  );
+  await advanceBracket(conn, matchId, winner, loser);
+  // the winner changed, so points, figures, final positions and notifications are worked out again
+  await postMatchHooks.onMatchCompleted(conn, matchId);
+  return { matchId: Number(matchId), winnerTeamId: Number(winner), decidedBy };
+}
+
 /**
  * Settle a tied match.
  * @param input { method: 'super_over' | 'batted_first' | 'manual', team1Runs, team1Wickets, team2Runs, team2Wickets, winnerTeamId, note }
@@ -92,9 +124,7 @@ async function resolve(matchId, input = {}, by = null) {
   const conn = await db.getConnection();
   try {
     await conn.beginTransaction();
-    const [[m]] = await conn.query(`SELECT match_id, status, winner_team_id, team1_id, team2_id FROM matches WHERE match_id = ? FOR UPDATE`, [matchId]);
-    if (!m) throw new ScoringError("Match not found", 404);
-    if (m.status !== "completed" || m.winner_team_id) throw new ScoringError("This match is not waiting for a tie-break", 409);
+    const m = await lockTied(conn, matchId);
 
     let winner;
     let runs = [null, null];
@@ -112,23 +142,10 @@ async function resolve(matchId, input = {}, by = null) {
       winner = Number(input.winnerTeamId);
       if (![Number(m.team1_id), Number(m.team2_id)].includes(winner)) throw new ScoringError("Choose one of the two teams as the winner");
     }
-    const loser = Number(winner) === Number(m.team1_id) ? m.team2_id : m.team1_id;
-    const decidedBy = DECIDED[method];
 
-    await conn.query(`UPDATE matches SET winner_team_id = ?, decided_by = ? WHERE match_id = ?`, [winner, decidedBy, matchId]);
-    await conn.query(`UPDATE tournament_matches SET winner_team_id = ?, status = 'completed' WHERE match_id = ?`, [winner, matchId]);
-    await conn.query(
-      `INSERT INTO match_tiebreaks (match_id, method, team1_runs, team1_wickets, team2_runs, team2_wickets, winner_team_id, note, decided_by)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-       ON DUPLICATE KEY UPDATE method = VALUES(method), team1_runs = VALUES(team1_runs), team1_wickets = VALUES(team1_wickets), team2_runs = VALUES(team2_runs),
-         team2_wickets = VALUES(team2_wickets), winner_team_id = VALUES(winner_team_id), note = VALUES(note), decided_by = VALUES(decided_by)`,
-      [matchId, method, runs[0], wkts[0], runs[1], wkts[1], winner, String(input.note || "").trim().slice(0, 300) || null, by]
-    );
-    await advanceBracket(conn, matchId, winner, loser);
-    // the winner changed, so points, figures, final positions and notifications are worked out again
-    await postMatchHooks.onMatchCompleted(conn, matchId);
+    const out = await applyDecision(conn, m, { method, winner, runs, wkts, note: input.note, by });
     await conn.commit();
-    return { matchId: Number(matchId), winnerTeamId: Number(winner), decidedBy };
+    return out;
   } catch (err) {
     await conn.rollback();
     throw err;
@@ -137,7 +154,7 @@ async function resolve(matchId, input = {}, by = null) {
   }
 }
 
-module.exports = { RULES, DECIDED, ruleFor, autoWinner, recordAuto, status, resolve };
+module.exports = { RULES, DECIDED, ruleFor, autoWinner, recordAuto, status, resolve, lockTied, applyDecision };
 
 /* ------------------------------ tournament rules ------------------------------ */
 

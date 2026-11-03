@@ -47,7 +47,7 @@ export const teamCode = (name) => {
   return words[0].slice(0, 3).toUpperCase();
 };
 
-const PALETTE = ["#9a4a55", "#3f6296", "#4a7a66", "#9a7340", "#6a5b96", "#3f7585", "#9a5a3f", "#8a4a72"];
+const PALETTE = ["#e8361c", "#1f6feb", "#0e9f6e", "#d97706", "#7c3aed", "#0891b2", "#db2777", "#4f46e5"];
 export const teamColor = (id) => PALETTE[Math.abs(Number(id) || 0) % PALETTE.length];
 
 /* ------------------------------ balls ------------------------------ */

@@ -19,7 +19,7 @@
 //   missing foreign keys, duplicate keys, the misspelled view, leftover rows of deleted matches
 
 const { parseArgs, confirm } = require("./_common");
-const { connect, settings, quoteId: Q } = require("./_db");
+const { connect, settings, quoteId: Q, schemaSql } = require("./_db");
 
 const args = parseArgs(process.argv.slice(2));
 const DRY = !!args["dry-run"];
@@ -72,6 +72,19 @@ async function rowCounts() {
 /* --------------------------------------------------------------------------------------------- */
 
 const steps = [
+  {
+    title: "Tables added to the schema since your database was made",
+    async run() {
+      // every "CREATE TABLE IF NOT EXISTS x (...) ENGINE=...;" of schema.sql whose table is not there yet
+      const made = [];
+      for (const m of schemaSql().matchAll(/CREATE TABLE IF NOT EXISTS\s+`?(\w+)`?\s*\([\s\S]*?\n\) ENGINE=[^;]*;/gi)) {
+        if (await hasTable(m[1])) continue;
+        await exec(m[0]);
+        made.push(m[1]);
+      }
+      return made.length ? `${DRY ? "would create" : "created"}: ${made.join(", ")}` : ALREADY;
+    },
+  },
   {
     title: "balls.over_id (the scorer finds the balls of an over by it)",
     async run() {

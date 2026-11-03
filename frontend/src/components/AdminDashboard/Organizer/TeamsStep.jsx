@@ -1,5 +1,5 @@
 import React from "react";
-import { LuArrowRight, LuUsersRound } from "react-icons/lu";
+import { LuArrowRight, LuRepeat, LuUsersRound } from "react-icons/lu";
 import { Badge, Button, Card, CardHeader, EmptyState, TeamLogo } from "../../ui/kit";
 
 const STATUS = {
@@ -18,7 +18,7 @@ export const validLayouts = (teamCount) => {
 };
 
 // Step 2: who has applied. The host sees every team with its status and moves on once the number works out.
-export default function TeamsStep({ teams = [], totalSlots = 32, onContinue }) {
+export default function TeamsStep({ teams = [], totalSlots = 32, onContinue, onReplace }) {
   const active = teams.filter((t) => t.status !== "cancelled");
   const layouts = validLayouts(active.length);
 
@@ -71,6 +71,11 @@ export default function TeamsStep({ teams = [], totalSlots = 32, onContinue }) {
                     {t.group_name && <p className="text-xs text-slate-500">Group {t.group_name}</p>}
                   </div>
                   <Badge tone={tone}>{text}</Badge>
+                  {onReplace && t.status !== "cancelled" && (
+                    <Button size="sm" variant="secondary" icon={LuRepeat} onClick={() => onReplace(t)} title={`${t.team_name} backed out? Put another team in its place`}>
+                      Replace
+                    </Button>
+                  )}
                 </li>
               );
             })}

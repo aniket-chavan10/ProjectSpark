@@ -238,6 +238,26 @@ CREATE TABLE IF NOT EXISTS tournament_squads (
   CONSTRAINT fk_tsquad_player FOREIGN KEY (player_id) REFERENCES players_core (player_id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+-- A team that backed out and the team the host put in its place (kept as history; the played matches stay with the first team).
+CREATE TABLE IF NOT EXISTS tournament_replacements (
+  id              INT NOT NULL AUTO_INCREMENT,
+  tournament_id   INT NOT NULL,
+  out_team_id     INT NOT NULL,
+  in_team_id      INT NOT NULL,
+  group_name      ENUM('A','B','C','D') NULL,
+  reason          VARCHAR(300) NULL,
+  fixtures_moved  SMALLINT NOT NULL DEFAULT 0,
+  replaced_by     INT NULL,                                   -- admins.id of the host
+  created_at      TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  KEY ix_replacements_tournament (tournament_id),
+  KEY ix_replacements_out (out_team_id),
+  KEY ix_replacements_in (in_team_id),
+  CONSTRAINT fk_repl_tournament FOREIGN KEY (tournament_id) REFERENCES tournaments (id) ON DELETE CASCADE,
+  CONSTRAINT fk_repl_out FOREIGN KEY (out_team_id) REFERENCES teams (id) ON DELETE CASCADE,
+  CONSTRAINT fk_repl_in FOREIGN KEY (in_team_id) REFERENCES teams (id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
 -- ---------------------------------------------------------------------------------------------------
 -- A live / finished match and its scoring
 -- ---------------------------------------------------------------------------------------------------
@@ -558,6 +578,43 @@ CREATE TABLE IF NOT EXISTS match_tiebreaks (
   PRIMARY KEY (match_id),
   CONSTRAINT fk_tiebreak_match FOREIGN KEY (match_id) REFERENCES matches (match_id) ON DELETE CASCADE,
   CONSTRAINT fk_tiebreak_winner FOREIGN KEY (winner_team_id) REFERENCES teams (id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- A tied match played off ball by ball: one row per team per super-over round (round 2, 3 ... only when level again).
+-- These runs never touch the match score, player averages or net run rate; they only decide the winner.
+CREATE TABLE IF NOT EXISTS super_over_innings (
+  id             INT NOT NULL AUTO_INCREMENT,
+  match_id       INT NOT NULL,
+  round_no       TINYINT NOT NULL DEFAULT 1,
+  batting_order  TINYINT NOT NULL,                        -- 1 = bats first in this round, 2 = chases
+  team_id        INT NOT NULL,
+  runs           SMALLINT NOT NULL DEFAULT 0,
+  wickets        TINYINT NOT NULL DEFAULT 0,
+  legal_balls    TINYINT NOT NULL DEFAULT 0,
+  status         VARCHAR(12) NOT NULL DEFAULT 'pending',  -- pending | in_progress | completed
+  batter1_id     INT NULL,
+  batter2_id     INT NULL,
+  bowler_id      INT NULL,
+  created_at     TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  UNIQUE KEY ux_super_over_innings (match_id, round_no, batting_order),
+  CONSTRAINT fk_so_innings_match FOREIGN KEY (match_id) REFERENCES matches (match_id) ON DELETE CASCADE,
+  CONSTRAINT fk_so_innings_team FOREIGN KEY (team_id) REFERENCES teams (id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS super_over_balls (
+  id             INT NOT NULL AUTO_INCREMENT,
+  innings_id     INT NOT NULL,
+  seq            SMALLINT NOT NULL,                       -- 1, 2, 3 ... in the order bowled (wides and no-balls included)
+  runs           TINYINT NOT NULL DEFAULT 0,              -- off the bat, or the byes / leg-byes, or the extra runs run on a wide
+  extra_type     VARCHAR(10) NULL,                        -- NULL | wide | no-ball | bye | leg-bye
+  is_wicket      TINYINT(1) NOT NULL DEFAULT 0,
+  total_runs     TINYINT NOT NULL DEFAULT 0,              -- what this ball added to the score (a wide / no-ball adds 1 more)
+  is_legal       TINYINT(1) NOT NULL DEFAULT 1,
+  created_at     TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  UNIQUE KEY ux_super_over_ball (innings_id, seq),
+  CONSTRAINT fk_so_ball_innings FOREIGN KEY (innings_id) REFERENCES super_over_innings (id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- One row per player per finished match (rebuilt if the last ball is undone).

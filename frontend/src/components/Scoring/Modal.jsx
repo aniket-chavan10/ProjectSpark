@@ -25,15 +25,16 @@ export default function Modal({ title, subtitle, onClose, locked = false, size =
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-end justify-center bg-ink-950/60 backdrop-blur-[2px] sm:items-center sm:p-4"
+      className="fixed inset-0 z-50 flex animate-fade-in items-end justify-center bg-ink-950/70 backdrop-blur-sm sm:items-center sm:p-4"
       onMouseDown={(e) => {
         if (e.target === e.currentTarget && !locked && onClose) onClose();
       }}
     >
-      <div ref={ref} tabIndex={-1} role="dialog" aria-modal="true" aria-label={title} className={`flex max-h-[92vh] w-full flex-col rounded-t-2xl bg-white shadow-pop outline-none sm:rounded-2xl ${width}`}>
-        <header className="flex items-start justify-between gap-3 border-b border-slate-100 px-5 py-4">
+      <div ref={ref} tabIndex={-1} role="dialog" aria-modal="true" aria-label={title} className={`flex max-h-[92vh] w-full animate-pop-in flex-col overflow-hidden rounded-t-3xl bg-white shadow-pop outline-none sm:rounded-3xl ${width}`}>
+        <header className="relative flex items-start justify-between gap-3 border-b border-slate-100 px-6 py-4">
+          <span className="absolute inset-x-0 top-0 h-1 bg-spark-grad" aria-hidden="true" />
           <div className="min-w-0">
-            <h2 className="text-base font-semibold text-slate-900">{title}</h2>
+            <h2 className="font-display text-2xl font-extrabold uppercase tracking-wide text-ink-950">{title}</h2>
             {subtitle && <p className="mt-0.5 text-[13px] text-slate-500">{subtitle}</p>}
           </div>
           {!locked && onClose && (
@@ -42,8 +43,8 @@ export default function Modal({ title, subtitle, onClose, locked = false, size =
             </button>
           )}
         </header>
-        <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">{children}</div>
-        {footer && <footer className="border-t border-slate-100 bg-slate-50/60 px-5 py-3 sm:rounded-b-2xl">{footer}</footer>}
+        <div className="min-h-0 flex-1 overflow-y-auto px-6 py-5">{children}</div>
+        {footer && <footer className="border-t border-slate-100 bg-ink-50/60 px-6 py-3.5">{footer}</footer>}
       </div>
     </div>
   );

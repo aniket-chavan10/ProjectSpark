@@ -23,6 +23,7 @@ const { connect, schemaSql, schemaTables, settings, quoteId } = require("./_db")
     if (ours.length) {
       console.error(`\nThis database already has ${ours.length} Spark tables (${ours.slice(0, 5).join(", ")}${ours.length > 5 ? ", ..." : ""}).`);
       console.error("Nothing was changed. To bring an existing database up to date run:  npm run db:upgrade");
+      console.error("To throw it away and start from an empty one run:                       npm run db:fresh");
       await server.end();
       process.exit(1);
     }

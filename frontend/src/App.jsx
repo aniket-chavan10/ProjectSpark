@@ -4,7 +4,6 @@ import LoginPage from "./pages/LogInPage";
 import Home from "./pages/LandingPage";
 import SignUpPage from "./pages/SignUpPage";
 import MasterAdminDashboard from "./pages/MasterAdminDashboard";
-import PlayerDashboard from "./pages/PlayerDashboard";
 import AdminDashboard from "./pages/AdminDashboard";
 import ProtectedRoute from "./components/ProtectedRoute";
 import SignInMasterAdmin from "./pages/SignInMasterAdmin";
@@ -73,10 +72,6 @@ function App() {
           {/* The scorer opens a match in its own tab: squads, toss, scoring */}
           <Route element={<ProtectedRoute allowedRoles={["admin"]} />}>
             <Route path="/match/:fixtureId" element={<MatchRoom />} />
-          </Route>
-
-          <Route element={<ProtectedRoute allowedRoles={["player"]} />}>
-            <Route path="/player-dashboard" element={<PlayerDashboard />} />
           </Route>
         </Routes>
       </AuthProvider>

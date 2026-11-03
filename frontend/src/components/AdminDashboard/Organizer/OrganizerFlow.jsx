@@ -1,8 +1,9 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { LuArrowLeft, LuCalendarDays, LuMapPin, LuPencilRuler, LuPlay, LuRadio } from "react-icons/lu";
+import { LuArrowLeft, LuCalendarDays, LuMapPin, LuPencilRuler, LuPlay, LuRadio, LuRepeat } from "react-icons/lu";
 import TournamentList from "./TournamentList";
 import TeamsStep from "./TeamsStep";
 import GroupsStep from "./GroupsStep";
+import ReplaceTeamDialog from "./ReplaceTeamDialog";
 import ScheduleBuilder from "../Schedule/ScheduleBuilder";
 import ScheduleView from "../Schedule/ScheduleView";
 import Standings from "../Schedule/Standings";
@@ -35,7 +36,7 @@ const formatRange = (start, end) => {
 
 const messageOf = (err, fallback) => (err && (err.response?.data?.error || err.response?.data?.message || err.error || err.message)) || fallback;
 
-export default function OrganizerFlow() {
+export default function OrganizerFlow({ initial = null, onConsumed }) {
   const [step, setStep] = useState(1);
   const [selectedTournamentId, setSelectedTournamentId] = useState(null);
 
@@ -46,6 +47,8 @@ export default function OrganizerFlow() {
   const [progress, setProgress] = useState(null);
   const [scheduledMatches, setScheduledMatches] = useState([]);
   const [error, setError] = useState("");
+  const [replacing, setReplacing] = useState(null); // null | { team } : the "replace a team" dialog
+  const [notice, setNotice] = useState("");
 
   const selected = useMemo(() => tournaments.find((t) => String(t.tournament_id || t.id) === String(selectedTournamentId)), [tournaments, selectedTournamentId]);
   const started = !!Number(progress?.matches_started);
@@ -140,6 +143,20 @@ export default function OrganizerFlow() {
     await fetchProgress(tournamentId);
   };
 
+  // the dashboard can open straight into one tournament (and a step, e.g. the Teams step to replace a team)
+  useEffect(() => {
+    if (!initial || !tournamentsLoaded) return;
+    let alive = true;
+    (async () => {
+      await open(initial.id);
+      if (alive && initial.step) setStep(initial.step);
+      if (onConsumed) onConsumed();
+    })();
+    return () => {
+      alive = false;
+    };
+  }, [initial, tournamentsLoaded]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const onTournamentCreated = async (newTournamentId) => {
     if (!newTournamentId) return;
     setSelectedTournamentId(newTournamentId);
@@ -163,6 +180,13 @@ export default function OrganizerFlow() {
     await updateProgressStep("groups_created");
     await fetchAppliedTeams(selectedTournamentId);
     setStep(4);
+  };
+
+  const onTeamReplaced = async (result) => {
+    setReplacing(null);
+    setNotice(`${result.inTeam.name} now plays in place of ${result.outTeam.name}.`);
+    await fetchAppliedTeams(selectedTournamentId);
+    if (step === 5) await fetchScheduledMatches();
   };
 
   const onScheduleSaved = async () => {
@@ -224,7 +248,12 @@ export default function OrganizerFlow() {
                 )}
               </p>
             </div>
-            {started ? <Badge tone="red" dot="live">Matches under way</Badge> : <Badge tone="slate">Set-up</Badge>}
+            <div className="flex flex-wrap items-center gap-2">
+              <Button size="sm" variant="secondary" icon={LuRepeat} onClick={() => setReplacing({ team: null })}>
+                Replace a team
+              </Button>
+              {started ? <Badge tone="red" dot="live">Matches under way</Badge> : <Badge tone="slate">Set-up</Badge>}
+            </div>
           </div>
           <div className="mt-4 overflow-x-auto border-t border-slate-100 pt-4">
             <Stepper steps={STEPS} current={step} onSelect={(id) => id <= reachable && setStep(id)} />
@@ -242,11 +271,16 @@ export default function OrganizerFlow() {
           {error}
         </Alert>
       )}
+      {notice && (
+        <Alert tone="success" onClose={() => setNotice("")}>
+          {notice}
+        </Alert>
+      )}
       {loading && step !== 4 && step !== 1 && <Spinner label="Loading…" className="!py-4" />}
 
       {step === 1 && <TournamentList loaded={tournamentsLoaded} tournaments={tournaments} onViewTeams={open} onRefresh={fetchTournaments} onTournamentCreated={onTournamentCreated} />}
 
-      {step === 2 && <TeamsStep teams={appliedTeams} onContinue={goToGroups} />}
+      {step === 2 && <TeamsStep teams={appliedTeams} onContinue={goToGroups} onReplace={(team) => setReplacing({ team })} />}
 
       {step === 3 && <GroupsStep teams={appliedTeams} locked={started} onSave={saveGroups} onContinue={() => setStep(4)} />}
 
@@ -268,6 +302,10 @@ export default function OrganizerFlow() {
           <Standings tournamentId={selectedTournamentId} matches={scheduledMatches} />
           <ScheduleView matches={scheduledMatches} renderAction={startAction} />
         </div>
+      )}
+
+      {replacing && selectedTournamentId && (
+        <ReplaceTeamDialog tournamentId={selectedTournamentId} teams={appliedTeams} outTeam={replacing.team} onClose={() => setReplacing(null)} onDone={onTeamReplaced} />
       )}
     </div>
   );

@@ -264,7 +264,7 @@ export default function OperatorConsole() {
   return (
     <div className="min-h-screen bg-ink-950 text-white">
       <header className="sticky top-0 z-20 border-b border-white/10 bg-ink-950/90 backdrop-blur">
-        <div className="mx-auto flex h-16 max-w-[1500px] items-center gap-4 px-4 sm:px-6">
+        <div className="flex h-16 w-full items-center gap-4 px-4 sm:px-6 xl:px-10">
           <SparkMark size={34} />
           <div className="min-w-0 flex-1">
             <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-emerald-300">Operator console</p>
@@ -291,42 +291,18 @@ export default function OperatorConsole() {
         {left !== null && <div className="h-0.5 bg-red-500/80 transition-[width] duration-200 ease-linear" style={{ width: `${(left / live.autoHide) * 100}%` }} aria-hidden="true" />}
       </header>
 
-      <main className="mx-auto max-w-[1500px] space-y-5 px-4 py-5 sm:px-6">
+      <main className="w-full space-y-5 px-4 py-5 sm:px-6 xl:px-10">
         {error && (
           <div role="alert" className="rounded-xl border border-red-400/40 bg-red-500/10 px-4 py-3 text-sm text-red-200">
             {error}
           </div>
         )}
 
-        <div className="grid items-start gap-5 xl:grid-cols-[minmax(0,1fr)_24rem]">
-          <div className="space-y-5">
-            <Panel title="Program: what viewers see" aside={<span className="text-[11px] text-ink-400">Updates live</span>}>
-              <div ref={previewRef} className="relative w-full overflow-hidden rounded-xl bg-[repeating-conic-gradient(#1a2339_0%_25%,#111827_0%_50%)] [background-size:24px_24px] ring-1 ring-white/10" style={{ aspectRatio: "16 / 9" }}>
-                <iframe title="Program" src={`/overlay/${matchId}`} className="absolute left-0 top-0 origin-top-left border-0" style={{ width: "1920px", height: "1080px", transform: `scale(${scale})` }} />
-              </div>
-              <div className="mt-4 flex flex-wrap items-center gap-3">
-                <button type="button" disabled={busy || !onAir} onClick={() => take("none")} className="inline-flex items-center gap-2 rounded-lg bg-red-600 px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-red-500 disabled:cursor-not-allowed disabled:opacity-40">
-                  <LuEyeOff className="h-4 w-4" aria-hidden="true" /> Hide graphics
-                  <kbd className="ml-1 rounded bg-black/25 px-1.5 text-[11px]">Esc</kbd>
-                </button>
-                <div className="ml-auto flex items-center gap-2">
-                  <label htmlFor="op-hide" className="text-xs text-ink-300">
-                    Take it off after
-                  </label>
-                  <select id="op-hide" className={`${inputCls} !w-auto`} value={autoHide} onChange={(e) => setAutoHide(e.target.value)}>
-                    {HIDE_AFTER.map((o) => (
-                      <option key={o.label} value={o.value}>
-                        {o.label}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-            </Panel>
-
+        <div className="grid items-start gap-5 xl:grid-cols-[minmax(0,1fr)_34rem] 2xl:grid-cols-[minmax(0,1fr)_44rem]">
+          <div className="space-y-5 xl:order-1">
             {GROUPS.map((g) => (
               <Panel key={g} title={g}>
-                <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 2xl:grid-cols-4">
+                <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
                   {SCENES.filter((s) => s.group === g).map((s) => {
                     const active = live && live.scene === s.id;
                     const needsText = s.id === "message" && !text.trim();
@@ -362,7 +338,31 @@ export default function OperatorConsole() {
             ))}
           </div>
 
-          <aside className="space-y-5 xl:sticky xl:top-[5.5rem]">
+          <aside className="space-y-5 xl:sticky xl:top-[5.5rem] xl:order-2 xl:max-h-[calc(100vh-6.5rem)] xl:overflow-y-auto xl:pr-1">
+            <Panel title="Program: what viewers see" aside={<span className="text-[11px] text-ink-400">Updates live</span>}>
+              <div ref={previewRef} className="relative w-full overflow-hidden rounded-xl bg-[repeating-conic-gradient(#1a2339_0%_25%,#111827_0%_50%)] [background-size:24px_24px] ring-1 ring-white/10" style={{ aspectRatio: "16 / 9" }}>
+                <iframe title="Program" src={`/overlay/${matchId}`} className="absolute left-0 top-0 origin-top-left border-0" style={{ width: "1920px", height: "1080px", transform: `scale(${scale})` }} />
+              </div>
+              <div className="mt-4 flex flex-wrap items-center gap-3">
+                <button type="button" disabled={busy || !onAir} onClick={() => take("none")} className="inline-flex items-center gap-2 rounded-lg bg-red-600 px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-red-500 disabled:cursor-not-allowed disabled:opacity-40">
+                  <LuEyeOff className="h-4 w-4" aria-hidden="true" /> Hide graphics
+                  <kbd className="ml-1 rounded bg-black/25 px-1.5 text-[11px]">Esc</kbd>
+                </button>
+                <div className="ml-auto flex items-center gap-2">
+                  <label htmlFor="op-hide" className="text-xs text-ink-300">
+                    Take it off after
+                  </label>
+                  <select id="op-hide" className={`${inputCls} !w-auto`} value={autoHide} onChange={(e) => setAutoHide(e.target.value)}>
+                    {HIDE_AFTER.map((o) => (
+                      <option key={o.label} value={o.value}>
+                        {o.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+            </Panel>
+
             <Panel title="Options for the next graphic">
               <div className="space-y-4">
                 {data && (

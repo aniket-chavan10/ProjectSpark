@@ -1,5 +1,6 @@
 const express = require('express');
 const dotenv = require('dotenv');
+const path = require('path');
 const cors = require('cors');
 const http = require('http'); 
 const socketIo = require('socket.io');
@@ -8,12 +9,18 @@ const verifyToken = require('./middlewares/authMiddleware');
 
 dotenv.config();
 
+// the frontend dev servers; add more with CORS_ORIGINS=https://my.site,https://other.site in .env
+const ALLOWED_ORIGINS = [
+  'http://localhost:5173', 'http://localhost:5174', 'http://127.0.0.1:5173', 'http://127.0.0.1:5174',
+  ...String(process.env.CORS_ORIGINS || '').split(',').map((o) => o.trim()).filter(Boolean),
+];
+
 const app = express();
 const server = http.createServer(app); // Define server before using it
 
 const io = new socketIo.Server(server, {
   cors: {
-    origin: ["http://localhost:5173", "http://localhost:5174"], // Allowed frontend origins
+    origin: ALLOWED_ORIGINS, // Allowed frontend origins
     methods: ["GET", "POST"],
     credentials: true,
   }
@@ -46,14 +53,18 @@ io.on("connection", (socket) => {
 
 // Middleware
 app.use(cors({
-  origin: ['http://localhost:5174', 'http://localhost:5173'], 
+  origin: ALLOWED_ORIGINS, 
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],
   allowedHeaders: ['Content-Type', 'Authorization'],
   credentials: true,
 }));
 
 app.use(express.json());
-app.use('/uploads', express.static('uploads'));
+// Uploaded pictures (see middlewares/uploadMiddleware.js). Served with a cross-origin header so the frontend
+// (another port) and the streaming overlay can show them.
+const { UPLOAD_DIR } = require('./middlewares/uploadMiddleware');
+app.use('/uploads', (req, res, next) => { res.set('Cross-Origin-Resource-Policy', 'cross-origin'); next(); },
+  express.static(UPLOAD_DIR, { maxAge: '1h' }));
 
 // Routes
 const villageRoute = require('./routes/villageRoute');

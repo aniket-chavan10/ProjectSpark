@@ -6,10 +6,12 @@ import {
   LuCalendarCog,
   LuCalendarRange,
   LuHandshake,
+  LuHistory,
   LuInbox,
   LuLayoutDashboard,
   LuMegaphone,
   LuTrophy,
+  LuUserCog,
   LuUsers,
   LuUsersRound,
 } from "react-icons/lu";
@@ -25,11 +27,15 @@ import SponsorsAdmin from "../components/MasterAdminDashboard/SponsorsAdmin";
 import AssociationTeams from "../components/MasterAdminDashboard/AssociationTeams";
 import AssociationPlayers from "../components/MasterAdminDashboard/AssociationPlayers";
 import AssociationSchedules from "../components/MasterAdminDashboard/AssociationSchedules";
+import Hosts from "../components/MasterAdminDashboard/Hosts";
+import Results from "../components/MasterAdminDashboard/Results";
 import masterAdminApi from "../api/masterAdminApi";
 
 const TITLES = {
   overview: "Overview",
   "all-teams": "Teams",
+  hosts: "Hosts",
+  results: "Past results",
   teamRequests: "Team requests",
   managePlayers: "Players",
   tournamentManager: "Tournaments",
@@ -44,6 +50,7 @@ const TITLES = {
 const MasterAdminDashboard = () => {
   const [active, setActive] = useState("overview");
   const [pending, setPending] = useState(0);
+  const [teamFocus, setTeamFocus] = useState(null); // a team to open on the Teams screen (from Players, Hosts ...)
   const navigate = useNavigate();
 
   const signedIn = !!localStorage.getItem("masterAuthToken");
@@ -63,6 +70,12 @@ const MasterAdminDashboard = () => {
     navigate("/ma-signin");
   };
 
+  // one way to move between screens; a screen can also ask for a team to be opened
+  const go = (screen, teamId) => {
+    setTeamFocus(screen === "all-teams" && teamId ? teamId : null);
+    setActive(screen);
+  };
+
   const groups = [
     { items: [{ id: "overview", label: "Overview", icon: LuLayoutDashboard }] },
     {
@@ -77,6 +90,8 @@ const MasterAdminDashboard = () => {
       label: "Competition",
       items: [
         { id: "tournamentManager", label: "Tournaments", icon: LuCalendarCog },
+        { id: "hosts", label: "Hosts", icon: LuUserCog },
+        { id: "results", label: "Past results", icon: LuHistory },
         { id: "schedules", label: "Season schedule", icon: LuCalendarRange },
         { id: "rankings", label: "Rankings and points", icon: LuTrophy },
         { id: "awards", label: "Awards", icon: LuAward },
@@ -93,12 +108,14 @@ const MasterAdminDashboard = () => {
   ];
 
   const screens = {
-    overview: <Overview goTo={setActive} />,
+    overview: <Overview goTo={go} />,
     teamRequests: <TeamRequests />,
-    "all-teams": <AssociationTeams goTo={setActive} />,
-    managePlayers: <AssociationPlayers goTo={setActive} />,
+    "all-teams": <AssociationTeams key={teamFocus || "list"} goTo={go} focusTeamId={teamFocus} onFocusChange={setTeamFocus} />,
+    managePlayers: <AssociationPlayers goTo={go} />,
+    hosts: <Hosts onOpenTeam={(id) => go("all-teams", id)} />,
+    results: <Results />,
     tournamentManager: <TournamentScheduler />,
-    schedules: <AssociationSchedules />,
+    schedules: <AssociationSchedules goTo={go} />,
     rankings: <RankingPoints />,
     awards: <AwardsAdmin />,
     announcements: <Announcements />,
@@ -111,7 +128,7 @@ const MasterAdminDashboard = () => {
       brand={{ name: "Spark", sub: "Association" }}
       groups={groups}
       active={active}
-      onSelect={setActive}
+      onSelect={(id) => go(id)}
       user={{ name: "Association", role: "Super admin" }}
       onLogout={logout}
       title={TITLES[active] || "Overview"}

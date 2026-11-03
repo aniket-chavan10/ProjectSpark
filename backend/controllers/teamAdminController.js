@@ -57,9 +57,23 @@ exports.overview = handle("Could not load your overview", 200, async (req) => {
      WHERE organizer_admin_id = ? AND status <> 'cancelled' AND end_date >= CURDATE() ORDER BY start_date`,
     [req.team.adminId]
   );
+  // the tournaments this team's admin runs, with how far each one has got
+  const [hosted] = await db.query(
+    `SELECT tr.id, tr.name, tr.status, tr.venue, tr.start_date, tr.end_date, tr.total_slots,
+       (SELECT COUNT(*) FROM tournament_participants p WHERE p.tournament_id = tr.id AND p.status NOT IN ('cancelled', 'rejected')) AS teams,
+       (SELECT COUNT(*) FROM tournament_matches x WHERE x.tournament_id = tr.id AND x.status = 'completed') AS done,
+       (SELECT COUNT(*) FROM tournament_matches x WHERE x.tournament_id = tr.id) AS total,
+       (SELECT COUNT(*) FROM tournament_matches x WHERE x.tournament_id = tr.id AND x.status = 'live') AS live
+     FROM tournaments tr WHERE tr.organizer_admin_id = ? ORDER BY tr.start_date DESC, tr.id DESC LIMIT 12`,
+    [req.team.adminId]
+  );
   return {
     ...profile,
     hosting: hosting.map((h) => ({ id: h.id, startDate: dateOnly(h.start_date), endDate: dateOnly(h.end_date), tournamentId: h.tournament_id || null })),
+    hosted: hosted.map((t) => ({
+      id: Number(t.id), name: t.name, status: t.status, venue: t.venue || null, startDate: dateOnly(t.start_date), endDate: dateOnly(t.end_date),
+      teams: Number(t.teams), slots: t.total_slots == null ? null : Number(t.total_slots), matchesPlayed: Number(t.done), matches: Number(t.total), live: Number(t.live),
+    })),
     ban: ban ? { reason: ban.reason, endsOn: dateOnly(ban.ends_on) } : null,
   };
 });

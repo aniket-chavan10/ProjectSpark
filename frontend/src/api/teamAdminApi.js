@@ -26,12 +26,7 @@ const playerForm = ({ name, mobile, email, photo }) => {
 const multipart = { headers: { "Content-Type": "multipart/form-data" } };
 
 /** Uploaded photos are served by the backend next to the API. */
-export const photoUrl = (path) => {
-  if (!path) return null;
-  if (/^https?:/i.test(path)) return path;
-  const origin = (import.meta.env.VITE_API_URL || "http://localhost:3000/api").replace(/\/api\/?$/, "");
-  return `${origin}/${String(path).replace(/^\/+/, "")}`;
-};
+export { fileUrl as photoUrl } from "../utils/files";
 
 const teamAdminApi = {
   // players of my team

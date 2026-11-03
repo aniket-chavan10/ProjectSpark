@@ -4,6 +4,7 @@ const {
   loginAdmin,
   getAllAdminsAndTeams,
   getAdminById,
+  updateTeamLogo,
 } = require("../controllers/adminController");
 
 
@@ -19,5 +20,8 @@ router.get("/all", verifyAdminToken, getAllAdminsAndTeams);
 router.get("/profile", verifyAdminToken, getAdminById);
 
 router.get("/players", verifyAdminToken, getPlayersByTeam);
+
+// the team picture (shown on scorecards, rankings and the broadcast overlay)
+router.put("/teams/logo", verifyAdminToken, upload.safe("logo"), updateTeamLogo);
 
 module.exports = router;

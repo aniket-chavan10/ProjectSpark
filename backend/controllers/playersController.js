@@ -69,47 +69,6 @@ const createPlayer = async (req, res) => {
 };
 
 
-const playerLogin = async (req, res) => {
-  const { email, password } = req.body;
-
-  if (!email || !password) {
-    return res.status(400).json({ error: "Email and password are required" });
-  }
-
-  const connection = await db.getConnection();
-  try {
-    const [players] = await connection.query(
-      "SELECT player_id, email, password FROM players_core WHERE email = ?",
-      [email]
-    );
-
-    if (players.length === 0) {
-      return res.status(404).json({ error: "Player not found" });
-    }
-
-    const playerData = players[0];
-    const isPasswordMatch = await bcrypt.compare(password, playerData.password);
-    if (!isPasswordMatch) {
-      return res.status(401).json({ error: "Invalid email or password" });
-    }
-
-    const token = jwt.sign(
-      { id: playerData.player_id, email: playerData.email, role: "player" },
-      process.env.JWT_SECRET,
-      { expiresIn: "1h" }
-    );
-
-    res.status(200).json({ message: "Login successful", token });
-  } catch (error) {
-    console.error("Error during login:", error);
-    res
-      .status(500)
-      .json({ error: "Unexpected error occurred", details: error.message });
-  } finally {
-    connection.release();
-  }
-};
-
 const getAllPlayers = async (req, res) => {
   const connection = await db.getConnection();
   try {
@@ -252,7 +211,6 @@ const getPlayersByTeam = async (req, res) => {
 
 module.exports = {
   createPlayer,
-  playerLogin,
   getAllPlayers,
   getPlayerById,
   updatePlayer,

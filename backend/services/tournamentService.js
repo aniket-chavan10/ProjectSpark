@@ -97,6 +97,7 @@ exports.getOpenTournaments = async () => {
     LEFT JOIN (
       SELECT tournament_id, COUNT(*) AS applied_count
       FROM tournament_participants
+      WHERE status NOT IN ('cancelled', 'rejected')
       GROUP BY tournament_id
     ) tp ON t.id = tp.tournament_id
     WHERE t.status = 'open'
@@ -209,7 +210,7 @@ exports.getGroupsWithTeamsForOrganizer = async (organizerAdminId, tournamentId) 
        tm.logo
      FROM tournament_participants tp
      JOIN teams tm ON tp.team_id = tm.id
-     WHERE tp.tournament_id = ?
+     WHERE tp.tournament_id = ? AND tp.status NOT IN ('cancelled', 'rejected')
      ORDER BY tp.group_name ASC, tm.team_name ASC`,
     [tournamentId]
   );

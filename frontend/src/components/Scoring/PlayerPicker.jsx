@@ -36,9 +36,9 @@ export default function PlayerPicker({ title, subtitle, sections, onPick, onClos
                   type="button"
                   disabled={!!p.blocked || busy}
                   onClick={() => onPick(p.id)}
-                  className="flex w-full items-center gap-3 rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-left transition hover:border-emerald-500 hover:bg-emerald-50/60 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:opacity-60 disabled:hover:border-slate-200"
+                  className="flex w-full items-center gap-3 rounded-2xl border-2 border-ink-100 bg-white px-3 py-2.5 text-left transition hover:-translate-y-0.5 hover:border-spark-500 hover:shadow-glow focus:outline-none focus-visible:ring-2 focus-visible:ring-spark-500 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:opacity-60 disabled:hover:translate-y-0 disabled:hover:border-ink-100 disabled:hover:shadow-none"
                 >
-                  <PlayerAvatar name={p.name} photo={p.photo} id={p.id} size={36} />
+                  <PlayerAvatar name={p.name} photo={p.photo} id={p.id} size={42} />
                   <span className="min-w-0 flex-1">
                     <span className="block truncate text-sm font-semibold text-slate-900">{p.name}</span>
                     {(p.blocked || p.note) && <span className={`block truncate text-xs ${p.blocked ? "text-red-600" : "text-slate-500"}`}>{p.blocked || p.note}</span>}

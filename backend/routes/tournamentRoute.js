@@ -2,13 +2,14 @@ const express = require("express");
 const router = express.Router();
 const tournamentController = require("../controllers/tournamentController");
 const scheduleController = require("../controllers/tournamentScheduleController");
+const replacementController = require("../controllers/replacementController");
 const verifyAdminToken = require("../middlewares/authMiddleware"); // Auth middleware
 const upload = require("../middlewares/uploadMiddleware"); // saves the banner image to /uploads
 
 router.post(
   "/",
   verifyAdminToken,
-  upload.single("banner_image"),
+  upload.safe("banner_image"),
   tournamentController.createTournamentFromSchedule
 );
 
@@ -63,6 +64,12 @@ router.post("/tournaments/:tournamentId/schedule", verifyAdminToken, scheduleCon
 router.get("/tournaments/:tournamentId/standings", scheduleController.getStandings);
 router.get("/tournaments/:tournamentId/tie-rules", verifyAdminToken, scheduleController.getTieRules);
 router.put("/tournaments/:tournamentId/tie-rules", verifyAdminToken, scheduleController.setTieRules);
+
+// A team backs out: the host puts another team in its place (same group, same unplayed matches)
+router.get("/tournaments/:tournamentId/replacements", verifyAdminToken, replacementController.history);
+router.get("/tournaments/:tournamentId/replacement-candidates", verifyAdminToken, replacementController.candidates);
+router.get("/tournaments/:tournamentId/teams/:teamId/replacement-preview", verifyAdminToken, replacementController.preview);
+router.post("/tournaments/:tournamentId/replace-team", verifyAdminToken, replacementController.replace);
 
 router.get(
   "/tournaments/:tournamentId/scheduled-matches",

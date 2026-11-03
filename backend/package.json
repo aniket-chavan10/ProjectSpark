@@ -8,6 +8,7 @@
     "seed:clean": "node scripts/seedTestData.js --clean",
     "logins": "node scripts/resetLogin.js --list",
     "db:setup": "node scripts/dbSetup.js",
+    "db:fresh": "node scripts/dbFresh.js",
     "db:upgrade": "node scripts/dbUpgrade.js",
     "db:check": "node scripts/dbCheck.js"
   },

@@ -5,8 +5,7 @@ const c = require("../controllers/associationController");
 const upload = require("../middlewares/uploadMiddleware");
 
 // a bad or too large logo is the user's mistake: say so instead of a server error
-const logo = (req, res, next) =>
-  upload.single("logo")(req, res, (err) => (err ? res.status(400).json({ success: false, error: err.message, message: err.message }) : next()));
+const logo = upload.safe("logo");
 
 router.use(verifyMasterAdminToken);
 
@@ -41,7 +40,10 @@ router.post("/sponsors", logo, c.createSponsor);
 router.put("/sponsors/:id", logo, c.updateSponsor);
 router.delete("/sponsors/:id", c.removeSponsor);
 
+router.get("/dashboard", c.dashboard);
+router.get("/hosts", c.hosts);
 router.get("/teams", c.allTeams);
+router.get("/teams/:id", c.teamDetail);
 router.get("/players", c.allPlayers);
 router.get("/schedules", c.allSchedules);
 

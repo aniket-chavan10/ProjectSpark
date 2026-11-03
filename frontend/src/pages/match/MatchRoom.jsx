@@ -73,9 +73,9 @@ export default function MatchRoom() {
 
   if (loadError) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-slate-100 p-6">
-        <div className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-8 text-center shadow-pop">
-          <h1 className="text-lg font-semibold text-slate-900">Could not open this match</h1>
+      <div className="flex min-h-screen items-center justify-center bg-stadium p-6">
+        <div className="w-full max-w-md overflow-hidden rounded-3xl bg-white p-8 text-center shadow-pop">
+          <h1 className="font-display text-3xl font-extrabold uppercase tracking-wide text-ink-950">Could not open this match</h1>
           <div className="mt-4 text-left">
             <Alert tone="error">{loadError}</Alert>
           </div>
@@ -90,32 +90,46 @@ export default function MatchRoom() {
     );
   }
 
-  if (!step) return <div className="flex min-h-screen items-center justify-center bg-slate-100"><Spinner label="Opening the match…" /></div>;
+  if (!step)
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-stadium text-ink-200">
+        <Spinner label="Opening the match…" className="!text-ink-200" />
+      </div>
+    );
 
   if (step === "scoring") return <ScoringDashboard matchId={liveMatchId} initial={scoreboard} onExit={exit} />;
 
   return (
-    <div className="min-h-screen bg-slate-100">
-      <header className="sticky top-0 z-30 border-b border-white/10 bg-ink-950 text-white">
-        <div className="mx-auto flex h-16 max-w-6xl items-center gap-4 px-4 sm:px-6">
-          <SparkMark size={34} />
+    <div className="min-h-screen bg-stadium text-white">
+      <div className="pointer-events-none fixed inset-0 bg-grid-faint [background-size:56px_56px] [mask-image:linear-gradient(to_bottom,black,transparent_70%)]" aria-hidden="true" />
+      <header className="sticky top-0 z-30 border-b border-white/10 bg-ink-950/80 backdrop-blur-xl">
+        <div className="flex h-[72px] w-full items-center gap-4 px-4 sm:px-6 xl:px-10">
+          <SparkMark size={38} />
           <div className="min-w-0 flex-1">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-emerald-300">Match set-up</p>
-            <p className="truncate text-sm font-semibold">
-              {details.team1 && details.team2 ? `${details.team1.team_name} v ${details.team2.team_name}` : "Match"}
+            <p className="text-[10px] font-extrabold uppercase tracking-[0.25em] text-spark-400">Match set-up</p>
+            <p className="truncate font-display text-xl font-extrabold uppercase tracking-wide">
+              {details.team1 && details.team2 ? (
+                <>
+                  {details.team1.team_name} <span className="text-ink-400">v</span> {details.team2.team_name}
+                </>
+              ) : (
+                "Match"
+              )}
             </p>
           </div>
-          <div className="hidden rounded-xl bg-white px-3 py-1.5 sm:block">
+          <div className="hidden rounded-2xl bg-white/[0.05] px-4 py-2 ring-1 ring-inset ring-white/10 md:block">
             <Stepper steps={STEPS} current={step} />
           </div>
-          <button type="button" onClick={exit} aria-label="Close" className="inline-flex h-9 w-9 items-center justify-center rounded-lg bg-white/10 ring-1 ring-inset ring-white/15 hover:bg-white/15">
+          <button type="button" onClick={exit} aria-label="Close" className="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-white/10 ring-1 ring-inset ring-white/15 hover:bg-white/15">
             <LuX className="h-5 w-5" />
           </button>
         </div>
       </header>
-      <main className="mx-auto max-w-6xl px-4 py-6 sm:px-6">
-        {step === "details" && <MatchDetailsStep details={details} onNext={() => setStep("toss")} />}
-        {step === "toss" && <TossStep details={details} onBack={() => setStep("details")} onConfirm={confirmToss} busy={busy} error={tossError} />}
+      <main className="relative w-full px-4 py-6 sm:px-6 xl:px-10">
+        <div key={step} className="animate-fade-up">
+          {step === "details" && <MatchDetailsStep details={details} onNext={() => setStep("toss")} />}
+          {step === "toss" && <TossStep details={details} onBack={() => setStep("details")} onConfirm={confirmToss} busy={busy} error={tossError} />}
+        </div>
       </main>
     </div>
   );

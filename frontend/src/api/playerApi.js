@@ -13,9 +13,6 @@ const playersApi = {
     });
   },
 
-  // Player login
-  playerLogin: (loginData) => axiosInstance.post("/admin/player/login", loginData),
-
   // Get all players
   getAllPlayers: () => axiosInstance.get("/admin/player"),
 

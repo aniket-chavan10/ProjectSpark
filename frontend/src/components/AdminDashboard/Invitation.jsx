@@ -1,3 +1,4 @@
+import { fileUrl } from "../../utils/files";
 import React, { useEffect, useState } from "react";
 import tournamentApi from "../../api/tournamentApi";
 
@@ -30,7 +31,7 @@ function Invitation() {
             className="bg-white shadow-lg rounded-lg p-6 transform transition duration-300 hover:scale-105 hover:shadow-xl"
           >
             <img
-              src={`http://localhost:3000/${invitation.bannerImage}`}
+              src={fileUrl(invitation.bannerImage)}
               alt={invitation.tournamentName}
               className="w-full h-48 object-cover rounded-md mb-5"
             />

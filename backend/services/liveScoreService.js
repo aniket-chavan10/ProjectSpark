@@ -7,6 +7,7 @@ const teamModel = require("../models/teamModel");
 const performanceModel = require("../models/playerPerformanceModel");
 const squadModel = require("../models/squadModel");
 const { isFreeHit, isInningsOver, oversToBalls, ballsToOversString } = require("../utils/cricketRules/cricketRules");
+const superOverService = require("./superOverService");
 
 exports.getLiveScoreboard = async (conn, matchId) => {
   // Fetch match data
@@ -397,6 +398,16 @@ exports.getLiveScoreboard = async (conn, matchId) => {
     }
   }
 
+  // A tied match that is being settled with a super over (null for every other match, or on a database without the tables)
+  let superOver = null;
+  if (matchStatus === "completed") {
+    try {
+      superOver = await superOverService.getState(conn, matchId);
+    } catch (err) {
+      console.error("Could not read the super over:", err.message);
+    }
+  }
+
   // Final aggregated response
   return {
     matchId: match.match_id,
@@ -410,6 +421,7 @@ exports.getLiveScoreboard = async (conn, matchId) => {
     targetScore: match.target_score,
     status: matchStatus,
     isSuperOver,
+    superOver,
     innings: inningsDetailed,
     teams: {
       team1: {

@@ -1,3 +1,4 @@
+import { fileUrl } from "../../utils/files";
 import React, { useEffect, useState } from "react";
 import tournamentApi from "../../api/tournamentApi1";
 
@@ -126,7 +127,7 @@ export default function ApplyTournament() {
                     <td className="px-6 py-4">
                       {tournament.banner_image ? (
                         <img
-                          src={tournament.banner_image}
+                          src={fileUrl(tournament.banner_image)}
                           alt={tournament.name}
                           className="w-20 h-14 object-cover rounded"
                         />

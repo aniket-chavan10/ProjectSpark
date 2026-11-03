@@ -10,25 +10,54 @@
     -webkit-text-size-adjust: 100%;
   }
   body {
-    @apply bg-slate-50 font-sans text-slate-800 antialiased;
-    font-feature-settings: "cv11", "ss01";
+    @apply bg-[#f2f3fa] font-sans text-slate-800 antialiased;
   }
   h1, h2, h3, h4 {
     @apply tracking-tight;
   }
   ::selection {
-    @apply bg-emerald-200 text-emerald-950;
+    @apply bg-spark-200 text-spark-950;
   }
   :focus-visible {
-    @apply outline-none ring-2 ring-emerald-500 ring-offset-2;
+    @apply outline-none ring-2 ring-spark-500 ring-offset-2;
   }
-  /* thin, quiet scrollbars inside panels */
   * {
     scrollbar-width: thin;
-    scrollbar-color: #cbd5e1 transparent;
+    scrollbar-color: #c9cdea transparent;
   }
   input[type="number"]::-webkit-inner-spin-button {
     opacity: 1;
+  }
+}
+
+@layer components {
+  /* the condensed sports headline */
+  .display {
+    @apply font-display font-extrabold uppercase tracking-wide;
+  }
+  /* a dark panel on the stadium background */
+  .glass-dark {
+    @apply border border-white/10 bg-white/[0.04] backdrop-blur-sm;
+  }
+  /* diagonal stripes that keep running: put it on an element with a gradient or colour behind */
+  .run-stripes {
+    background-image: repeating-linear-gradient(115deg, rgba(255, 255, 255, 0.14) 0 2px, transparent 2px 14px);
+    background-size: 56px 100%;
+    @apply animate-stripe-run;
+  }
+  /* a light that crosses an element from time to time */
+  .sweep {
+    position: relative;
+    overflow: hidden;
+  }
+  .sweep::after {
+    content: "";
+    position: absolute;
+    inset: -20% auto -20% 0;
+    width: 30%;
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.28), transparent);
+    @apply animate-sweep;
+    pointer-events: none;
   }
 }
 
@@ -39,5 +68,20 @@
   .scroll-y {
     overflow-y: auto;
     overscroll-behavior: contain;
+  }
+  .clip-slant {
+    clip-path: polygon(0 0, 100% 0, calc(100% - 18px) 100%, 0 100%);
+  }
+  .clip-slant-l {
+    clip-path: polygon(18px 0, 100% 0, 100% 100%, 0 100%);
+  }
+  .clip-chip {
+    clip-path: polygon(10px 0, 100% 0, calc(100% - 10px) 100%, 0 100%);
+  }
+  .text-gradient-spark {
+    background: linear-gradient(120deg, #ff4d0a 0%, #ff8a3d 50%, #ffb21a 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
   }
 }

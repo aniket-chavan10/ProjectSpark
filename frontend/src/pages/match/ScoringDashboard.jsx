@@ -216,7 +216,13 @@ export default function ScoringDashboard({ matchId, initial, onExit }) {
       ? `Innings break. ${sb.teams.team1.id === first.teamId ? sb.teams.team1.name : sb.teams.team2.name} scored ${first.totalRuns}/${first.wickets} in ${first.overs} overs. ${batting.name} need ${inning.targetScore || first.totalRuns + 1} to win.`
       : null;
 
-  const status = matchDone ? <span className="rounded-md bg-white/15 px-2 py-0.5 text-xs font-bold uppercase tracking-wide text-white">Completed</span> : needOpeners ? <span className="rounded-md bg-white/15 px-2 py-0.5 text-xs font-bold uppercase tracking-wide text-white">Ready</span> : <LiveBadge />;
+  const status = matchDone ? (
+    <span className="rounded-md bg-white/15 px-2 py-0.5 text-[11px] font-extrabold uppercase tracking-widest text-white">Completed</span>
+  ) : needOpeners ? (
+    <span className="rounded-md bg-amber-400 px-2 py-0.5 text-[11px] font-extrabold uppercase tracking-widest text-amber-950">Ready</span>
+  ) : (
+    <LiveBadge />
+  );
 
   const menuItems = [
     { icon: LuUserRoundX, label: "Batter retires…", disabled: padOff || !nonStrikerNow, run: () => setModal("retire") },
@@ -228,21 +234,22 @@ export default function ScoringDashboard({ matchId, initial, onExit }) {
   /* ----------------------------- render ----------------------------- */
 
   return (
-    <div className="min-h-screen bg-slate-100">
-      <header className="sticky top-0 z-30 border-b border-white/10 bg-ink-950 text-white">
-        <div className="mx-auto flex h-16 max-w-[1500px] items-center gap-4 px-4 sm:px-6">
-          <SparkMark size={34} />
+    <div className="min-h-screen bg-stadium text-white">
+      <div className="pointer-events-none fixed inset-0 bg-grid-faint [background-size:56px_56px] [mask-image:linear-gradient(to_bottom,black,transparent_60%)]" aria-hidden="true" />
+      <header className="sticky top-0 z-30 border-b border-white/10 bg-ink-950/80 backdrop-blur-xl">
+        <div className="flex h-[68px] w-full items-center gap-4 px-4 sm:px-6 xl:px-8">
+          <SparkMark size={38} />
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-3">
-              <h1 className="truncate text-[15px] font-semibold tracking-tight sm:text-base">
+              <h1 className="truncate font-display text-xl font-extrabold uppercase tracking-wide sm:text-2xl">
                 {sb.teams.team1.name} <span className="text-ink-400">v</span> {sb.teams.team2.name}
               </h1>
               {status}
             </div>
-            <p className="truncate text-xs text-ink-300">{stageText(sb)}</p>
+            <p className="truncate text-xs font-semibold text-ink-300">{stageText(sb)}</p>
           </div>
 
-          <span className={cx("hidden items-center gap-1.5 text-xs font-medium sm:inline-flex", link === "connected" ? "text-ink-200" : "text-amber-300")} title="Live connection">
+          <span className={cx("hidden items-center gap-2 rounded-xl px-3 py-2 text-xs font-bold ring-1 ring-inset sm:inline-flex", link === "connected" ? "bg-green-500/10 text-green-300 ring-green-400/30" : "bg-amber-500/10 text-amber-300 ring-amber-400/30")} title="Live connection">
             {link === "connected" ? <LuWifi className="h-4 w-4" aria-hidden="true" /> : <LuWifiOff className="h-4 w-4" aria-hidden="true" />}
             {link === "connected" ? "Connected" : "Reconnecting"}
           </span>
@@ -250,11 +257,11 @@ export default function ScoringDashboard({ matchId, initial, onExit }) {
           <BroadcastMenu matchId={matchId} />
 
           <div className="relative" ref={menuRef}>
-            <button type="button" aria-haspopup="menu" aria-expanded={menu} aria-label="More" onClick={() => setMenu((m) => !m)} className="inline-flex h-9 w-9 items-center justify-center rounded-lg bg-white/10 ring-1 ring-inset ring-white/15 hover:bg-white/15">
+            <button type="button" aria-haspopup="menu" aria-expanded={menu} aria-label="More" onClick={() => setMenu((m) => !m)} className="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-white/10 ring-1 ring-inset ring-white/15 hover:bg-white/15">
               <LuEllipsis className="h-5 w-5" />
             </button>
             {menu && (
-              <div role="menu" className="absolute right-0 top-full z-40 mt-2 w-64 overflow-hidden rounded-xl border border-slate-200 bg-white py-1 text-slate-800 shadow-pop">
+              <div role="menu" className="absolute right-0 top-full z-40 mt-2 w-64 animate-pop-in overflow-hidden rounded-2xl border border-slate-200 bg-white py-1 text-slate-800 shadow-pop">
                 {menuItems.map((item) => (
                   <button
                     key={item.label}
@@ -265,9 +272,9 @@ export default function ScoringDashboard({ matchId, initial, onExit }) {
                       setMenu(false);
                       item.run();
                     }}
-                    className="flex w-full items-center gap-3 px-4 py-2.5 text-left text-sm hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
+                    className="flex w-full items-center gap-3 px-4 py-2.5 text-left text-sm font-semibold hover:bg-ink-50 disabled:cursor-not-allowed disabled:opacity-40"
                   >
-                    <item.icon className="h-4 w-4 text-slate-500" aria-hidden="true" />
+                    <item.icon className="h-4 w-4 text-ink-400" aria-hidden="true" />
                     {item.label}
                   </button>
                 ))}
@@ -277,7 +284,7 @@ export default function ScoringDashboard({ matchId, initial, onExit }) {
         </div>
       </header>
 
-      <main className="mx-auto max-w-[1500px] space-y-5 px-4 py-5 sm:px-6">
+      <main className="relative w-full space-y-5 px-4 py-5 sm:px-6 xl:px-8">
         {error && (
           <Alert tone="error" onClose={() => setError("")}>
             {error}
@@ -287,14 +294,16 @@ export default function ScoringDashboard({ matchId, initial, onExit }) {
         <ScoreHero sb={sb} inning={inning} />
 
         {matchDone && <MatchResult sb={sb} onBack={onExit} />}
-        {matchDone && sb.matchResult && sb.matchResult.marginType === "tie" && <TieBreakPanel matchId={matchId} onDone={() => refresh().catch((e) => setError(e.message))} />}
+        {matchDone && sb.matchResult && sb.matchResult.marginType === "tie" && <TieBreakPanel matchId={matchId} squads={{ [sb.teams.team1.id]: sb.teams.team1.players, [sb.teams.team2.id]: sb.teams.team2.players }} onDone={() => refresh().catch((e) => setError(e.message))} />}
 
         {needOpeners && <InningsSetup key={inning.inningId} inningsNumber={inning.inningsNumber} battingTeam={batting} bowlingTeam={bowling} banner={breakBanner} onSubmit={submitOpeners} busy={busy} />}
 
         {!matchDone && !needOpeners && (
-          <div className="grid grid-cols-1 items-start gap-5 xl:grid-cols-12">
-            <div className="min-w-0 space-y-5 xl:col-span-7">
+          <div className="grid grid-cols-1 items-start gap-5 lg:grid-cols-2 2xl:grid-cols-[minmax(0,1fr)_minmax(0,1.15fr)_minmax(0,1fr)]">
+            <div className="min-w-0 lg:order-1">
               <PlayersPanel inning={inning} onRetire={padOff ? null : () => setModal("retire")} awaitingBowler={needBowler} />
+            </div>
+            <div className="min-w-0 lg:order-2">
               <ScorePad
                 disabled={padOff}
                 reason={padReason}
@@ -311,7 +320,7 @@ export default function ScoringDashboard({ matchId, initial, onExit }) {
                 onSwap={swapEnds}
               />
             </div>
-            <div className="min-w-0 xl:sticky xl:top-[5.25rem] xl:col-span-5">
+            <div className="min-w-0 lg:order-3 lg:col-span-2 2xl:sticky 2xl:top-[5.25rem] 2xl:col-span-1">
               <ScorecardPanel sb={sb} scorecard={scorecard} inningId={inning.inningId} />
             </div>
           </div>

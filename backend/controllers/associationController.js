@@ -8,6 +8,7 @@ const postMatchHooks = require("../services/postMatchHooks");
 const awards = require("../services/awardService");
 const sponsors = require("../services/sponsorService");
 const association = require("../services/associationService");
+const insights = require("../services/associationInsightsService");
 const { handle, intParam } = require("../utils/handle");
 
 const who = (req) => (req.masterAdmin && (req.masterAdmin.id || req.masterAdmin.adminId)) || null;
@@ -51,3 +52,6 @@ exports.allPlayers = handle("Could not load the players", 200, (req) => associat
 exports.allSchedules = handle("Could not load the schedules", 200, (req) => association.schedules(req.query));
 exports.moveReservation = handle("Could not move the dates", 200, (req) => association.moveReservation(intParam(req, "id"), req.body || {}));
 exports.cancelReservation = handle("Could not cancel the dates", 200, (req) => association.cancelReservation(intParam(req, "id"), req.body && req.body.reason));
+exports.teamDetail = handle("Could not load the team", 200, (req) => insights.teamDetail(intParam(req, "id")));
+exports.hosts = handle("Could not load the hosts", 200, () => insights.hosts());
+exports.dashboard = handle("Could not load the dashboard", 200, () => insights.dashboard());

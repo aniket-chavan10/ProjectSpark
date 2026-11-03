@@ -75,6 +75,14 @@ export const operatorApi = (key) => {
 export const tieBreakApi = {
   status: (matchId) => get(`/match/${matchId}/tiebreak`),
   resolve: (matchId, body) => run(axiosInstance.post(`/match/${matchId}/tiebreak`, body)),
+  // the super over, played ball by ball (every call answers { superOver } and tells the stream)
+  startSuperOver: (matchId) => run(axiosInstance.post(`/match/${matchId}/super-over/start`)),
+  superOverBall: (matchId, body) => run(axiosInstance.post(`/match/${matchId}/super-over/ball`, body)),
+  undoSuperOverBall: (matchId) => run(axiosInstance.post(`/match/${matchId}/super-over/undo`)),
+  setSuperOverPlayers: (matchId, body) => run(axiosInstance.put(`/match/${matchId}/super-over/players`, body)),
+  nextSuperOver: (matchId) => run(axiosInstance.post(`/match/${matchId}/super-over/next`)),
+  confirmSuperOver: (matchId) => run(axiosInstance.post(`/match/${matchId}/super-over/confirm`)),
+  removeSuperOver: (matchId) => run(axiosInstance.delete(`/match/${matchId}/super-over`)),
   getRules: (tournamentId) => get(`/tournament/tournaments/${tournamentId}/tie-rules`),
   setRules: (tournamentId, body) => run(axiosInstance.put(`/tournament/tournaments/${tournamentId}/tie-rules`, body)),
 };
@@ -119,6 +127,9 @@ export const associationApi = {
   saveSponsor: (id, form) => run(id ? masterAxios.put(`/association/sponsors/${id}`, form, multipart) : masterAxios.post("/association/sponsors", form, multipart)),
   removeSponsor: (id) => run(masterAxios.delete(`/association/sponsors/${id}`)),
 
+  dashboard: () => masterGet("/association/dashboard"),
+  hosts: () => masterGet("/association/hosts"),
+  team: (id) => masterGet(`/association/teams/${id}`),
   teams: (q) => masterGet("/association/teams", { q }),
   players: (params) => masterGet("/association/players", params),
   schedules: (params) => masterGet("/association/schedules", params),
@@ -126,13 +137,7 @@ export const associationApi = {
 
 const multipart = { headers: { "Content-Type": "multipart/form-data" } };
 
-/** Uploaded logos and photos are served by the backend next to the API. */
-export const fileUrl = (path) => {
-  if (!path) return null;
-  if (/^https?:/i.test(path)) return path;
-  const origin = (import.meta.env.VITE_API_URL || "http://localhost:3000/api").replace(/\/api\/?$/, "");
-  return `${origin}/${String(path).replace(/\\/g, "/").replace(/^\/+/, "")}`;
-};
+export { fileUrl } from "../utils/files";
 
 export const shortDate = (value) => {
   if (!value) return "";

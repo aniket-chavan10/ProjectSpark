@@ -3,9 +3,10 @@ import { useParams, useSearchParams } from "react-router-dom";
 import scoringApi from "../../api/scoringApi";
 import { overlayApi, publicApi } from "../../api/sparkApi";
 import { watchMatch } from "../../api/matchSocket";
+import { AnimatePresence } from "framer-motion";
 import ScoreBug from "../../components/Overlay/ScoreBug";
-import SceneLayer, { NEEDS_RANKINGS, NEEDS_SCORECARD } from "../../components/Overlay/Scenes";
-import { photoLookup } from "../../components/Overlay/bc";
+import SceneLayer, { CornerBug, NEEDS_RANKINGS, NEEDS_SCORECARD, USES_TOP } from "../../components/Overlay/Scenes";
+import { BroadcastStyles, photoLookup } from "../../components/Overlay/bc";
 import { currentInnings, detectEvent } from "../../components/Scoring/scoreUtils";
 
 const CANVAS_W = 1920;
@@ -16,13 +17,15 @@ const EVENT_MS = 4200;
 /**
  * /overlay/:matchId  -  for the streaming software (OBS: Browser source, 1920x1080, transparent).
  * The score bar runs along the bottom; the operator's desk can put more on air (squads, openers, scorecard ...).
- * ?bg=green|dark|light shows a colour behind it for testing; ?tag=Text replaces the "Match 5" tag; ?event=8 sets how long banners stay.
+ * ?bg=green|dark|light shows a colour behind it for testing; ?tag=Text replaces the "Match 5" tag; ?event=8 sets how long banners stay;
+ * ?corner=0 hides the tournament / LIVE tag in the top-left corner.
  */
 export default function OverlayPage() {
   const { matchId } = useParams();
   const [params] = useSearchParams();
   const bg = BACKGROUNDS[params.get("bg")] || "transparent";
   const tag = params.get("tag") || undefined;
+  const corner = params.get("corner") !== "0";
   const eventMs = (Number(params.get("event")) || 0) * 1000 || EVENT_MS; // ?event=8 keeps the four / six / wicket banner up for 8 seconds
 
   const [sb, setSb] = useState(null);
@@ -46,7 +49,7 @@ export default function OverlayPage() {
     document.body.style.background = "transparent";
     const link = document.createElement("link");
     link.rel = "stylesheet";
-    link.href = "https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700;800&display=swap";
+    link.href = "https://fonts.googleapis.com/css2?family=Barlow+Condensed:ital,wght@0,500;0,600;0,700;0,800;0,900;1,700;1,800;1,900&display=swap";
     document.head.appendChild(link);
     return () => {
       document.documentElement.style.background = oldHtml;
@@ -160,6 +163,8 @@ export default function OverlayPage() {
   return (
     <div style={{ position: "fixed", inset: 0, background: bg, overflow: "hidden" }}>
       <div style={{ position: "absolute", left: 0, bottom: 0, width: CANVAS_W, height: CANVAS_H, transform: `scale(${scale})`, transformOrigin: "bottom left" }}>
+        <BroadcastStyles />
+        <AnimatePresence>{corner && sb && !USES_TOP.includes(scene) && <CornerBug key="corner" data={data} sb={sb} />}</AnimatePresence>
         <SceneLayer state={state} data={data} sb={sb} inning={inning} scorecard={scorecard} rankings={rankings} />
         {sb && inning && <ScoreBug sb={sb} inning={inning} event={event} tournamentTag={tag} photoOf={photoOf} />}
         {problem && <div style={{ position: "absolute", left: 96, bottom: 52, color: "#fff", background: "rgba(220,38,38,.85)", padding: "12px 24px", borderRadius: 8, fontFamily: "sans-serif", fontSize: 24 }}>{problem}</div>}

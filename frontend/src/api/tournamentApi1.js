@@ -216,8 +216,39 @@ async getGroupsWithTeams(tournamentId) {
     }
   },
 
-
-
+  // ---- a team backs out: the host puts another team in its place ----
+  async getReplacementCandidates(tournamentId, q = "") {
+    try {
+      const res = await axiosInstance.get(`/tournament/tournaments/${tournamentId}/replacement-candidates`, { params: { q } });
+      return res.data.items;
+    } catch (error) {
+      throw error.response?.data || { error: error.message };
+    }
+  },
+  async previewReplacement(tournamentId, teamId) {
+    try {
+      const res = await axiosInstance.get(`/tournament/tournaments/${tournamentId}/teams/${teamId}/replacement-preview`);
+      return res.data;
+    } catch (error) {
+      throw error.response?.data || { error: error.message };
+    }
+  },
+  async replaceTeam(tournamentId, { outTeamId, inTeamId, reason }) {
+    try {
+      const res = await axiosInstance.post(`/tournament/tournaments/${tournamentId}/replace-team`, { outTeamId, inTeamId, reason });
+      return res.data;
+    } catch (error) {
+      throw error.response?.data || { error: error.message };
+    }
+  },
+  async getReplacements(tournamentId) {
+    try {
+      const res = await axiosInstance.get(`/tournament/tournaments/${tournamentId}/replacements`);
+      return res.data.items;
+    } catch (error) {
+      throw error.response?.data || { error: error.message };
+    }
+  },
 
 };
 

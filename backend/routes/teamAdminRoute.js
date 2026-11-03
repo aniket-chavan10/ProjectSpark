@@ -5,8 +5,7 @@ const upload = require("../middlewares/uploadMiddleware");
 const controller = require("../controllers/teamAdminController");
 
 // a bad or too large photo is the user's mistake: say so instead of a server error
-const photo = (req, res, next) =>
-  upload.single("profile_picture")(req, res, (err) => (err ? res.status(400).json({ success: false, error: err.message, message: err.message }) : next()));
+const photo = upload.safe("profile_picture");
 
 router.use(requireTeamAdmin);
 

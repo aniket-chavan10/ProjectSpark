@@ -5,6 +5,7 @@
 | You have | Run |
 |---|---|
 | A new machine, no database | `npm run db:setup` |
+| An old database with bad data, and you want to **start over, empty** | `npm run db:fresh` (deletes everything) |
 | A restored dump, or an older Spark database | `npm run db:upgrade` (try `-- --dry-run` first) |
 | Any database, to see what is wrong | `npm run db:check` |
 
@@ -15,10 +16,33 @@ All three read `backend/.env` (`DB_HOST`, `DB_PORT` optional, `DB_USER`, `DB_PAS
 ```
 cd backend
 npm install
-npm run db:setup          # creates the database and all 31 tables
+npm run db:setup          # creates the database and all 34 tables
 npm run db:check          # should say OK
 npm run seed:test         # optional: 16 test teams and a ready schedule
 ```
+
+## Start completely fresh (throw the old database away)
+
+```
+cd backend
+# stop the backend server first (Ctrl+C in the window running it)
+npm run db:fresh
+```
+
+It asks you to type the database name, then runs `DROP DATABASE` -> `CREATE DATABASE` -> `schema.sql` (all 34 tables
+and the ranking-point rules), creates one association login, and finishes with `db:check`, which compares the new
+database with the code. **Every row is deleted, no backup is taken.** Start the backend again afterwards.
+
+```
+npm run db:fresh -- --master-user boss --master-email me@example.com --master-password Strong123
+npm run db:fresh -- --yes             # no question
+npm run db:fresh -- --no-master       # do not create the association login
+```
+
+Without `--master-password` a random one is generated and printed once. Team admin logins are created when the
+association approves a team's registration (password `admin_<village name>`), so nothing else needs seeding.
+Needs a MySQL user with DROP and CREATE rights (root is fine). Uploaded pictures in `backend/uploads/` are not
+touched; the ones the old data pointed at are simply no longer used.
 
 ## Restoring a dump (for example `project_spark_dump_31102026.sql`)
 
@@ -53,6 +77,17 @@ Each of these failed against MySQL with the dump as it was, and is fixed by `db:
 
 `db:check` also scans the SQL written in the backend and fails if the code asks for a column the schema does not
 have, so this cannot drift apart silently again.
+
+## Tables added with the replace-a-team and super over features
+
+| Table | What it holds |
+|---|---|
+| `tournament_replacements` | One row each time a host replaces a team that backed out: tournament, team out, team in, who, when, why. |
+| `super_over_innings` | One row per super over innings of a tied match (round, batting order, team, runs, wickets, balls, batters, bowler). |
+| `super_over_balls` | Every ball of a super over, in order, so the scorer can undo and the broadcast can show it. |
+
+An existing database gets them from `npm run db:upgrade` (the first step creates any table that `schema.sql` has and the
+database does not). Until you run it, replacing a team and the live super over answer with a clear message; nothing else is affected.
 
 ## Tables the app does not use
 

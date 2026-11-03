@@ -93,15 +93,15 @@ export default function BroadcastMenu({ matchId }) {
         onClick={() => setOpen((o) => !o)}
         aria-haspopup="dialog"
         aria-expanded={open}
-        className="inline-flex items-center gap-2 rounded-lg bg-white/10 px-3 py-2 text-sm font-semibold text-white ring-1 ring-inset ring-white/15 transition-colors hover:bg-white/15"
+        className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-red-600 to-rose-500 px-3.5 py-2 text-sm font-extrabold uppercase tracking-wider text-white shadow-[0_8px_24px_-8px_rgba(239,68,68,.8)] transition hover:brightness-110"
       >
-        <LuRadio className="h-4 w-4 text-ink-200" aria-hidden="true" />
+        <LuRadio className="h-4 w-4" aria-hidden="true" />
         Broadcast
-        <LuChevronDown className={cx("h-4 w-4 text-ink-300 transition-transform", open && "rotate-180")} aria-hidden="true" />
+        <LuChevronDown className={cx("h-4 w-4 text-white/80 transition-transform", open && "rotate-180")} aria-hidden="true" />
       </button>
 
       {open && (
-        <div role="dialog" aria-label="Broadcast links" className="absolute right-0 top-full z-50 mt-2 w-[26rem] max-w-[calc(100vw-1.5rem)] divide-y divide-slate-100 overflow-hidden rounded-xl border border-slate-200 bg-white text-slate-900 shadow-pop">
+        <div role="dialog" aria-label="Broadcast links" className="absolute right-0 top-full z-50 mt-2 w-[26rem] max-w-[calc(100vw-1.5rem)] animate-pop-in divide-y divide-slate-100 overflow-hidden rounded-2xl border border-slate-200 bg-white text-slate-900 shadow-pop">
           <CopyRow icon={LuMonitorPlay} title="Overlay for OBS" hint="Add it as a Browser source, 1920 × 1080, with a transparent background. It shows the live score bar." url={overlayUrl} />
           <CopyRow
             icon={LuSlidersHorizontal}

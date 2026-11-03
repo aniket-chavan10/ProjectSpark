@@ -1,16 +1,21 @@
 import { useEffect, useState } from "react";
 import { tieBreakApi } from "../../api/sparkApi";
 import { btn, card, field, label } from "../ui/classes";
+import SuperOverConsole from "./SuperOverConsole";
 
 const METHODS = [
-  { id: "super_over", name: "Super over", hint: "Enter the score of each team's super over" },
+  { id: "super_over", name: "Super over", hint: "Play one over each, ball by ball, on the stream" },
   { id: "batted_first", name: "Batted first wins", hint: "The team that batted first wins" },
   { id: "manual", name: "Pick the winner", hint: "The host decides" },
 ];
 
 // Shown when a match ends level and nobody has won yet. The tournament's own rule is pre-selected.
-export default function TieBreakPanel({ matchId, onDone }) {
+// A super over is scored ball by ball here (and shown on the stream); the totals form is for one played off-screen.
+//   squads  { [teamId]: players[] } so the super-over batters and bowler can be named
+export default function TieBreakPanel({ matchId, onDone, squads }) {
   const [info, setInfo] = useState(null);
+  const [superOver, setSuperOver] = useState(null);
+  const [entry, setEntry] = useState("live"); // live | totals
   const [method, setMethod] = useState("super_over");
   const [runs, setRuns] = useState({ team1Runs: "", team1Wickets: "0", team2Runs: "", team2Wickets: "0" });
   const [winner, setWinner] = useState("");
@@ -24,6 +29,7 @@ export default function TieBreakPanel({ matchId, onDone }) {
       .then((s) => {
         setInfo(s);
         setMethod(s.rule);
+        setSuperOver(s.superOver || null);
       })
       .catch((e) => setError(e.message));
   }, [matchId]);
@@ -47,8 +53,8 @@ export default function TieBreakPanel({ matchId, onDone }) {
   };
   const num = (k) => (e) => setRuns({ ...runs, [k]: e.target.value });
 
-  return (
-    <form onSubmit={submit} className={`${card} space-y-4 border-amber-300 bg-amber-50 p-5`} aria-label="Settle the tie">
+  const header = (
+    <>
       <div>
         <h2 className="text-lg font-bold text-amber-900">The match is tied</h2>
         <p className="text-sm text-amber-900">Settle it now so the winner moves on and points are given. This tournament's rule: <strong>{METHODS.find((m) => m.id === info.rule).name}</strong>.</p>
@@ -62,7 +68,41 @@ export default function TieBreakPanel({ matchId, onDone }) {
           </button>
         ))}
       </div>
+    </>
+  );
 
+  // the super over, scored ball by ball
+  if (method === "super_over" && entry === "live") {
+    return (
+      <section className={`rounded-2xl border border-amber-300 bg-amber-50 shadow-card space-y-4 p-5`} aria-label="Super over">
+        {header}
+        <SuperOverConsole matchId={matchId} state={superOver} onState={setSuperOver} onConfirmed={() => onDone && onDone()} squads={squads} teams={info.teams} />
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm">
+          {superOver && superOver.rounds.every((r) => r.innings.every((i) => i.balls.length === 0)) && (
+            <button type="button" className="font-semibold text-amber-900 underline underline-offset-2 hover:text-amber-700" onClick={() => tieBreakApi.removeSuperOver(matchId).then(() => setSuperOver(null)).catch((e) => setError(e.message))}>
+              Take the super over off the stream
+            </button>
+          )}
+          {!superOver && (
+            <button type="button" className="font-semibold text-amber-900 underline underline-offset-2 hover:text-amber-700" onClick={() => setEntry("totals")}>
+              It was already played: enter the totals instead
+            </button>
+          )}
+        </div>
+        {error && <p role="alert" className="text-sm font-medium text-red-700">{error}</p>}
+      </section>
+    );
+  }
+
+  return (
+    <form onSubmit={submit} className={`rounded-2xl border border-amber-300 bg-amber-50 shadow-card space-y-4 p-5`} aria-label="Settle the tie">
+      {header}
+
+      {method === "super_over" && (
+        <button type="button" className="text-sm font-semibold text-amber-900 underline underline-offset-2 hover:text-amber-700" onClick={() => setEntry("live")}>
+          Score the super over ball by ball instead
+        </button>
+      )}
       {method === "super_over" && (
         <div className="grid gap-4 sm:grid-cols-2">
           {[[t1, "team1"], [t2, "team2"]].map(([t, k]) => (

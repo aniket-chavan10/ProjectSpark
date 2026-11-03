@@ -47,6 +47,7 @@ const AdminDashboard = () => {
   const [unread, setUnread] = useState(0);
   const [openMatchId, setOpenMatchId] = useState(null);
   const [team, setTeam] = useState(null);
+  const [organizeTarget, setOrganizeTarget] = useState(null); // { id, step } : open Organize on this tournament
   const navigate = useNavigate();
   const { logout } = useAuth();
 
@@ -87,6 +88,11 @@ const AdminDashboard = () => {
 
   const goTo = (sectionId) => setActiveSection(sectionId);
 
+  const manageTournament = (id, step) => {
+    setOrganizeTarget({ id, step });
+    setActiveSection("organize");
+  };
+
   const desktopOnly = (what, node) => (
     <DesktopOnly what={what} alt={{ label: "Go to My squad", onClick: () => setActiveSection("squad") }}>
       {node}
@@ -94,9 +100,9 @@ const AdminDashboard = () => {
   );
 
   const sectionComponents = {
-    dashboard: <Dashboard overview={team} onOpenMatch={openMatch} goTo={goTo} />,
+    dashboard: <Dashboard overview={team} unread={unread} onOpenMatch={openMatch} goTo={goTo} onManage={manageTournament} />,
     // scheduling and managing a tournament needs a big screen
-    organize: desktopOnly("Organizing a tournament", <OrganizerDashboard />),
+    organize: desktopOnly("Organizing a tournament", <OrganizerDashboard initial={organizeTarget} onConsumed={() => setOrganizeTarget(null)} />),
     apply: <ApplyTournament />,
     invitations: <Invitation />,
     profile: <Profile team={team} onChanged={loadTeam} />,
