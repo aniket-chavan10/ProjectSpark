@@ -26,6 +26,14 @@ exports.setScene = handle("Could not change the overlay", 200, async (req) => {
   return state;
 });
 
+// what the always-on score bar shows (batters, bowler, this over, right-hand block, photos, corner tag, banners)
+exports.setBar = handle("Could not change the score bar", 200, async (req) => {
+  const matchId = intParam(req, "matchId");
+  const state = await overlayService.setBar(matchId, req.body);
+  tell(req, matchId, "overlayUpdate", state);
+  return state;
+});
+
 exports.setPlayerOfMatch = handle("Could not save the player of the match", 200, async (req) => {
   const matchId = intParam(req, "matchId");
   const out = await overlayService.setPlayerOfMatch(matchId, req.body.playerId);

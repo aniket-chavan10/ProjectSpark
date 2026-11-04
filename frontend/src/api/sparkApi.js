@@ -48,6 +48,7 @@ export const publicApi = {
 export const overlayApi = {
   get: (matchId) => get(`/overlay/${matchId}`),
   setScene: (matchId, body) => run(axiosInstance.put(`/overlay/${matchId}/scene`, body)),
+  setBar: (matchId, body) => run(axiosInstance.put(`/overlay/${matchId}/bar`, body)),
   setPlayerOfMatch: (matchId, playerId) => run(axiosInstance.put(`/overlay/${matchId}/player-of-match`, { playerId })),
   /** The scorer (logged in) makes a link; its key lets one person run this match's overlay and nothing else. */
   createOperatorLink: (matchId) => run(axiosInstance.post(`/overlay/${matchId}/operator-link`)),
@@ -67,6 +68,7 @@ export const operatorApi = (key) => {
   return {
     get: (matchId) => run(client.get(`/overlay/${matchId}`)),
     setScene: (matchId, body) => run(client.put(`/overlay/${matchId}/scene`, body)),
+    setBar: (matchId, body) => run(client.put(`/overlay/${matchId}/bar`, body)),
     setPlayerOfMatch: (matchId, playerId) => run(client.put(`/overlay/${matchId}/player-of-match`, { playerId })),
   };
 };

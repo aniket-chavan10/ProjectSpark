@@ -1,392 +1,498 @@
 import { AnimatePresence, motion } from "framer-motion";
-import { ballsLeft, overChips, runsNeeded, sides, teamCode, teamColor } from "../Scoring/scoreUtils";
-import { Backdrop, C, caps, Divider, draw, drop, EASE, fit, FONT, graphic, holder, Letters, Logo, Photo, photoLookup, PLATE, pop, rise, RunningLines, SHADOW, slideIn, SLANT, SLANT_L, SPARK, stagger, Sweep, Tag, TeamSlab, teamGrad } from "./bc";
+import { ballsLeft, overChips, runsNeeded, sides, teamCode } from "../Scoring/scoreUtils";
+import { BAR_BOTTOM, BAR_H } from "./ScoreBug";
+import { BallChip, C, CUT, CUT_TL, EASE, EDGE, FONT, Label, Logo, Name, Photo, PLATE, PLATE_SOFT, caps, fit, holder, photoLookup, pop, rise, shades, slide, stage, teamBlock, wipe, SHADOW, SLANT } from "./bc";
 
 // The extra graphics the operator can put on air. Like a TV production they live in different parts of the frame:
-//   centre panels   preview, scorecard, top performers, result
-//   side panels     squads (left and right), batters / openers / fall of wicket (left), bowler / player of the match / rankings (right)
-//   lower thirds    toss, end of over, partnership, message (just above the score bar)
-//   top banner      target / chase equation
-// Each one builds from layers (spark, team colour, plate) that wipe in from its own edge, then the content cascades.
+//   card rows      player cards (batters, openers, bowler, one player, player of the match, top performers)
+//   strips         a plate just above the score bar (toss, end of over, partnership, message)
+//   panels         squads, scorecard, result (centre) and the ranking (right)
+//   top banner     the chase equation
+// A plate wipes open from its edge, then its content rises in one piece after another. Photos lead every player graphic.
 
-const CHIP = { dot: "#2a3170", run: "#ffffff", four: "linear-gradient(160deg,#3fb4ff,#1f6feb)", six: "linear-gradient(160deg,#e040fb,#7c3aed)", wicket: "linear-gradient(160deg,#ff5a5a,#c81e1e)", extra: "#ffb21a" };
-const CHIP_TEXT = { dot: "#98a0d2", run: "#0c1040", extra: "#3b2200" };
-const CUT = (px = 36) => `polygon(${px}px 0, 100% 0, 100% calc(100% - ${px}px), calc(100% - ${px}px) 100%, 0 100%, 0 ${px}px)`;
+const ABOVE_BAR = BAR_BOTTOM + BAR_H + 38; // the lowest a scene may reach
+const SIDE = 80;
 
-/* --------------------------------- frames --------------------------------- */
-
-/** Title row of a panel: big words, a spark line drawing under them. */
-const Heading = ({ title, sub, right }) => (
-  <motion.div variants={slideIn(-40)} style={{ position: "relative", display: "flex", alignItems: "flex-end", gap: 24, marginBottom: 22, paddingBottom: 16 }}>
-    {title && <span style={{ ...caps, fontWeight: 800, fontSize: 60, lineHeight: 0.95, letterSpacing: 3, fontStyle: "italic" }}>{title}</span>}
-    {sub && <span style={{ ...caps, fontWeight: 600, fontSize: 28, color: C.muted, letterSpacing: 3, paddingBottom: 4 }}>{sub}</span>}
-    {right && <div style={{ marginLeft: "auto" }}>{right}</div>}
-    <motion.div variants={draw(0.25)} style={{ position: "absolute", left: 0, bottom: 0, width: 220, height: 5, background: SPARK }} />
-    <motion.div variants={draw(0.4)} style={{ position: "absolute", left: 230, right: 0, bottom: 1, height: 2, background: "rgba(255,255,255,.12)" }} />
-  </motion.div>
-);
-
-/** A big panel in the middle of the picture. */
-function CenterPanel({ children, wide, accentId, top = 80, bottom = 250 }) {
-  const team = accentId != null ? teamGrad(accentId) : "linear-gradient(110deg, #0e7091, #22cdef)";
-  const side = wide ? 150 : 300;
-  return (
-    <motion.div initial="hidden" animate="show" exit="exit" variants={holder} style={{ position: "absolute", left: side, right: side, top, maxHeight: 1080 - top - bottom, fontFamily: FONT, color: "#fff", filter: `drop-shadow(${SHADOW})` }}>
-      <Backdrop from="left" colors={[SPARK, team, PLATE]} offset={14} clip={CUT()} />
-      <div style={{ position: "relative", clipPath: CUT(), overflow: "hidden" }}>
-        <Sweep every={8} delay={1.2} opacity={0.1} />
-        <motion.div variants={graphic(0.045, 0.38)} style={{ position: "relative", padding: "34px 60px 36px" }}>
-          {children}
-        </motion.div>
-      </div>
-    </motion.div>
-  );
-}
-
-/** A panel pinned to the left or right edge of the picture. */
-function SidePanel({ children, side = "left", accentId, width = 720, top, bottom, label, nested }) {
-  const team = accentId != null ? teamGrad(accentId) : "linear-gradient(110deg, #0e7091, #22cdef)";
-  const clip = side === "left" ? SLANT(40) : SLANT_L(40);
-  const pos = side === "left" ? { left: 64 } : { right: 64 };
-  return (
-    <motion.div {...(nested ? {} : { initial: "hidden", animate: "show", exit: "exit" })} variants={holder} style={{ position: "absolute", ...pos, width, top, bottom, fontFamily: FONT, color: "#fff", filter: `drop-shadow(${SHADOW})` }}>
-      {label && (
-        <motion.div variants={stagger(0, 0.3)} style={{ display: "flex", justifyContent: side === "left" ? "flex-start" : "flex-end", marginBottom: 6, padding: "0 10px" }}>
-          <Tag color={accentId != null ? teamGrad(accentId) : undefined}>{label}</Tag>
-        </motion.div>
-      )}
-      <div style={{ position: "relative" }}>
-        <Backdrop from={side} colors={[SPARK, team, PLATE]} offset={12} clip={clip} />
-        <div style={{ position: "relative", clipPath: clip, overflow: "hidden" }}>
-          <Sweep every={8} delay={1.1} opacity={0.1} />
-          <motion.div variants={graphic(0.06, 0.38)} style={{ position: "relative", padding: side === "left" ? "26px 70px 28px 34px" : "26px 34px 28px 70px" }}>
-            {children}
-          </motion.div>
-        </div>
-      </div>
-    </motion.div>
-  );
-}
-
-/** A strip just above the score bar. */
-function LowerThird({ children, label, accentId, left = 200, right = 200 }) {
-  const team = accentId != null ? teamGrad(accentId) : "linear-gradient(110deg, #0e7091, #22cdef)";
-  return (
-    <motion.div initial="hidden" animate="show" exit="exit" variants={holder} style={{ position: "absolute", left, right, bottom: 248, fontFamily: FONT, color: "#fff", filter: `drop-shadow(${SHADOW})` }}>
-      {label && (
-        <motion.div variants={stagger(0, 0.3)} style={{ marginBottom: 6, paddingLeft: 10 }}>
-          <Tag color={accentId != null ? teamGrad(accentId) : undefined}>{label}</Tag>
-        </motion.div>
-      )}
-      <div style={{ position: "relative", minHeight: 132 }}>
-        <Backdrop from="left" colors={[SPARK, team, PLATE]} offset={10} clip={SLANT(34)} />
-        <div style={{ position: "relative", clipPath: SLANT(34), overflow: "hidden" }}>
-          <Sweep every={7} delay={1} opacity={0.12} />
-          <motion.div variants={graphic(0.07, 0.36)} style={{ position: "relative", display: "flex", alignItems: "stretch", minHeight: 132, paddingRight: 40 }}>
-            {children}
-          </motion.div>
-        </div>
-      </div>
-    </motion.div>
-  );
-}
-
-/** A banner that drops in from the top of the picture. */
-function TopBanner({ children, accentId, width = 1440 }) {
-  const team = accentId != null ? teamGrad(accentId) : "linear-gradient(110deg, #0e7091, #22cdef)";
-  const clip = "polygon(0 0, 100% 0, calc(100% - 40px) 100%, 40px 100%)";
-  return (
-    <motion.div initial="hidden" animate="show" exit="exit" variants={holder} style={{ position: "absolute", top: 40, left: (1920 - width) / 2, width, fontFamily: FONT, color: "#fff", filter: `drop-shadow(${SHADOW})` }}>
-      <Backdrop from="top" colors={[SPARK, team, PLATE]} offset={9} clip={clip} />
-      <div style={{ position: "relative", clipPath: clip, overflow: "hidden" }}>
-        <Sweep every={7} delay={1} opacity={0.12} />
-        <motion.div variants={graphic(0.07, 0.36)} style={{ position: "relative", display: "flex", alignItems: "stretch", minHeight: 150, padding: "20px 70px 18px" }}>
-          {children}
-        </motion.div>
-      </div>
-    </motion.div>
-  );
-}
-
-const Cell = ({ children, grow, style, dx = -30 }) => (
-  <motion.div variants={slideIn(dx)} style={{ display: "flex", flexDirection: "column", justifyContent: "center", padding: "14px 34px", flex: grow ? 1 : "none", minWidth: 0, ...style }}>
-    {children}
-  </motion.div>
-);
-const Big = ({ children, size = 54, color, italic }) => <span style={{ ...caps, fontWeight: 800, fontSize: size, lineHeight: 1.02, letterSpacing: 1.5, color: color || "#fff", fontStyle: italic ? "italic" : "normal" }}>{children}</span>;
-const Small = ({ children, color = C.muted, size = 26 }) => <span style={{ ...caps, fontWeight: 600, fontSize: size, color, letterSpacing: 2 }}>{children}</span>;
-const Sep = () => (
-  <motion.div variants={rise} style={{ display: "flex" }}>
-    <Divider />
-  </motion.div>
-);
+/* --------------------------------- data helpers --------------------------------- */
 
 const teamOfId = (data, id) => data.teams.find((t) => Number(t.id) === Number(id)) || { id, name: `Team ${id}` };
 const findCard = (scorecard, inningId) => (scorecard ? scorecard.innings.find((i) => i.inningId === inningId) : null);
 
-const Badge = ({ children, bg, color = C.ink }) => <span style={{ ...caps, fontWeight: 800, fontSize: 21, background: bg, color, borderRadius: 4, padding: "1px 10px", letterSpacing: 1 }}>{children}</span>;
-
-const Ball = ({ c, size = 54 }) => (
-  <motion.span variants={pop} style={{ minWidth: size, height: size, borderRadius: size / 2, display: "inline-flex", alignItems: "center", justifyContent: "center", padding: "0 8px", background: CHIP[c.kind] || CHIP.run, color: CHIP_TEXT[c.kind] || "#fff", boxShadow: c.kind === "dot" ? "inset 0 0 0 2px rgba(255,255,255,.2)" : "0 6px 16px rgba(0,0,0,.35)", ...caps, fontWeight: 800, fontSize: c.text.length > 2 ? size * 0.36 : size * 0.52 }}>
-    {c.text}
-  </motion.span>
-);
-
-/** A player as a broadcast card: photo, name, a role line and a big number on the right. */
-const PlayerCard = ({ name, photo, role, ring, big, bigSub, highlight }) => (
-  <motion.div variants={slideIn(-50)} style={{ position: "relative", display: "flex", alignItems: "center", gap: 20, padding: "14px 22px", marginBottom: 12, background: highlight ? "linear-gradient(90deg, rgba(255,106,26,.28), rgba(255,106,26,.04))" : "rgba(255,255,255,.05)", clipPath: SLANT(18), overflow: "hidden" }}>
-    <div style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: 6, background: highlight ? SPARK : ring }} />
-    <Photo src={photo} name={name} size={88} ring={ring} ringWidth={4} />
-    <div style={{ minWidth: 0, flex: 1 }}>
-      <Small size={20} color={highlight ? C.gold : C.muted}>{role}</Small>
-      <div style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-        <Big size={44}>{name}</Big>
-      </div>
-    </div>
-    {big !== undefined && (
-      <div style={{ textAlign: "right", paddingRight: 16 }}>
-        <Big size={64}>{big}</Big>
-        {bigSub && (
-          <div>
-            <Small size={22}>{bigSub}</Small>
-          </div>
-        )}
-      </div>
-    )}
-  </motion.div>
-);
-
-/* --------------------------------- the scenes --------------------------------- */
-
-function SquadList({ team, squad, big }) {
-  const playing = squad ? squad.playing : [];
-  const reserves = squad ? squad.reserves : [];
-  const row = big ? 50 : 50;
-  return (
-    <>
-      <motion.div variants={slideIn(-80)} style={{ marginBottom: 14 }}>
-        <TeamSlab team={team} size={big ? 52 : 48} height={big ? 76 : 72} />
-      </motion.div>
-      {playing.length === 0 && <Small>Squad not announced yet</Small>}
-      {playing.map((p, i) => (
-        <motion.div key={p.player_id} variants={slideIn(-60)} style={{ display: "flex", alignItems: "center", gap: 16, height: row, borderBottom: "1px solid rgba(255,255,255,.08)" }}>
-          <span style={{ width: 46, ...caps, fontWeight: 800, fontSize: 30, color: teamColor(team.id), textAlign: "right", fontStyle: "italic", filter: "brightness(1.4)" }}>{p.jersey_number ?? i + 1}</span>
-          <Photo src={p.profile_picture} name={p.players_name} size={big ? 46 : 42} ring={teamColor(team.id)} ringWidth={3} />
-          <span style={{ ...caps, fontWeight: 700, fontSize: big ? 36 : 32, flex: 1, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{p.players_name}</span>
-          {p.is_captain && <Badge bg={C.gold}>C</Badge>}
-          {p.is_keeper && <Badge bg={C.volt}>WK</Badge>}
-        </motion.div>
-      ))}
-      {reserves.length > 0 && (
-        <motion.div variants={rise} style={{ marginTop: 14 }}>
-          <Small size={21}>Reserves: {reserves.map((p) => p.players_name).join(", ")}</Small>
-        </motion.div>
-      )}
-    </>
-  );
+/** Everything known about a player, by id: squads first (jersey, captain, keeper), then the live scoreboard. */
+function personLookup(sb, data) {
+  const map = {};
+  [sb.teams.team1, sb.teams.team2].forEach((t) => (t.players || []).forEach((p) => (map[p.playerId] = { id: p.playerId, name: p.name, photo: p.profilePicture, number: p.jerseyNumber, teamId: t.id, captain: p.isCaptain, keeper: p.isKeeper })));
+  data.teams.forEach((t) => {
+    const sq = data.squads[t.id];
+    if (sq) [...sq.playing, ...(sq.reserves || [])].forEach((p) => (map[p.player_id] = { id: p.player_id, name: p.players_name, photo: p.profile_picture, number: p.jersey_number, teamId: t.id, captain: p.is_captain, keeper: p.is_keeper }));
+  });
+  return (id) => map[id] || null;
 }
 
-/** Both XIs: one panel on each side of the picture. One XI: a big panel on the left. */
-function SquadsScene({ data, payload }) {
-  const shown = payload.teamId ? [teamOfId(data, payload.teamId)] : data.teams;
-  if (shown.length === 1) {
-    const t = shown[0];
-    return (
-      <SidePanel nested side="left" accentId={t.id} width={900} top={50} label={data.tournament ? `${data.tournament.name} · Playing XI` : "Playing XI"}>
-        <SquadList team={t} squad={data.squads[t.id]} big />
-      </SidePanel>
-    );
+/** A player's batting and bowling in this match, from the full scorecard (or the live scoreboard while it loads). */
+function matchFigures(ctx, id) {
+  const out = { bat: null, bowl: null };
+  const { scorecard, sb } = ctx;
+  if (scorecard) {
+    scorecard.innings.forEach((i) => {
+      const b = i.batting.find((x) => Number(x.playerId) === Number(id));
+      if (b && (b.balls > 0 || b.status === "not out" || b.status === "out")) out.bat = b;
+      const w = i.bowling.find((x) => Number(x.playerId) === Number(id));
+      if (w && w.legalBalls > 0) out.bowl = w;
+    });
   }
-  const [a, b] = shown;
-  return (
-    <>
-      <SidePanel key="a" nested side="left" accentId={a.id} width={800} top={60} label="Playing XI">
-        <SquadList team={a} squad={data.squads[a.id]} />
-      </SidePanel>
-      <SidePanel key="b" nested side="right" accentId={b.id} width={800} top={60} label={data.tournament ? data.tournament.name : "Playing XI"}>
-        <SquadList team={b} squad={data.squads[b.id]} />
-      </SidePanel>
-    </>
-  );
+  if (!out.bat) {
+    sb.innings.forEach((i) => {
+      const b = i.currentBatsmen.find((x) => Number(x.playerId) === Number(id));
+      if (b) out.bat = { ...b, status: "not out" };
+    });
+  }
+  if (!out.bowl) {
+    sb.innings.forEach((i) => {
+      const w = i.currentBowler;
+      if (w && Number(w.playerId) === Number(id)) out.bowl = { ...w, runs: w.runsConceded, legalBalls: 1 };
+    });
+  }
+  return out;
 }
 
-/** The coin spins and lands on the winner's badge. */
-const Coin = ({ team }) => (
-  <motion.div variants={pop} style={{ perspective: 600 }}>
-    <div style={{ width: 110, height: 110, borderRadius: 55, animation: "bc-spin 1.4s cubic-bezier(.22,1,.36,1) .5s both", transformStyle: "preserve-3d", background: "radial-gradient(circle at 35% 30%, #ffe9a8, #f5b82e 45%, #b9770e 100%)", boxShadow: "inset 0 -6px 12px rgba(0,0,0,.3), 0 14px 30px rgba(245,184,46,.45)", display: "flex", alignItems: "center", justifyContent: "center" }}>
-      {team ? <Logo team={team} size={78} ring="rgba(255,255,255,.7)" /> : <Big size={30} color="#5a3a00">Toss</Big>}
-    </div>
+/* ------------------------------------ frames ------------------------------------ */
+
+/** A line under a heading: a short bright rule, then a faint one. */
+const Rule2 = ({ id }) => (
+  <motion.div variants={rise} style={{ display: "flex", height: 3, marginTop: 14 }}>
+    <div style={{ width: 120, background: id != null ? shades(id).base : C.brand }} />
+    <div style={{ flex: 1, background: C.line }} />
   </motion.div>
 );
 
-function TossScene({ sb }) {
-  const winner = sb.tossWinnerId ? (sb.tossWinnerId === sb.teams.team1.id ? sb.teams.team1 : sb.teams.team2) : null;
-  return (
-    <LowerThird label="The toss" accentId={winner ? winner.id : null} left={230} right={230}>
-      <Cell style={{ padding: "10px 30px 10px 40px" }}>
-        <Coin team={winner} />
-      </Cell>
-      <Cell grow>
-        <Big size={56} italic>{winner ? `${winner.name} win the toss` : "Toss yet to happen"}</Big>
-        {winner && (
-          <Small size={34} color={C.soft}>
-            and elect to {sb.tossDecision === "bat" ? "bat first" : "bowl first"}
-          </Small>
-        )}
-      </Cell>
-      {winner && (
-        <Cell dx={40}>
-          <motion.span variants={pop} style={{ position: "relative", overflow: "hidden", ...caps, fontWeight: 800, fontSize: 46, color: "#fff", padding: "8px 34px", background: SPARK, clipPath: SLANT(16), letterSpacing: 4 }}>
-            <RunningLines opacity={0.2} />
-            <span style={{ position: "relative" }}>{sb.tossDecision === "bat" ? "BAT" : "BOWL"}</span>
-          </motion.span>
-        </Cell>
-      )}
-    </LowerThird>
-  );
-}
+const Heading = ({ title, sub, right, id }) => (
+  <motion.div variants={slide(-30)} style={{ marginBottom: 22 }}>
+    <div style={{ display: "flex", alignItems: "flex-end", gap: 22 }}>
+      {title && <span style={{ ...caps, fontWeight: 700, fontSize: 52, lineHeight: 0.95, letterSpacing: 2 }}>{title}</span>}
+      {sub && <span style={{ ...caps, fontWeight: 500, fontSize: 24, color: C.muted, letterSpacing: 3, paddingBottom: 4 }}>{sub}</span>}
+      {right && <div style={{ marginLeft: "auto" }}>{right}</div>}
+    </div>
+    <Rule2 id={id} />
+  </motion.div>
+);
 
-function OpenersScene({ sb, inning, scorecard, photoOf }) {
-  const { batting, bowling } = sides(sb, inning);
-  const card = findCard(scorecard, inning.inningId);
-  const openers = card && card.batting.length ? card.batting.slice(0, 2).map((b) => ({ id: b.playerId, name: b.name })) : inning.currentBatsmen.map((b) => ({ id: b.playerId, name: b.name }));
-  const bowler = card && card.bowling.length ? { id: card.bowling[0].playerId, name: card.bowling[0].name } : inning.currentBowler ? { id: inning.currentBowler.playerId, name: inning.currentBowler.name } : null;
+/** A big plate: squads, scorecard, result, ranking. */
+function Panel({ children, style, accentId, from = "left", pad = "28px 44px 32px 50px" }) {
   return (
-    <SidePanel side="left" accentId={batting.id} width={760} bottom={250} label={`${batting.name} · openers`}>
-      {openers.length ? openers.map((o, i) => <PlayerCard key={o.id} name={o.name} photo={photoOf(o.id)} role={i === 0 ? "Opening batter · on strike" : "Opening batter"} ring={teamColor(batting.id)} highlight={i === 0} />) : <Big>Openers to be decided</Big>}
-      {bowler ? <PlayerCard name={bowler.name} photo={photoOf(bowler.id)} role={`Opening bowler · ${bowling.name}`} ring={teamColor(bowling.id)} /> : null}
-    </SidePanel>
-  );
-}
-
-function BattersScene({ inning, sb }) {
-  const { batting } = sides(sb, inning);
-  const list = inning.currentBatsmen;
-  return (
-    <SidePanel side="left" accentId={batting.id} width={760} bottom={250} label={`${batting.name} · ${inning.totalRuns}/${inning.wickets}`}>
-      {list.length === 0 && <Big>Batters to come out</Big>}
-      {list.map((b) => (
-        <PlayerCard key={b.playerId} name={b.name} photo={b.profilePicture} role={`${b.isOnStrike ? "On strike · " : ""}4s ${b.fours ?? 0} · 6s ${b.sixes ?? 0} · SR ${b.strikeRate ?? 0}`} ring={teamColor(batting.id)} big={b.runs ?? 0} bigSub={`${b.balls ?? 0} balls`} highlight={b.isOnStrike} />
-      ))}
-      <motion.div variants={rise} style={{ display: "flex", justifyContent: "space-between", paddingTop: 6 }}>
-        <Small>Partnership {inning.partnershipRuns || 0}</Small>
-        <Small>Run rate {inning.runRate ? Number(inning.runRate).toFixed(2) : "0.00"}</Small>
-      </motion.div>
-    </SidePanel>
-  );
-}
-
-function BowlerScene({ inning, sb }) {
-  const { bowling } = sides(sb, inning);
-  const b = inning.currentBowler;
-  const chips = overChips(inning);
-  return (
-    <SidePanel side="right" accentId={bowling.id} width={760} bottom={250} label={`${bowling.name} · bowling`}>
-      {!b ? (
-        <Big>Bowler to be chosen</Big>
-      ) : (
-        <>
-          <motion.div variants={slideIn(50)} style={{ display: "flex", alignItems: "center", gap: 24 }}>
-            <Photo src={b.profilePicture} name={b.name} size={124} ring={teamColor(bowling.id)} ringWidth={5} />
-            <div style={{ minWidth: 0, flex: 1 }}>
-              <Small size={22}>Bowler</Small>
-              <div style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                <Big size={fit(b.name, 54, 10)}>{b.name}</Big>
-              </div>
-            </div>
-            <div style={{ textAlign: "right" }}>
-              <Big size={80} color={C.gold}>
-                {b.wickets}-{b.runsConceded}
-              </Big>
-              <div>
-                <Small size={22}>{b.overs} overs</Small>
-              </div>
-            </div>
+    <motion.div initial="hidden" animate="show" exit="exit" variants={holder} style={{ position: "absolute", fontFamily: FONT, color: "#fff", filter: `drop-shadow(${SHADOW})`, ...style }}>
+      <motion.div variants={wipe(from)}>
+        <div style={{ position: "relative", background: PLATE_SOFT, boxShadow: EDGE, clipPath: CUT(24) }}>
+          <div style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: 7, background: accentId != null ? teamBlock(accentId) : C.brand }} />
+          <motion.div variants={stage(0.22, 0.05)} style={{ padding: pad }}>
+            {children}
           </motion.div>
-          <motion.div variants={rise} style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 10, marginTop: 20 }}>
-            {[
-              ["Overs", b.overs],
-              ["Maidens", b.maidens],
-              ["Runs", b.runsConceded],
-              ["Econ", b.economy ?? "0.00"],
-            ].map(([k, v]) => (
-              <div key={k} style={{ background: "rgba(255,255,255,.06)", padding: "10px 14px", clipPath: SLANT(10) }}>
-                <Small size={18}>{k}</Small>
-                <div>
-                  <Big size={40}>{v}</Big>
-                </div>
-              </div>
-            ))}
-          </motion.div>
-          <motion.div variants={stagger(0.06, 0.1)} style={{ display: "flex", gap: 10, marginTop: 18, alignItems: "center" }}>
-            <Small size={20}>This over</Small>
-            {chips.length === 0 && <Small>—</Small>}
-            {chips.map((c, i) => (
-              <Ball key={i} c={c} size={48} />
-            ))}
-          </motion.div>
-        </>
-      )}
-    </SidePanel>
-  );
-}
-
-/** Before the toss: the two teams face to face, split down a diagonal in their colours. */
-function PreviewScene({ data, sb }) {
-  const [a, b] = data.teams;
-  const stage = data.stage === "group" ? (data.group ? `Group ${data.group}` : "Group stage") : data.stage === "semi" ? "Semi-final" : data.stage === "third_place" ? "Third place" : data.stage === "final" ? "Final" : "";
-  const L = "polygon(0 0, 56% 0, 44% 100%, 0 100%)";
-  const R = "polygon(56% 0, 100% 0, 100% 100%, 44% 100%)";
-  return (
-    <motion.div initial="hidden" animate="show" exit="exit" variants={holder} style={{ position: "absolute", left: 130, right: 130, top: 110, height: 600, fontFamily: FONT, color: "#fff", filter: `drop-shadow(${SHADOW})` }}>
-      <motion.div variants={drop} style={{ position: "absolute", left: 0, right: 0, top: -64, textAlign: "center" }}>
-        <Big size={40} color={C.gold}>
-          {data.tournament ? data.tournament.name : "Match"}
-        </Big>
-        <Small size={26} color={C.soft}>
-          {"  ·  "}
-          {[stage, `Match ${sb.matchNo}`].filter(Boolean).join(" · ")}
-        </Small>
-      </motion.div>
-      <Backdrop from="left" colors={[SPARK, teamGrad(a.id)]} offset={16} clip={L} />
-      <Backdrop from="right" colors={["linear-gradient(110deg, #0e7091, #22cdef)", teamGrad(b.id)]} offset={16} clip={R} />
-      <div style={{ position: "absolute", inset: 0, clipPath: L, overflow: "hidden" }}>
-        <RunningLines opacity={0.12} />
-      </div>
-      <div style={{ position: "absolute", inset: 0, clipPath: R, overflow: "hidden" }}>
-        <RunningLines opacity={0.12} reverse />
-      </div>
-      <motion.div variants={graphic(0.1, 0.45)} style={{ position: "absolute", inset: 0, display: "grid", gridTemplateColumns: "1fr 1fr", alignItems: "center" }}>
-        {[a, b].map((t, i) => (
-          <motion.div key={t.id} variants={slideIn(i ? 120 : -120)} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 26, padding: i ? "0 40px 0 160px" : "0 160px 0 40px" }}>
-            <Logo team={t} size={230} ring="rgba(255,255,255,.75)" />
-            <span style={{ ...caps, fontWeight: 800, fontSize: 84, lineHeight: 0.95, letterSpacing: 2, textAlign: "center", fontStyle: "italic", textShadow: "0 6px 24px rgba(0,0,0,.4)" }}>{t.name}</span>
-          </motion.div>
-        ))}
-      </motion.div>
-      <motion.div
-        variants={{ hidden: { opacity: 0, scale: 2.2, rotate: -20 }, show: { opacity: 1, scale: 1, rotate: 0, transition: { delay: 0.8, type: "spring", stiffness: 260, damping: 16 } }, exit: { opacity: 0, scale: 0.6, transition: { duration: 0.15 } } }}
-        style={{ position: "absolute", left: "50%", top: "50%", width: 170, height: 170, marginLeft: -85, marginTop: -85, borderRadius: 85, background: C.ink, border: "6px solid rgba(255,255,255,.85)", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 0 60px rgba(255,106,26,.6)" }}
-      >
-        <span style={{ ...caps, fontWeight: 900, fontSize: 84, fontStyle: "italic", background: SPARK, WebkitBackgroundClip: "text", backgroundClip: "text", color: "transparent" }}>VS</span>
-      </motion.div>
-      <motion.div variants={rise} style={{ position: "absolute", left: "50%", bottom: -90, transform: "translateX(-50%)", display: "flex", gap: 0, background: PLATE, clipPath: "polygon(30px 0, 100% 0, calc(100% - 30px) 100%, 0 100%)", padding: "16px 70px", whiteSpace: "nowrap" }}>
-        <Small size={30} color={C.soft}>
-          {sb.maxOvers} overs a side
-        </Small>
-        {(data.venue || sb.venue) && (
-          <Small size={30} color={C.soft}>
-            {"   ·   "}
-            {data.venue || sb.venue}
-          </Small>
-        )}
+        </div>
       </motion.div>
     </motion.div>
   );
 }
 
+/** A plate just above the score bar, with its label on top. */
+function Strip({ children, tag, accentId, width, left = SIDE, right }) {
+  const color = accentId != null ? shades(accentId).base : C.brand;
+  return (
+    <motion.div initial="hidden" animate="show" exit="exit" variants={holder} style={{ position: "absolute", left, ...(right !== undefined ? { right } : { width }), bottom: ABOVE_BAR - 14, fontFamily: FONT, color: "#fff", filter: `drop-shadow(${SHADOW})` }}>
+      {tag && (
+        <motion.div variants={rise} style={{ marginBottom: 0 }}>
+          <span style={{ display: "inline-block", background: color, ...caps, fontWeight: 700, fontSize: 22, letterSpacing: 4, padding: "5px 20px 3px" }}>{tag}</span>
+        </motion.div>
+      )}
+      <motion.div variants={wipe("left", 0.05)}>
+        <div style={{ background: PLATE, boxShadow: EDGE, clipPath: `polygon(0 0, 100% 0, calc(100% - 20px) 100%, 0 100%)`, minHeight: 124, display: "flex", alignItems: "stretch" }}>
+          <motion.div variants={stage(0.25, 0.07)} style={{ display: "flex", alignItems: "stretch", flex: 1, paddingRight: 28 }}>
+            {children}
+          </motion.div>
+        </div>
+      </motion.div>
+    </motion.div>
+  );
+}
+
+const Cell = ({ children, grow, style, dx = -24 }) => (
+  <motion.div variants={slide(dx)} style={{ display: "flex", flexDirection: "column", justifyContent: "center", padding: "12px 30px", flex: grow ? 1 : "none", minWidth: 0, borderLeft: `1px solid ${C.line}`, ...style }}>
+    {children}
+  </motion.div>
+);
+const Big = ({ children, size = 54, color, weight = 700 }) => <span style={{ ...caps, fontWeight: weight, fontSize: size, lineHeight: 1, letterSpacing: 1, color: color || "#fff" }}>{children}</span>;
+
+/** A row of player cards, left-aligned with the score bar and standing on it. */
+function CardRow({ children, gap = 22 }) {
+  return (
+    <motion.div initial="hidden" animate="show" exit="exit" variants={{ ...holder, show: { opacity: 1, transition: { delayChildren: 0.1, staggerChildren: 0.1 } } }} style={{ position: "absolute", left: SIDE, bottom: ABOVE_BAR - 8, display: "flex", alignItems: "flex-end", gap, fontFamily: FONT, color: "#fff" }}>
+      {children}
+    </motion.div>
+  );
+}
+
+/**
+ * A player as a broadcast card: a tall photo with the name on a plate below it.
+ * `tag` is the label on the photo, `big` the headline figure, `lines` small [label, value] pairs.
+ */
+function PlayerCard({ name, photo, teamId, tag, tagColor, number, big, bigSub, lines = [], note, chips, w = 292, photoH = 280, accent, children }) {
+  const t = shades(teamId);
+  return (
+    <motion.div variants={{ hidden: { opacity: 0, y: 60 }, show: { opacity: 1, y: 0, transition: { duration: 0.6, ease: EASE } }, exit: { opacity: 0, y: 24, transition: { duration: 0.2 } } }} style={{ width: w, filter: `drop-shadow(${SHADOW})` }}>
+      <div style={{ background: PLATE, boxShadow: EDGE, clipPath: CUT_TL(26), position: "relative" }}>
+        <Photo src={photo} name={name} teamId={teamId} w={w} h={photoH} position="50% 8%">
+          <div style={{ position: "absolute", inset: 0, background: "linear-gradient(180deg, rgba(0,0,0,0) 55%, rgba(11,17,39,.92) 100%)" }} />
+          {tag && <span style={{ position: "absolute", left: 0, top: 18, background: tagColor || t.base, color: tagColor ? "#2b1b00" : "#fff", ...caps, fontWeight: 700, fontSize: 19, letterSpacing: 3, padding: "4px 14px 3px 22px" }}>{tag}</span>}
+          {number != null && number !== "" && <span style={{ position: "absolute", right: 16, top: 8, ...caps, fontWeight: 800, fontSize: 54, color: "rgba(255,255,255,.88)", textShadow: "0 2px 12px rgba(0,0,0,.5)" }}>{number}</span>}
+        </Photo>
+        <div style={{ padding: "6px 22px 18px", position: "relative", marginTop: -34 }}>
+          <Name name={name} size={fit(name, 50, 11)} />
+          {note && <div style={{ ...caps, fontWeight: 600, fontSize: 19, color: C.muted, letterSpacing: 2, marginTop: 6 }}>{note}</div>}
+          {big !== undefined && (
+            <div style={{ display: "flex", alignItems: "baseline", gap: 10, marginTop: 10 }}>
+              <span style={{ ...caps, fontWeight: 800, fontSize: 68, lineHeight: 1, color: accent || "#fff" }}>{big}</span>
+              {bigSub && <span style={{ ...caps, fontWeight: 600, fontSize: 30, color: C.muted, letterSpacing: 0 }}>{bigSub}</span>}
+            </div>
+          )}
+          {lines.length > 0 && (
+            <div style={{ display: "flex", gap: 20, marginTop: 8, flexWrap: "wrap" }}>
+              {lines.map(([k, v]) => (
+                <span key={k} style={{ ...caps, fontWeight: 600, fontSize: 21, color: C.muted, letterSpacing: 2 }}>
+                  {k} <b style={{ color: "#fff", fontWeight: 700 }}>{v}</b>
+                </span>
+              ))}
+            </div>
+          )}
+          {chips && <div style={{ display: "flex", gap: 6, marginTop: 12 }}>{chips}</div>}
+          {children}
+        </div>
+        <div style={{ height: 6, background: teamBlock(teamId) }} />
+      </div>
+    </motion.div>
+  );
+}
+
+/** A plate that stands beside a card. */
+const SidePlate = ({ children, w = 520, accentId }) => (
+  <motion.div variants={{ hidden: { opacity: 0, x: -30 }, show: { opacity: 1, x: 0, transition: { duration: 0.55, ease: EASE } }, exit: { opacity: 0, transition: { duration: 0.15 } } }} style={{ width: w, alignSelf: "flex-end", filter: `drop-shadow(${SHADOW})` }}>
+    <div style={{ background: PLATE, boxShadow: EDGE, clipPath: CUT(22), padding: "22px 30px 26px", borderLeft: `6px solid ${shades(accentId).base}` }}>{children}</div>
+  </motion.div>
+);
+
+const StatBox = ({ k, v, color }) => (
+  <div style={{ flex: 1, textAlign: "center", padding: "10px 6px", background: "rgba(255,255,255,.05)" }}>
+    <div style={{ ...caps, fontWeight: 800, fontSize: 44, lineHeight: 1, color: color || "#fff" }}>{v}</div>
+    <div style={{ ...caps, fontWeight: 600, fontSize: 16, letterSpacing: 3, color: C.muted, marginTop: 4 }}>{k}</div>
+  </div>
+);
+
+/* ------------------------------------ scenes ------------------------------------ */
+
+function SquadRow({ p, i, teamId, big }) {
+  return (
+    <motion.div variants={slide(-40)} style={{ display: "flex", alignItems: "center", gap: 16, height: big ? 70 : 54, borderBottom: `1px solid ${C.line}` }}>
+      <span style={{ width: 44, ...caps, fontWeight: 700, fontSize: 30, color: shades(teamId).light, textAlign: "right" }}>{p.jersey_number ?? i + 1}</span>
+      <Photo src={p.profile_picture} name={p.players_name} teamId={teamId} w={big ? 56 : 42} h={big ? 56 : 42} round />
+      <span style={{ ...caps, fontWeight: 600, fontSize: big ? 38 : 33, flex: 1, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{p.players_name}</span>
+      {p.is_captain && <Badge bg={C.gold} fg="#2b1b00">C</Badge>}
+      {p.is_keeper && <Badge bg="#22b8d9" fg="#00262e">WK</Badge>}
+    </motion.div>
+  );
+}
+const Badge = ({ children, bg, fg }) => <span style={{ ...caps, fontWeight: 800, fontSize: 19, background: bg, color: fg, padding: "1px 9px", letterSpacing: 1 }}>{children}</span>;
+
+function SquadHeader({ team, tag }) {
+  return (
+    <motion.div variants={slide(-50)} style={{ display: "flex", alignItems: "center", gap: 20, marginBottom: 14 }}>
+      <Logo team={team} size={72} />
+      <div style={{ minWidth: 0 }}>
+        <div style={{ ...caps, fontWeight: 700, fontSize: 52, lineHeight: 1, whiteSpace: "nowrap" }}>{team.name}</div>
+        <Label size={21}>{tag}</Label>
+      </div>
+    </motion.div>
+  );
+}
+
+/** Both XIs side by side, or one XI as a grid of photo tiles. */
+function SquadsScene({ data, payload }) {
+  const shown = payload.teamId ? [teamOfId(data, payload.teamId)] : data.teams;
+  const tag = data.tournament ? `${data.tournament.name} · Playing XI` : "Playing XI";
+  if (shown.length === 1) {
+    const t = shown[0];
+    const sq = data.squads[t.id];
+    const playing = sq ? sq.playing : [];
+    return (
+      <Panel accentId={t.id} style={{ left: SIDE, right: SIDE, top: 120 }}>
+        <SquadHeader team={t} tag={tag} />
+        <Rule2 id={t.id} />
+        {playing.length === 0 && <Label size={28}>Squad not announced yet</Label>}
+        <motion.div variants={stage(0.1, 0.045)} style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "20px 22px", marginTop: 24 }}>
+          {playing.map((p, i) => (
+            <motion.div key={p.player_id} variants={{ hidden: { opacity: 0, y: 30 }, show: { opacity: 1, y: 0, transition: { duration: 0.45, ease: EASE } }, exit: { opacity: 0 } }} style={{ display: "flex", alignItems: "center", gap: 16, background: "rgba(255,255,255,.05)", borderLeft: `4px solid ${shades(t.id).base}`, paddingRight: 12 }}>
+              <Photo src={p.profile_picture} name={p.players_name} teamId={t.id} w={104} h={116} />
+              <div style={{ minWidth: 0, flex: 1 }}>
+                <div style={{ ...caps, fontWeight: 700, fontSize: 24, color: shades(t.id).light }}>{p.jersey_number ?? i + 1}</div>
+                <Name name={p.players_name} size={36} />
+                <div style={{ display: "flex", gap: 6, marginTop: 6 }}>
+                  {p.is_captain && <Badge bg={C.gold} fg="#2b1b00">C</Badge>}
+                  {p.is_keeper && <Badge bg="#22b8d9" fg="#00262e">WK</Badge>}
+                </div>
+              </div>
+            </motion.div>
+          ))}
+        </motion.div>
+      </Panel>
+    );
+  }
+  const [a, b] = shown;
+  const list = (t) => {
+    const sq = data.squads[t.id];
+    const playing = sq ? sq.playing : [];
+    return (
+      <>
+        <SquadHeader team={t} tag="Playing XI" />
+        {playing.length === 0 && <Label size={26}>Squad not announced yet</Label>}
+        {playing.map((p, i) => (
+          <SquadRow key={p.player_id} p={p} i={i} teamId={t.id} />
+        ))}
+      </>
+    );
+  };
+  return (
+    <>
+      <Panel key="a" accentId={a.id} style={{ left: SIDE, width: 840, top: 96 }}>
+        {list(a)}
+      </Panel>
+      <Panel key="b" accentId={b.id} from="right" style={{ right: SIDE, width: 840, top: 96 }}>
+        {list(b)}
+      </Panel>
+    </>
+  );
+}
+
+/** The two teams face to face, split down a diagonal in their colours. */
+function PreviewScene({ data, sb }) {
+  const [a, b] = data.teams;
+  const stageText = data.stage === "group" ? (data.group ? `Group ${data.group}` : "Group stage") : data.stage === "semi" ? "Semi-final" : data.stage === "third_place" ? "Third place" : data.stage === "final" ? "Final" : "";
+  const L = "polygon(0 0, 56% 0, 44% 100%, 0 100%)";
+  const R = "polygon(56% 0, 100% 0, 100% 100%, 44% 100%)";
+  const field = (id) => `linear-gradient(135deg, ${shades(id).dark} 0%, ${shades(id).deep} 100%)`;
+  return (
+    <motion.div initial="hidden" animate="show" exit="exit" variants={holder} style={{ position: "absolute", left: 140, right: 140, top: 150, height: 600, fontFamily: FONT, color: "#fff", filter: `drop-shadow(${SHADOW})` }}>
+      <motion.div variants={wipe("left")} style={{ position: "absolute", inset: 0 }}>
+        <div style={{ position: "absolute", inset: 0, background: field(a.id), clipPath: L }} />
+        <div style={{ position: "absolute", inset: 0, background: field(b.id), clipPath: R }} />
+        <div style={{ position: "absolute", inset: 0, background: "radial-gradient(60% 80% at 50% 50%, rgba(255,255,255,.1), transparent 70%)" }} />
+      </motion.div>
+      <motion.div variants={stage(0.35, 0.12)} style={{ position: "absolute", inset: 0 }}>
+        <motion.div variants={rise} style={{ position: "absolute", left: 0, right: 0, top: 34, textAlign: "center" }}>
+          <Big size={42} color={C.gold}>{data.tournament ? data.tournament.name : "Match"}</Big>
+          <div style={{ marginTop: 4 }}>
+            <Label size={26} color={C.soft}>{[stageText, `Match ${sb.matchNo}`].filter(Boolean).join("  ·  ")}</Label>
+          </div>
+        </motion.div>
+        {[a, b].map((t, i) => (
+          <motion.div key={t.id} variants={slide(i ? 100 : -100)} style={{ position: "absolute", top: 150, width: "44%", [i ? "right" : "left"]: 0, display: "flex", flexDirection: "column", alignItems: "center", gap: 22 }}>
+            <Logo team={t} size={220} />
+            <span style={{ ...caps, fontWeight: 800, fontSize: fit(t.name, 76, 14), lineHeight: 1, textAlign: "center", textShadow: "0 6px 24px rgba(0,0,0,.4)" }}>{t.name}</span>
+          </motion.div>
+        ))}
+        <motion.div variants={pop} style={{ position: "absolute", left: "50%", top: 290, width: 130, height: 130, marginLeft: -65, borderRadius: 65, background: C.bg, boxShadow: "0 0 0 5px rgba(255,255,255,.9), 0 12px 30px rgba(0,0,0,.5)", display: "flex", alignItems: "center", justifyContent: "center", ...caps, fontWeight: 800, fontSize: 62, fontStyle: "italic" }}>
+          VS
+        </motion.div>
+      </motion.div>
+      <motion.div variants={rise} style={{ position: "absolute", left: 0, right: 0, bottom: -76, display: "flex", justifyContent: "center" }}>
+        <div style={{ background: PLATE, boxShadow: EDGE, padding: "14px 56px 12px", clipPath: SLANT(18) }}>
+          <Label size={28} color={C.soft}>
+            {sb.maxOvers} overs a side{data.venue || sb.venue ? `   ·   ${data.venue || sb.venue}` : ""}
+          </Label>
+        </div>
+      </motion.div>
+    </motion.div>
+  );
+}
+
+/** The coin lands on the winner's badge. */
+function TossScene({ sb }) {
+  const winner = sb.tossWinnerId ? (sb.tossWinnerId === sb.teams.team1.id ? sb.teams.team1 : sb.teams.team2) : null;
+  return (
+    <Strip tag="The toss" accentId={winner ? winner.id : null} width={1180}>
+      <motion.div variants={pop} style={{ padding: "0 8px 0 36px", display: "flex", alignItems: "center" }}>
+        <div style={{ padding: 6, borderRadius: "50%", background: "radial-gradient(circle at 35% 30%, #ffe9a8, #f5b82e 55%, #b9770e)", boxShadow: "0 8px 24px rgba(245,184,46,.35)" }}>{winner ? <Logo team={winner} size={74} plain /> : <Big size={30} color="#5a3a00">Toss</Big>}</div>
+      </motion.div>
+      <Cell grow style={{ borderLeft: "none", padding: "12px 30px 12px 26px" }}>
+        <Big size={58}>{winner ? `${winner.name} won the toss` : "Toss yet to happen"}</Big>
+        {winner && <Label size={30} color={C.soft} style={{ marginTop: 6 }}>and elected to {sb.tossDecision === "bat" ? "bat first" : "bowl first"}</Label>}
+      </Cell>
+      {winner && (
+        <Cell dx={30}>
+          <Big size={52} color={C.gold} weight={800}>{sb.tossDecision === "bat" ? "BAT" : "BOWL"}</Big>
+        </Cell>
+      )}
+    </Strip>
+  );
+}
+
+const batLines = (b) => [
+  ["4s", b.fours ?? 0],
+  ["6s", b.sixes ?? 0],
+  ["SR", b.strikeRate ?? "0.00"],
+];
+
+function OpenersScene({ ctx }) {
+  const { sb, inning, scorecard, person } = ctx;
+  const { batting, bowling } = sides(sb, inning);
+  const card = findCard(scorecard, inning.inningId);
+  const ids = card && card.batting.length ? card.batting.slice(0, 2).map((b) => b.playerId) : inning.currentBatsmen.map((b) => b.playerId);
+  const bowlerId = card && card.bowling.length ? card.bowling[0].playerId : inning.currentBowler ? inning.currentBowler.playerId : null;
+  const strikerId = (inning.currentBatsmen.find((b) => b.isOnStrike) || {}).playerId;
+  const card1 = (id, tag, tid) => {
+    const p = person(id);
+    return p ? <PlayerCard key={id} name={p.name} photo={p.photo} teamId={tid} tag={tag} number={p.number} note={p.captain ? "Captain" : p.keeper ? "Wicket-keeper" : undefined} /> : null;
+  };
+  if (ids.length === 0 && !bowlerId)
+    return (
+      <Strip tag="Openers" width={700}>
+        <Cell grow style={{ borderLeft: "none" }}>
+          <Big>Openers to be decided</Big>
+        </Cell>
+      </Strip>
+    );
+  return (
+    <CardRow>
+      {ids.map((id) => card1(id, Number(id) === Number(strikerId) ? "Opener · on strike" : "Opener", batting.id))}
+      {bowlerId ? card1(bowlerId, "Opening bowler", bowling.id) : null}
+    </CardRow>
+  );
+}
+
+function BattersScene({ ctx, payload }) {
+  const { sb, inning, person } = ctx;
+  const { batting } = sides(sb, inning);
+  const which = payload.which || "both";
+  const list = inning.currentBatsmen.filter((b) => (which === "striker" ? b.isOnStrike : which === "nonStriker" ? !b.isOnStrike : true));
+  if (!list.length)
+    return (
+      <Strip tag="Batting" accentId={batting.id} width={700}>
+        <Cell grow style={{ borderLeft: "none" }}>
+          <Big>Batters to come out</Big>
+        </Cell>
+      </Strip>
+    );
+  return (
+    <CardRow>
+      {list.map((b) => {
+        const p = person(b.playerId);
+        return <PlayerCard key={b.playerId} name={b.name} photo={b.profilePicture} teamId={batting.id} tag={b.isOnStrike ? "On strike" : "Non-striker"} number={p && p.number} big={b.runs ?? 0} bigSub={`(${b.balls ?? 0})`} lines={batLines(b)} />;
+      })}
+      <SidePlate w={360} accentId={batting.id}>
+        <Label size={20}>Partnership</Label>
+        <div>
+          <Big size={84}>{inning.partnershipRuns || 0}</Big>
+        </div>
+        <Label size={20} style={{ marginTop: 10 }}>
+          {batting.name} {inning.totalRuns}/{inning.wickets}
+        </Label>
+      </SidePlate>
+    </CardRow>
+  );
+}
+
+function BowlerScene({ ctx }) {
+  const { sb, inning, person } = ctx;
+  const { bowling } = sides(sb, inning);
+  const b = inning.currentBowler;
+  const chips = overChips(inning);
+  if (!b)
+    return (
+      <Strip tag="Bowling" accentId={bowling.id} width={700}>
+        <Cell grow style={{ borderLeft: "none" }}>
+          <Big>Bowler to be chosen</Big>
+        </Cell>
+      </Strip>
+    );
+  const p = person(b.playerId);
+  return (
+    <CardRow>
+      <PlayerCard name={b.name} photo={b.profilePicture} teamId={bowling.id} tag="Bowling" number={p && p.number} big={`${b.wickets}-${b.runsConceded}`} bigSub={`(${b.overs})`} accent={C.gold} />
+      <SidePlate w={560} accentId={bowling.id}>
+        <div style={{ display: "flex", gap: 10 }}>
+          <StatBox k="Overs" v={b.overs} />
+          <StatBox k="Maidens" v={b.maidens} />
+          <StatBox k="Runs" v={b.runsConceded} />
+          <StatBox k="Wickets" v={b.wickets} color={C.gold} />
+          <StatBox k="Econ" v={b.economy ?? "0.00"} />
+        </div>
+        <motion.div variants={stage(0.1, 0.06)} style={{ display: "flex", gap: 8, alignItems: "center", marginTop: 18 }}>
+          <Label size={20}>This over</Label>
+          {chips.length === 0 && <Label size={22}>-</Label>}
+          {chips.map((c, i) => (
+            <BallChip key={i} c={c} size={44} />
+          ))}
+        </motion.div>
+      </SidePlate>
+    </CardRow>
+  );
+}
+
+/** Any player of the match: the operator picks them, or asks for whoever is batting / bowling now. */
+function PlayerScene({ ctx, payload }) {
+  const { sb, inning, person } = ctx;
+  let id = payload.playerId;
+  if (payload.role === "striker") id = (inning.currentBatsmen.find((b) => b.isOnStrike) || {}).playerId;
+  if (payload.role === "nonStriker") id = (inning.currentBatsmen.find((b) => !b.isOnStrike) || {}).playerId;
+  if (payload.role === "bowler") id = inning.currentBowler && inning.currentBowler.playerId;
+  const p = id ? person(id) : null;
+  if (!p)
+    return (
+      <Strip tag="Player" width={700}>
+        <Cell grow style={{ borderLeft: "none" }}>
+          <Big>Player not available</Big>
+        </Cell>
+      </Strip>
+    );
+  const fig = matchFigures(ctx, id);
+  const team = sb.teams.team1.id === p.teamId ? sb.teams.team1 : sb.teams.team2;
+  return (
+    <CardRow>
+      <PlayerCard name={p.name} photo={p.photo} teamId={p.teamId} tag={team.name} number={p.number} note={p.captain ? "Captain" : p.keeper ? "Wicket-keeper" : undefined} />
+      <SidePlate w={560} accentId={p.teamId}>
+        <Label size={20} color={C.gold}>This match</Label>
+        <div style={{ marginTop: 12 }}>
+          <Label size={18}>Batting</Label>
+          {fig.bat ? (
+            <div style={{ display: "flex", gap: 10, marginTop: 6 }}>
+              <StatBox k="Runs" v={fig.bat.runs} />
+              <StatBox k="Balls" v={fig.bat.balls} />
+              <StatBox k="4s" v={fig.bat.fours} />
+              <StatBox k="6s" v={fig.bat.sixes} />
+              <StatBox k="SR" v={fig.bat.strikeRate} />
+            </div>
+          ) : (
+            <div style={{ marginTop: 6 }}><Big size={30} color={C.soft}>Yet to bat</Big></div>
+          )}
+        </div>
+        <div style={{ marginTop: 16 }}>
+          <Label size={18}>Bowling</Label>
+          {fig.bowl ? (
+            <div style={{ display: "flex", gap: 10, marginTop: 6 }}>
+              <StatBox k="Overs" v={fig.bowl.overs} />
+              <StatBox k="Maidens" v={fig.bowl.maidens} />
+              <StatBox k="Runs" v={fig.bowl.runs} />
+              <StatBox k="Wkts" v={fig.bowl.wickets} color={C.gold} />
+              <StatBox k="Econ" v={fig.bowl.economy ?? "-"} />
+            </div>
+          ) : (
+            <div style={{ marginTop: 6 }}><Big size={30} color={C.soft}>Yet to bowl</Big></div>
+          )}
+        </div>
+      </SidePlate>
+    </CardRow>
+  );
+}
+
 /** The over that was just bowled: every ball, the runs, the bowler and the score after it. */
-function OverSummaryScene({ sb, inning, scorecard }) {
+function OverSummaryScene({ ctx }) {
+  const { sb, inning, scorecard, person } = ctx;
   const { batting, bowling } = sides(sb, inning);
   const chips = overChips(inning);
   const summary = inning.currentOverSummary || [];
@@ -395,306 +501,266 @@ function OverSummaryScene({ sb, inning, scorecard }) {
   const card = findCard(scorecard, inning.inningId);
   const lastId = (card && card.lastOverBowlerId) || (inning.currentBowler && inning.currentBowler.playerId);
   const stats = card && card.bowling.find((x) => Number(x.playerId) === Number(lastId));
-  const person = sb.teams.team1.players.concat(sb.teams.team2.players).find((p) => Number(p.playerId) === Number(lastId));
+  const p = lastId ? person(lastId) : null;
   const overNo = Math.max(1, Math.ceil((inning.ballsBowled || 0) / 6));
   return (
-    <LowerThird label={`End of over ${overNo}`} accentId={bowling.id} left={140} right={140}>
-      <Cell>
-        <Small>This over</Small>
-        <Big size={90}>
+    <Strip tag={`End of over ${overNo}`} accentId={bowling.id} width={1560}>
+      <Cell style={{ borderLeft: "none" }}>
+        <Label size={20}>This over</Label>
+        <Big size={78}>
           {runsInOver}
-          <span style={{ fontSize: 34, color: C.muted }}>
-            {" "}
-            run{runsInOver === 1 ? "" : "s"}
-            {wicketsInOver ? ` · ${wicketsInOver} wkt` : ""}
-          </span>
+          <span style={{ fontSize: 30, color: C.muted, fontWeight: 600 }}> run{runsInOver === 1 ? "" : "s"}{wicketsInOver ? ` · ${wicketsInOver} wkt` : ""}</span>
         </Big>
       </Cell>
-      <Sep />
       <Cell grow>
-        <motion.div variants={stagger(0.08, 0.15)} style={{ display: "flex", gap: 14, alignItems: "center" }}>
+        <motion.div variants={stage(0.05, 0.07)} style={{ display: "flex", gap: 12, alignItems: "center" }}>
           {chips.map((c, i) => (
-            <Ball key={i} c={c} size={62} />
+            <BallChip key={i} c={c} size={58} />
           ))}
         </motion.div>
       </Cell>
-      {person && (
-        <>
-          <Sep />
-          <Cell>
-            <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
-              <Photo src={person.profilePicture} name={person.name} size={70} ring={teamColor(bowling.id)} />
-              <div>
-                <Big size={36}>{person.name}</Big>
-                {stats && (
-                  <div>
-                    <Small size={28} color={C.gold}>
-                      {stats.overs}-{stats.maidens}-{stats.runs}-{stats.wickets}
-                    </Small>
-                  </div>
-                )}
-              </div>
+      {p && (
+        <Cell>
+          <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+            <Photo src={p.photo} name={p.name} teamId={bowling.id} w={84} h={84} round />
+            <div>
+              <Name name={p.name} size={38} />
+              {stats && <Label size={26} color={C.gold} style={{ marginTop: 6, display: "block" }}>{stats.overs}-{stats.maidens}-{stats.runs}-{stats.wickets}</Label>}
             </div>
-          </Cell>
-        </>
+          </div>
+        </Cell>
       )}
-      <Sep />
       <Cell>
-        <Small>{batting.name}</Small>
-        <Big size={60}>
-          {inning.totalRuns}/{inning.wickets}
+        <Label size={20}>{batting.name}</Label>
+        <Big size={64}>
+          {inning.totalRuns}-{inning.wickets}
         </Big>
       </Cell>
-    </LowerThird>
+    </Strip>
   );
 }
 
-function PartnershipScene({ inning, sb }) {
+function PartnershipScene({ ctx }) {
+  const { sb, inning } = ctx;
   const { batting } = sides(sb, inning);
   const [a, b] = inning.currentBatsmen;
   const total = (Number(a && a.runs) || 0) + (Number(b && b.runs) || 0) || 1;
-  return (
-    <LowerThird label="Partnership" accentId={batting.id} left={240} right={240}>
-      {a && (
-        <Cell grow>
-          <div style={{ display: "flex", alignItems: "center", gap: 18 }}>
-            <Photo src={a.profilePicture} name={a.name} size={84} ring={teamColor(batting.id)} ringWidth={4} />
-            <div>
-              <Big size={40}>{a.name}</Big>
-              <div>
-                <Big size={50}>{a.runs}</Big> <Small>({a.balls})</Small>
-              </div>
-            </div>
+  const Side = ({ x, flip }) => (
+    <Cell grow dx={flip ? 30 : -30} style={{ borderLeft: "none" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 18, flexDirection: flip ? "row-reverse" : "row", textAlign: flip ? "right" : "left" }}>
+        <Photo src={x.profilePicture} name={x.name} teamId={batting.id} w={96} h={96} round />
+        <div>
+          <Name name={x.name} size={42} align={flip ? "right" : "left"} />
+          <div style={{ marginTop: 6 }}>
+            <Big size={50}>{x.runs}</Big> <Label size={26}>({x.balls})</Label>
           </div>
-        </Cell>
-      )}
-      <Cell style={{ alignItems: "center", minWidth: 300 }}>
+        </div>
+      </div>
+    </Cell>
+  );
+  return (
+    <Strip tag="Partnership" accentId={batting.id} width={1560}>
+      {a && <Side x={a} />}
+      <Cell style={{ alignItems: "center", minWidth: 340 }}>
         <motion.div variants={pop}>
-          <Big size={110} italic>
-            {inning.partnershipRuns || 0}
-          </Big>
+          <Big size={104} weight={800}>{inning.partnershipRuns || 0}</Big>
         </motion.div>
-        <Small size={22}>runs together</Small>
-        <div style={{ display: "flex", width: 260, height: 8, marginTop: 8, borderRadius: 4, overflow: "hidden", background: "rgba(255,255,255,.1)" }}>
-          <motion.div initial={{ width: 0 }} animate={{ width: `${((Number(a && a.runs) || 0) / total) * 100}%` }} transition={{ duration: 0.9, delay: 0.6, ease: EASE }} style={{ background: SPARK }} />
+        <Label size={20}>runs together</Label>
+        <div style={{ display: "flex", width: 280, height: 6, marginTop: 10, background: "rgba(255,255,255,.14)" }}>
+          <motion.div initial={{ width: 0 }} animate={{ width: `${((Number(a && a.runs) || 0) / total) * 100}%` }} transition={{ duration: 0.9, delay: 0.6, ease: EASE }} style={{ background: shades(batting.id).light }} />
         </div>
       </Cell>
-      {b && (
-        <Cell grow dx={30} style={{ alignItems: "flex-end" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 18, flexDirection: "row-reverse", textAlign: "right" }}>
-            <Photo src={b.profilePicture} name={b.name} size={84} ring={teamColor(batting.id)} ringWidth={4} />
-            <div>
-              <Big size={40}>{b.name}</Big>
-              <div>
-                <Big size={50}>{b.runs}</Big> <Small>({b.balls})</Small>
-              </div>
-            </div>
-          </div>
-        </Cell>
-      )}
-    </LowerThird>
+      {b && <Side x={b} flip />}
+    </Strip>
   );
 }
 
-function LastWicketScene({ inning, photoOf }) {
+function LastWicketScene({ ctx }) {
+  const { sb, inning, person } = ctx;
+  const { batting } = sides(sb, inning);
   const w = inning.lastWicket;
   const falls = inning.wicketFalls || [];
+  const fall = falls[falls.length - 1];
+  if (!w)
+    return (
+      <Strip tag="Wicket" width={700}>
+        <Cell grow style={{ borderLeft: "none" }}>
+          <Big>No wicket has fallen</Big>
+        </Cell>
+      </Strip>
+    );
+  const p = person(w.playerOutId);
+  const fig = matchFigures(ctx, w.playerOutId);
   return (
-    <SidePanel side="left" accentId={null} width={780} bottom={250} label="Wicket">
-      {!w ? (
-        <Big>No wicket has fallen</Big>
-      ) : (
-        <>
-          <motion.div variants={slideIn(-50)} style={{ display: "flex", alignItems: "center", gap: 24 }}>
-            <div style={{ position: "relative" }}>
-              <Photo src={photoOf(w.playerOutId)} name={w.playerOutName} size={140} ring={C.red} ringWidth={6} />
-              <motion.span variants={pop} style={{ position: "absolute", right: -10, bottom: -6, background: "linear-gradient(160deg,#ff5a5a,#c81e1e)", ...caps, fontWeight: 900, fontSize: 30, padding: "2px 14px", clipPath: SLANT(8) }}>
-                OUT
-              </motion.span>
-            </div>
-            <div style={{ minWidth: 0 }}>
-              <Big size={58}>{w.playerOutName}</Big>
-              <div>
-                <Small size={30} color={C.soft}>
-                  {w.description || "out"}
-                </Small>
-              </div>
-            </div>
-          </motion.div>
-          <motion.div variants={rise} style={{ display: "flex", gap: 40, marginTop: 22, padding: "14px 22px", background: "linear-gradient(90deg, rgba(239,59,59,.3), rgba(239,59,59,.04))", clipPath: SLANT(16) }}>
-            <div>
-              <Small size={20}>Score</Small>
-              <div>
-                <Big size={52}>
-                  {inning.totalRuns}/{inning.wickets}
-                </Big>
-              </div>
-            </div>
-            <div>
-              <Small size={20}>Wicket</Small>
-              <div>
-                <Big size={52}>{falls.length || inning.wickets}</Big>
-              </div>
-            </div>
-            {w.over && (
-              <div>
-                <Small size={20}>Over</Small>
-                <div>
-                  <Big size={52}>{w.over}</Big>
-                </div>
-              </div>
-            )}
-          </motion.div>
-        </>
-      )}
-    </SidePanel>
+    <CardRow>
+      <PlayerCard name={w.playerOutName} photo={p && p.photo} teamId={batting.id} tag="Wicket" tagColor={C.wicket} number={p && p.number} big={fig.bat ? fig.bat.runs : "-"} bigSub={fig.bat ? `(${fig.bat.balls})` : ""} lines={fig.bat ? batLines(fig.bat) : []} />
+      <SidePlate w={560} accentId={batting.id}>
+        <Label size={20} color={C.wicket}>Out</Label>
+        <div style={{ marginTop: 6 }}>
+          <Big size={52}>{fall && fall.wicketType ? fall.wicketType : w.description || "out"}</Big>
+        </div>
+        {fall && (fall.bowlerName || fall.fielderName) && (
+          <Label size={28} color={C.soft} style={{ display: "block", marginTop: 8 }}>
+            {fall.fielderName && fall.fielderName !== fall.bowlerName ? `c ${fall.fielderName} ` : ""}
+            {fall.bowlerName ? `b ${fall.bowlerName}` : ""}
+          </Label>
+        )}
+        <div style={{ display: "flex", gap: 10, marginTop: 20 }}>
+          <StatBox k="Score" v={`${inning.totalRuns}-${inning.wickets}`} />
+          <StatBox k="Wicket" v={falls.length || inning.wickets} />
+          {w.over && <StatBox k="Over" v={w.over} />}
+        </div>
+      </SidePlate>
+    </CardRow>
   );
 }
 
 /** The chase equation, dropped in from the top of the picture. */
-function TargetScene({ sb, inning }) {
+function TargetScene({ ctx }) {
+  const { sb, inning } = ctx;
   const { batting } = sides(sb, inning);
   const need = runsNeeded(inning);
-  if (inning.inningsNumber < 2 || need === null) {
-    return (
-      <TopBanner accentId={batting.id} width={1100}>
-        <Cell grow style={{ alignItems: "center", textAlign: "center" }}>
-          <Small size={24} color={C.gold}>
-            {batting.name} · run rate {inning.runRate ? Number(inning.runRate).toFixed(2) : "0.00"}
-          </Small>
-          <Big size={64} italic>
-            {inning.totalRuns}/{inning.wickets} after {inning.overs} overs
-          </Big>
-        </Cell>
-      </TopBanner>
-    );
-  }
+  const chase = inning.inningsNumber > 1 && need !== null;
   const left = ballsLeft(sb, inning);
-  const pct = Math.min(100, (inning.totalRuns / inning.targetScore) * 100);
+  const pct = chase ? Math.min(100, (inning.totalRuns / inning.targetScore) * 100) : 0;
   return (
-    <TopBanner accentId={batting.id}>
-      <Cell style={{ alignItems: "center" }}>
-        <Small size={22}>Target</Small>
-        <Big size={86} color={C.gold}>
-          {inning.targetScore}
-        </Big>
-      </Cell>
-      <Sep />
-      <Cell grow style={{ alignItems: "center", textAlign: "center" }}>
-        <Big size={58} italic>
-          {need === 0 ? `${batting.name} have done it` : `${batting.name} need ${need} from ${left}`}
-        </Big>
-        <Small size={28} color={C.soft}>
-          {inning.requiredRunRate ? `Required rate ${Number(inning.requiredRunRate).toFixed(2)}` : ""}
-          {inning.runRate ? `  ·  Current ${Number(inning.runRate).toFixed(2)}` : ""}
-        </Small>
-        <div style={{ width: "80%", height: 8, marginTop: 10, background: "rgba(255,255,255,.12)", borderRadius: 4, overflow: "hidden" }}>
-          <motion.div initial={{ width: 0 }} animate={{ width: `${pct}%` }} transition={{ duration: 1, delay: 0.6, ease: EASE }} style={{ height: "100%", background: SPARK }} />
+    <motion.div initial="hidden" animate="show" exit="exit" variants={holder} style={{ position: "absolute", top: 48, left: 260, right: 260, fontFamily: FONT, color: "#fff", filter: `drop-shadow(${SHADOW})` }}>
+      <motion.div variants={wipe("top")}>
+        <div style={{ position: "relative", background: PLATE, boxShadow: EDGE, clipPath: CUT(24), display: "flex", alignItems: "stretch", minHeight: 150 }}>
+          <div style={{ width: 8, background: teamBlock(batting.id) }} />
+          <motion.div variants={stage(0.25, 0.07)} style={{ display: "flex", alignItems: "stretch", flex: 1 }}>
+            {chase ? (
+              <>
+                <Cell style={{ alignItems: "center", borderLeft: "none", padding: "12px 46px" }}>
+                  <Label size={22}>Target</Label>
+                  <Big size={92} color={C.gold} weight={800}>{inning.targetScore}</Big>
+                </Cell>
+                <Cell grow style={{ alignItems: "center", textAlign: "center" }}>
+                  <Big size={60}>{need === 0 ? `${batting.name} have done it` : `${batting.name} need ${need} from ${left}`}</Big>
+                  <Label size={28} color={C.soft} style={{ marginTop: 6 }}>
+                    {inning.requiredRunRate ? `Required rate ${Number(inning.requiredRunRate).toFixed(2)}` : ""}
+                    {inning.runRate ? `   ·   Current ${Number(inning.runRate).toFixed(2)}` : ""}
+                  </Label>
+                  <div style={{ width: "76%", height: 6, marginTop: 14, background: "rgba(255,255,255,.14)" }}>
+                    <motion.div initial={{ width: 0 }} animate={{ width: `${pct}%` }} transition={{ duration: 1, delay: 0.6, ease: EASE }} style={{ height: "100%", background: C.gold }} />
+                  </div>
+                </Cell>
+              </>
+            ) : (
+              <Cell grow style={{ alignItems: "center", textAlign: "center", borderLeft: "none" }}>
+                <Label size={24} color={C.gold}>
+                  {batting.name} · run rate {inning.runRate ? Number(inning.runRate).toFixed(2) : "0.00"}
+                </Label>
+                <Big size={68}>
+                  {inning.totalRuns}-{inning.wickets} after {inning.overs} overs
+                </Big>
+              </Cell>
+            )}
+          </motion.div>
         </div>
-      </Cell>
-    </TopBanner>
+      </motion.div>
+    </motion.div>
   );
 }
 
-const Th = ({ children, w, left }) => <th style={{ ...caps, fontWeight: 700, fontSize: 21, color: C.muted, textAlign: left ? "left" : "right", padding: "0 10px 10px", width: w }}>{children}</th>;
-const Td = ({ children, left, bold, color }) => <td style={{ ...caps, fontWeight: bold ? 800 : 600, fontSize: 31, textAlign: left ? "left" : "right", padding: "2px 10px", color: color || "#fff", whiteSpace: "nowrap", height: 48 }}>{children}</td>;
-const Row = ({ children, hi }) => (
-  <motion.tr variants={{ hidden: { opacity: 0, x: -50 }, show: { opacity: 1, x: 0, transition: { duration: 0.5, ease: EASE } }, exit: { opacity: 0 } }} style={{ borderBottom: "1px solid rgba(255,255,255,.07)", background: hi ? "linear-gradient(90deg, rgba(255,106,26,.22), transparent)" : "transparent" }}>
-    {children}
-  </motion.tr>
-);
+/* -------- tables -------- */
 
-function ScorecardScene({ data, scorecard, payload, photoOf }) {
-  const inn = scorecard ? scorecard.innings[(payload.innings || 1) - 1] : null;
+const HeadCell = ({ children, left }) => <span style={{ ...caps, fontWeight: 600, fontSize: 19, letterSpacing: 3, color: C.muted, textAlign: left ? "left" : "right" }}>{children}</span>;
+const TRow = ({ cols, children, hi, head }) => (
+  <motion.div variants={head ? rise : slide(-40)} style={{ display: "grid", gridTemplateColumns: cols, alignItems: "center", columnGap: 12, height: head ? 40 : 50, borderBottom: `1px solid ${head ? C.line : "rgba(255,255,255,.07)"}`, background: hi ? "linear-gradient(90deg, rgba(255,194,26,.14), transparent)" : "transparent" }}>
+    {children}
+  </motion.div>
+);
+const TD = ({ children, left, bold, color, size = 31 }) => <span style={{ ...caps, fontWeight: bold ? 700 : 500, fontSize: size, textAlign: left ? "left" : "right", color: color || "#fff", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", letterSpacing: 0.5 }}>{children}</span>;
+
+function ScorecardScene({ ctx, payload }) {
+  const { data, scorecard, photoOf } = ctx;
+  if (!scorecard) return null; // still loading: show nothing rather than a wrong message
+  const inn = scorecard.innings[(payload.innings || 1) - 1];
   if (!inn) {
     return (
-      <CenterPanel>
+      <Panel style={{ left: 400, right: 400, top: 200 }}>
         <Heading title="Scorecard" />
-        <Small>This innings has not started.</Small>
-      </CenterPanel>
+        <Label size={28}>This innings has not started.</Label>
+      </Panel>
     );
   }
   const team = teamOfId(data, inn.teamId);
   return (
-    <CenterPanel wide accentId={team.id} top={60}>
-      <motion.div variants={slideIn(-80)} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}>
-        <TeamSlab team={team} size={58} height={90} />
-        <span style={{ ...caps, fontWeight: 800, fontSize: 84, fontStyle: "italic" }}>
-          {inn.runs}/{inn.wickets} <span style={{ fontSize: 34, color: C.muted, fontStyle: "normal" }}>({inn.overs} ov)</span>
+    <Panel accentId={team.id} style={{ left: 120, right: 120, top: 60 }}>
+      <motion.div variants={slide(-50)} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 20 }}>
+          <Logo team={team} size={78} />
+          <div>
+            <div style={{ ...caps, fontWeight: 700, fontSize: 58, lineHeight: 1 }}>{team.name}</div>
+            <Label size={22}>{inn.inningsNumber === 1 ? "1st innings" : "2nd innings"}</Label>
+          </div>
+        </div>
+        <span style={{ ...caps, fontWeight: 800, fontSize: 88, lineHeight: 1 }}>
+          {inn.runs}-{inn.wickets} <span style={{ fontSize: 34, color: C.muted, fontWeight: 600 }}>({inn.overs} ov)</span>
         </span>
       </motion.div>
-      <div style={{ display: "flex", gap: 56 }}>
-        <table style={{ flex: 1.35, borderCollapse: "collapse" }}>
-          <thead>
-            <tr>
-              <Th left>Batter</Th>
-              <Th w={80}>R</Th>
-              <Th w={80}>B</Th>
-              <Th w={60}>4s</Th>
-              <Th w={60}>6s</Th>
-            </tr>
-          </thead>
-          <motion.tbody variants={stagger(0.045, 0.1)}>
+      <Rule2 id={team.id} />
+      <div style={{ display: "flex", gap: 56, marginTop: 20 }}>
+        <div style={{ flex: 1.4 }}>
+          <TRow head cols="1fr 70px 70px 54px 54px 86px">
+            <HeadCell left>Batter</HeadCell>
+            <HeadCell>R</HeadCell>
+            <HeadCell>B</HeadCell>
+            <HeadCell>4s</HeadCell>
+            <HeadCell>6s</HeadCell>
+            <HeadCell>SR</HeadCell>
+          </TRow>
+          <motion.div variants={stage(0.05, 0.04)}>
             {inn.batting.slice(0, 11).map((b) => (
-              <Row key={b.playerId} hi={b.status === "not out"}>
-                <Td left bold>
-                  <span style={{ display: "inline-flex", alignItems: "center", gap: 12, verticalAlign: "middle" }}>
-                    <Photo src={photoOf(b.playerId)} name={b.name} size={36} ringWidth={2} ring="rgba(255,255,255,.6)" />
-                    {b.name}
-                    {b.status === "not out" ? <span style={{ color: C.accent }}> *</span> : ""}
-                  </span>
-                </Td>
-                <Td bold>{b.runs}</Td>
-                <Td color={C.muted}>{b.balls}</Td>
-                <Td color={C.muted}>{b.fours}</Td>
-                <Td color={C.muted}>{b.sixes}</Td>
-              </Row>
+              <TRow key={b.playerId} cols="1fr 70px 70px 54px 54px 86px" hi={b.status === "not out"}>
+                <span style={{ display: "flex", alignItems: "center", gap: 12, minWidth: 0 }}>
+                  <Photo src={photoOf(b.playerId)} name={b.name} teamId={team.id} w={38} h={38} round />
+                  <TD left bold>{b.name}{b.status === "not out" ? <span style={{ color: C.brand }}> *</span> : ""}</TD>
+                </span>
+                <TD bold>{b.runs}</TD>
+                <TD color={C.muted}>{b.balls}</TD>
+                <TD color={C.muted}>{b.fours}</TD>
+                <TD color={C.muted}>{b.sixes}</TD>
+                <TD color={C.muted} size={26}>{b.strikeRate}</TD>
+              </TRow>
             ))}
-          </motion.tbody>
-        </table>
-        <table style={{ flex: 1, borderCollapse: "collapse", alignSelf: "flex-start" }}>
-          <thead>
-            <tr>
-              <Th left>Bowler</Th>
-              <Th w={70}>O</Th>
-              <Th w={50}>M</Th>
-              <Th w={70}>R</Th>
-              <Th w={50}>W</Th>
-            </tr>
-          </thead>
-          <motion.tbody variants={stagger(0.045, 0.25)}>
+          </motion.div>
+        </div>
+        <div style={{ flex: 1, alignSelf: "flex-start" }}>
+          <TRow head cols="1fr 64px 44px 64px 50px">
+            <HeadCell left>Bowler</HeadCell>
+            <HeadCell>O</HeadCell>
+            <HeadCell>M</HeadCell>
+            <HeadCell>R</HeadCell>
+            <HeadCell>W</HeadCell>
+          </TRow>
+          <motion.div variants={stage(0.2, 0.04)}>
             {inn.bowling.slice(0, 8).map((b) => (
-              <Row key={b.playerId}>
-                <Td left bold>
-                  {b.name}
-                </Td>
-                <Td color={C.muted}>{b.overs}</Td>
-                <Td color={C.muted}>{b.maidens}</Td>
-                <Td color={C.muted}>{b.runs}</Td>
-                <Td bold color={C.gold}>
-                  {b.wickets}
-                </Td>
-              </Row>
+              <TRow key={b.playerId} cols="1fr 64px 44px 64px 50px">
+                <TD left bold>{b.name}</TD>
+                <TD color={C.muted}>{b.overs}</TD>
+                <TD color={C.muted}>{b.maidens}</TD>
+                <TD color={C.muted}>{b.runs}</TD>
+                <TD bold color={C.gold}>{b.wickets}</TD>
+              </TRow>
             ))}
-          </motion.tbody>
-        </table>
+          </motion.div>
+        </div>
       </div>
       <motion.div variants={rise} style={{ marginTop: 14 }}>
-        <Small size={25}>
+        <Label size={24}>
           Extras {inn.extras.total} (w {inn.extras.wides}, nb {inn.extras.noBalls}, b {inn.extras.byes}, lb {inn.extras.legByes})
-        </Small>
+        </Label>
       </motion.div>
-    </CenterPanel>
+    </Panel>
   );
 }
 
 /** The best two batters and bowlers across both innings. */
 function topPerformers(scorecard) {
   if (!scorecard) return { bats: [], bowls: [] };
-  const bats = scorecard.innings
-    .flatMap((i) => i.batting.map((b) => ({ ...b, teamId: i.teamId })))
-    .sort((a, b) => b.runs - a.runs)
-    .slice(0, 2);
+  const bats = scorecard.innings.flatMap((i) => i.batting.map((b) => ({ ...b, teamId: i.teamId }))).sort((a, b) => b.runs - a.runs).slice(0, 2);
   const bowls = scorecard.innings
     .flatMap((i) => i.bowling)
     .sort((a, b) => b.wickets - a.wickets || a.runs - b.runs)
@@ -702,206 +768,161 @@ function topPerformers(scorecard) {
   return { bats, bowls };
 }
 
-function StarCard({ name, photo, big, small, accent }) {
-  return (
-    <motion.div
-      variants={{ hidden: { opacity: 0, y: 50, scale: 0.92 }, show: { opacity: 1, y: 0, scale: 1, transition: { duration: 0.6, ease: EASE } }, exit: { opacity: 0 } }}
-      style={{ position: "relative", display: "flex", alignItems: "center", gap: 24, padding: "18px 28px", background: "rgba(255,255,255,.05)", clipPath: SLANT(20), overflow: "hidden" }}
-    >
-      <div style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: 7, background: accent }} />
-      <Photo src={photo} name={name} size={110} ring="rgba(255,255,255,.7)" ringWidth={4} />
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <Big size={44}>{name}</Big>
-      </div>
-      <div style={{ textAlign: "right", paddingRight: 18 }}>
-        <span style={{ ...caps, fontWeight: 800, fontSize: 70, lineHeight: 1, fontStyle: "italic" }}>{big}</span>
-        <div>
-          <Small size={24}>{small}</Small>
-        </div>
-      </div>
-    </motion.div>
-  );
-}
-
-function SummaryScene({ sb, scorecard, photoOf }) {
+function SummaryScene({ ctx }) {
+  const { sb, scorecard, photoOf, person } = ctx;
   const { bats, bowls } = topPerformers(scorecard);
+  const done = sb.status === "completed";
+  if (!bats.length && !bowls.length)
+    return (
+      <Strip tag="Top performers" width={700}>
+        <Cell grow style={{ borderLeft: "none" }}>
+          <Big>Nothing to show yet</Big>
+        </Cell>
+      </Strip>
+    );
   return (
-    <CenterPanel wide>
-      <Heading title="Top performers" sub={sb.status === "completed" ? "Match summary" : "So far"} />
-      <div style={{ display: "flex", gap: 44 }}>
-        <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 16 }}>
-          <motion.div variants={rise}>
-            <Small size={28} color={C.gold}>
-              Batting
-            </Small>
-          </motion.div>
-          {bats.map((b) => (
-            <StarCard key={b.playerId} name={b.name} photo={photoOf(b.playerId)} big={b.runs} small={`${b.balls} balls`} accent={SPARK} />
-          ))}
-        </div>
-        <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 16 }}>
-          <motion.div variants={rise}>
-            <Small size={28} color={C.volt}>
-              Bowling
-            </Small>
-          </motion.div>
-          {bowls.map((b) => (
-            <StarCard key={b.playerId} name={b.name} photo={photoOf(b.playerId)} big={`${b.wickets}-${b.runs}`} small={`${b.overs} overs`} accent="linear-gradient(180deg,#22cdef,#4f46e5)" />
-          ))}
-        </div>
-      </div>
-    </CenterPanel>
+    <CardRow>
+      {bats.map((b) => {
+        const p = person(b.playerId);
+        return <PlayerCard key={`b${b.playerId}`} name={b.name} photo={photoOf(b.playerId)} teamId={p ? p.teamId : b.teamId} tag={done ? "Top batter" : "Best bat"} number={p && p.number} big={b.runs} bigSub={`(${b.balls})`} lines={batLines(b)} />;
+      })}
+      {bowls.map((b) => {
+        const p = person(b.playerId);
+        return <PlayerCard key={`w${b.playerId}`} name={b.name} photo={photoOf(b.playerId)} teamId={p ? p.teamId : b.teamId} tag={done ? "Top bowler" : "Best ball"} number={p && p.number} big={`${b.wickets}-${b.runs}`} bigSub={`(${b.overs})`} accent={C.gold} lines={[["Econ", b.economy ?? "-"]]} />;
+      })}
+    </CardRow>
   );
 }
 
-function ResultScene({ sb }) {
+function ResultScene({ ctx }) {
+  const { sb } = ctx;
   const r = sb.matchResult;
   const margin = r && r.marginType === "tiebreak" ? "after a tie" : r && r.marginType === "wickets" ? `by ${r.marginValue} wicket${r.marginValue === 1 ? "" : "s"}` : r && r.marginType === "runs" ? `by ${r.marginValue} run${r.marginValue === 1 ? "" : "s"}` : "";
   const teamOf = (i) => (i.teamId === sb.teams.team1.id ? sb.teams.team1 : sb.teams.team2);
   const winnerId = r && r.winnerTeamId;
+  const winner = winnerId ? (Number(winnerId) === Number(sb.teams.team1.id) ? sb.teams.team1 : sb.teams.team2) : null;
   const so = sb.superOver && sb.superOver.phase === "settled" ? sb.superOver : null;
   const soLine = so ? so.rounds.map((rd) => `Super over${so.rounds.length > 1 ? ` ${rd.round}` : ""}: ${rd.innings.map((i) => `${teamCode(i.teamName)} ${i.runs}/${i.wickets}`).join("  ·  ")}`).join("   |   ") : null;
+  const headline = sb.status !== "completed" ? "Match in progress" : !r ? "Match complete" : r.marginType === "tie" ? "Match tied" : so ? `${r.winnerTeamName} won the super over` : `${r.winnerTeamName} won ${margin}`;
   return (
-    <CenterPanel accentId={winnerId || null}>
-      <Heading title={sb.status === "completed" ? "Full time" : "Match in progress"} />
-      <div>
-        {sb.innings.map((i) => {
-          const t = teamOf(i);
-          const won = winnerId && Number(winnerId) === Number(t.id);
-          return (
-            <motion.div key={i.inningId} variants={slideIn(-90)} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", height: 112, borderBottom: "1px solid rgba(255,255,255,.08)" }}>
-              <TeamSlab team={t} size={62} height={90} />
-              <span style={{ ...caps, fontWeight: 800, fontSize: 88, fontStyle: "italic", color: won ? "#fff" : C.muted }}>
-                {i.totalRuns}/{i.wickets} <span style={{ fontSize: 34, color: C.muted, fontStyle: "normal" }}>({i.overs})</span>
-              </span>
-            </motion.div>
-          );
-        })}
-      </div>
-      <motion.div variants={rise} style={{ position: "relative", marginTop: 34, padding: "18px 0", textAlign: "center", background: "linear-gradient(90deg, transparent, rgba(255,106,26,.28), transparent)" }}>
-        <Big size={66} color="#fff" italic>
-          {sb.status !== "completed" ? "Match in progress" : !r ? "Match complete" : r.marginType === "tie" ? "Match tied" : so ? `${r.winnerTeamName} won the super over` : `${r.winnerTeamName} won ${margin}`}
-        </Big>
-        {soLine && <div style={{ ...caps, fontWeight: 600, fontSize: 30, color: C.soft, letterSpacing: 3, marginTop: 8 }}>{soLine}</div>}
+    <Panel accentId={winner ? winner.id : null} style={{ left: 300, right: 300, top: 150 }}>
+      <Heading title={sb.status === "completed" ? "Full time" : "Match in progress"} id={winner ? winner.id : null} />
+      {sb.innings.map((i) => {
+        const t = teamOf(i);
+        const won = winnerId && Number(winnerId) === Number(t.id);
+        return (
+          <motion.div key={i.inningId} variants={slide(-70)} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", height: 118, borderBottom: `1px solid ${C.line}` }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 22 }}>
+              <Logo team={t} size={84} />
+              <span style={{ ...caps, fontWeight: 700, fontSize: 56 }}>{t.name}</span>
+            </div>
+            <span style={{ ...caps, fontWeight: 800, fontSize: 84, color: won ? "#fff" : C.soft }}>
+              {i.totalRuns}-{i.wickets} <span style={{ fontSize: 32, color: C.muted, fontWeight: 600 }}>({i.overs})</span>
+            </span>
+          </motion.div>
+        );
+      })}
+      <motion.div variants={rise} style={{ marginTop: 30, padding: "20px 0", textAlign: "center", background: winner ? `linear-gradient(90deg, transparent, ${shades(winner.id).base}66, transparent)` : "rgba(255,255,255,.06)" }}>
+        <Big size={68} weight={800}>{headline}</Big>
+        {soLine && <div style={{ marginTop: 8 }}><Label size={28} color={C.soft}>{soLine}</Label></div>}
       </motion.div>
-    </CenterPanel>
+    </Panel>
   );
 }
 
-/** Player of the match: a tall card on the right with a big photo. */
-function PotmScene({ data, scorecard }) {
+function PotmScene({ ctx }) {
+  const { data, scorecard, person } = ctx;
   const p = data.playerOfMatch || data.suggestedPlayerOfMatch;
-  if (!p) {
+  if (!p)
     return (
-      <SidePanel side="right" width={700} bottom={250} label="Player of the match">
-        <Big>To be announced</Big>
-      </SidePanel>
+      <Strip tag="Player of the match" width={700}>
+        <Cell grow style={{ borderLeft: "none" }}>
+          <Big>To be announced</Big>
+        </Cell>
+      </Strip>
     );
-  }
-  const team = teamOfId(data, p.teamId);
+  const info = person(p.id);
+  const teamId = p.teamId;
   const bat = scorecard && scorecard.innings.flatMap((i) => i.batting).find((b) => b.playerId === p.id);
   const bowl = scorecard && scorecard.innings.flatMap((i) => i.bowling).find((b) => b.playerId === p.id);
   return (
-    <SidePanel side="right" accentId={team.id} width={760} top={110} label="Player of the match">
-      <motion.div variants={pop} style={{ display: "flex", justifyContent: "center", position: "relative" }}>
-        <div style={{ position: "absolute", inset: "10% 20%", borderRadius: "50%", background: SPARK, filter: "blur(50px)", opacity: 0.55 }} />
-        <Photo src={p.photo} name={p.name} size={300} ring="rgba(255,255,255,.85)" ringWidth={6} />
-      </motion.div>
-      <motion.div variants={rise} style={{ textAlign: "center", marginTop: 20 }}>
-        <Big size={78} italic>
-          {p.name}
-        </Big>
-        <div>
-          <Small size={30} color={C.soft}>
-            {team.name}
-          </Small>
-        </div>
-      </motion.div>
-      <motion.div variants={rise} style={{ display: "flex", justifyContent: "center", gap: 24, marginTop: 20 }}>
+    <CardRow>
+      <PlayerCard name={p.name} photo={p.photo} teamId={teamId} tag="Player of the match" tagColor={C.gold} number={info && info.number} w={340} photoH={340} note={teamOfId(data, teamId).name} />
+      <SidePlate w={540} accentId={teamId}>
         {bat && (
-          <div style={{ background: "rgba(255,255,255,.07)", padding: "12px 30px", clipPath: SLANT(14), textAlign: "center" }}>
-            <Small size={20}>Batting</Small>
-            <div>
-              <Big size={54}>{bat.runs}</Big> <Small size={26}>({bat.balls})</Small>
+          <>
+            <Label size={20}>Batting</Label>
+            <div style={{ display: "flex", gap: 10, marginTop: 6 }}>
+              <StatBox k="Runs" v={bat.runs} />
+              <StatBox k="Balls" v={bat.balls} />
+              <StatBox k="4s" v={bat.fours} />
+              <StatBox k="6s" v={bat.sixes} />
             </div>
-          </div>
+          </>
         )}
         {bowl && bowl.legalBalls > 0 && (
-          <div style={{ background: "rgba(255,255,255,.07)", padding: "12px 30px", clipPath: SLANT(14), textAlign: "center" }}>
-            <Small size={20}>Bowling</Small>
-            <div>
-              <Big size={54} color={C.gold}>
-                {bowl.wickets}-{bowl.runs}
-              </Big>{" "}
-              <Small size={26}>({bowl.overs})</Small>
+          <div style={{ marginTop: bat ? 16 : 0 }}>
+            <Label size={20}>Bowling</Label>
+            <div style={{ display: "flex", gap: 10, marginTop: 6 }}>
+              <StatBox k="Overs" v={bowl.overs} />
+              <StatBox k="Runs" v={bowl.runs} />
+              <StatBox k="Wkts" v={bowl.wickets} color={C.gold} />
+              <StatBox k="Econ" v={bowl.economy ?? "-"} />
             </div>
           </div>
         )}
-      </motion.div>
-    </SidePanel>
+        {!bat && !(bowl && bowl.legalBalls > 0) && <Big size={34} color={C.soft}>{teamOfId(data, teamId).name}</Big>}
+      </SidePlate>
+    </CardRow>
   );
 }
 
 function RankingsScene({ rankings }) {
   const rows = (rankings || []).slice(0, 8);
+  const cols = "60px 1fr 70px 70px 100px";
   return (
-    <SidePanel side="right" width={860} top={80} label="Association ranking">
-      <Heading title="Top teams" />
-      <table style={{ width: "100%", borderCollapse: "collapse" }}>
-        <thead>
-          <tr>
-            <Th w={70} left>
-              #
-            </Th>
-            <Th left>Team</Th>
-            <Th w={90}>P</Th>
-            <Th w={90}>W</Th>
-            <Th w={120}>Pts</Th>
-          </tr>
-        </thead>
-        <motion.tbody variants={stagger(0.06, 0.15)}>
-          {rows.map((r, i) => (
-            <Row key={r.teamId} hi={i === 0}>
-              <Td left bold color={i < 3 ? C.gold : C.muted}>
-                {r.rank}
-              </Td>
-              <Td left bold>
-                <span style={{ display: "inline-flex", alignItems: "center", gap: 14, verticalAlign: "middle" }}>
-                  <Logo team={{ id: r.teamId, name: r.name, logo: r.logo }} size={40} ring="rgba(255,255,255,.6)" />
-                  {r.name}
-                </span>
-              </Td>
-              <Td color={C.muted}>{r.played}</Td>
-              <Td color={C.muted}>{r.won}</Td>
-              <Td bold>{r.points}</Td>
-            </Row>
-          ))}
-        </motion.tbody>
-      </table>
-      {rows.length === 0 && <Small>No ranking yet</Small>}
-    </SidePanel>
+    <Panel from="right" style={{ right: SIDE, width: 880, top: 100 }}>
+      <Heading title="Top teams" sub="Association ranking" />
+      <TRow head cols={cols}>
+        <HeadCell left>#</HeadCell>
+        <HeadCell left>Team</HeadCell>
+        <HeadCell>P</HeadCell>
+        <HeadCell>W</HeadCell>
+        <HeadCell>Pts</HeadCell>
+      </TRow>
+      <motion.div variants={stage(0.05, 0.06)}>
+        {rows.map((r, i) => (
+          <TRow key={r.teamId} cols={cols} hi={i === 0}>
+            <TD left bold color={i < 3 ? C.gold : C.muted}>{r.rank}</TD>
+            <span style={{ display: "flex", alignItems: "center", gap: 14, minWidth: 0 }}>
+              <Logo team={{ id: r.teamId, name: r.name, logo: r.logo }} size={40} plain />
+              <TD left bold>{r.name}</TD>
+            </span>
+            <TD color={C.muted}>{r.played}</TD>
+            <TD color={C.muted}>{r.won}</TD>
+            <TD bold>{r.points}</TD>
+          </TRow>
+        ))}
+      </motion.div>
+      {rows.length === 0 && <Label size={28}>No ranking yet</Label>}
+    </Panel>
   );
 }
 
 function MessageScene({ payload }) {
   return (
-    <LowerThird label="Spark" left={260} right={260}>
-      <Cell style={{ padding: "0 10px 0 0" }}>
-        <motion.div variants={slideIn(-40)} style={{ position: "relative", width: 140, alignSelf: "stretch", minHeight: 132, background: SPARK, clipPath: SLANT(30), overflow: "hidden" }}>
-          <RunningLines opacity={0.22} />
+    <Strip tag="Spark" width={1400}>
+      <Cell grow style={{ borderLeft: "none", padding: "14px 34px" }}>
+        <motion.div variants={rise}>
+          <Big size={fit(payload.text, 66, 38)} weight={700}>{payload.text}</Big>
         </motion.div>
-      </Cell>
-      <Cell grow>
-        <Letters text={payload.text} size={62} delay={0.45} style={{ flexWrap: "wrap", fontStyle: "italic" }} />
         {payload.subtext && (
           <motion.div variants={rise} style={{ marginTop: 8 }}>
-            <Small size={30} color={C.soft}>
-              {payload.subtext}
-            </Small>
+            <Label size={30} color={C.soft}>{payload.subtext}</Label>
           </motion.div>
         )}
       </Cell>
-    </LowerThird>
+    </Strip>
   );
 }
 
@@ -910,65 +931,60 @@ export function CornerBug({ data, sb }) {
   const name = data && data.tournament ? data.tournament.name : sb ? `${sb.teams.team1.name} v ${sb.teams.team2.name}` : "";
   const live = sb && sb.status !== "completed";
   return (
-    <motion.div initial="hidden" animate="show" exit="exit" variants={holder} style={{ position: "absolute", left: 60, top: 44, height: 64, display: "flex", fontFamily: FONT, color: "#fff", filter: "drop-shadow(0 12px 24px rgba(0,0,0,.45))" }}>
-      <div style={{ position: "relative", width: 76 }}>
-        <Backdrop from="left" colors={[SPARK]} clip={SLANT(14)} />
-        <motion.div variants={pop} style={{ position: "relative", height: "100%", display: "flex", alignItems: "center", justifyContent: "center", paddingRight: 8 }}>
-          <svg width="30" height="34" viewBox="0 0 24 24" fill="#fff" aria-hidden="true">
-            <path d="M13 2 3 14h9l-1 8 10-12h-9l1-8z" />
-          </svg>
-        </motion.div>
-      </div>
-      <div style={{ position: "relative", marginLeft: -10 }}>
-        <Backdrop from="left" colors={[PLATE]} clip={SLANT(14)} />
-        <motion.div variants={stagger(0.08, 0.35)} style={{ position: "relative", height: "100%", display: "flex", alignItems: "center", gap: 18, padding: "0 38px 0 26px" }}>
-          {live && (
-            <motion.span variants={pop} style={{ display: "inline-flex", alignItems: "center", gap: 8, background: C.red, padding: "3px 12px 2px", ...caps, fontWeight: 800, fontSize: 22, letterSpacing: 3 }}>
-              <span style={{ width: 10, height: 10, borderRadius: 5, background: "#fff", animation: "bc-pulse 1.2s ease-in-out infinite" }} />
-              Live
+    <motion.div initial="hidden" animate="show" exit="exit" variants={holder} style={{ position: "absolute", left: SIDE, top: 48, fontFamily: FONT, color: "#fff", filter: "drop-shadow(0 12px 24px rgba(0,0,0,.45))" }}>
+      <motion.div variants={wipe("left")}>
+        <div style={{ display: "flex", alignItems: "stretch", height: 54, background: PLATE, boxShadow: EDGE }}>
+          <div style={{ width: 8, background: C.brand }} />
+          <motion.div variants={stage(0.2, 0.08)} style={{ display: "flex", alignItems: "center", gap: 18, padding: "0 28px 0 22px" }}>
+            {live && (
+              <motion.span variants={pop} style={{ display: "inline-flex", alignItems: "center", gap: 8, background: C.live, padding: "3px 12px 2px", ...caps, fontWeight: 800, fontSize: 21, letterSpacing: 3 }}>
+                <span style={{ width: 9, height: 9, borderRadius: 5, background: "#fff", animation: "bc-pulse 1.4s ease-in-out infinite" }} />
+                Live
+              </motion.span>
+            )}
+            <motion.span variants={slide(-20)} style={{ ...caps, fontWeight: 700, fontSize: 28, letterSpacing: 2.5, whiteSpace: "nowrap" }}>
+              {name}
             </motion.span>
-          )}
-          <motion.span variants={slideIn(-20)} style={{ ...caps, fontWeight: 800, fontSize: 28, letterSpacing: 2.5, whiteSpace: "nowrap" }}>
-            {name}
-          </motion.span>
-          {sb && (
-            <motion.span variants={slideIn(-20)} style={{ ...caps, fontWeight: 600, fontSize: 22, letterSpacing: 2.5, color: C.muted, whiteSpace: "nowrap" }}>
-              Match {sb.matchNo}
-            </motion.span>
-          )}
-        </motion.div>
-      </div>
+            {sb && (
+              <motion.span variants={slide(-20)} style={{ ...caps, fontWeight: 500, fontSize: 22, letterSpacing: 2.5, color: C.muted, whiteSpace: "nowrap" }}>
+                Match {sb.matchNo}
+              </motion.span>
+            )}
+          </motion.div>
+        </div>
+      </motion.div>
     </motion.div>
   );
 }
 
 /**
- * @param state    { scene, payload }
- * @param data     /overlay/:matchId  (teams, squads, player of the match ...)
- * @param sb       live scoreboard,  inning = current innings of it
+ * @param state     { scene, payload }
+ * @param data      /overlay/:matchId  (teams, squads, player of the match ...)
+ * @param sb        live scoreboard,  inning = current innings of it
  * @param scorecard full scorecard (only needed by some scenes)
  */
 export default function SceneLayer({ state, data, sb, inning, scorecard, rankings }) {
   const scene = state ? state.scene : "none";
   const payload = (state && state.payload) || {};
-  const photoOf = photoLookup(sb, data);
   let node = null;
   if (data && sb && inning) {
+    const ctx = { sb, inning, data, scorecard, photoOf: photoLookup(sb, data), person: personLookup(sb, data) };
     switch (scene) {
       case "preview": node = <PreviewScene key="preview" data={data} sb={sb} />; break;
-      case "over_summary": node = <OverSummaryScene key={`over${inning.ballsBowled}`} sb={sb} inning={inning} scorecard={scorecard} />; break;
+      case "over_summary": node = <OverSummaryScene key={`over${inning.ballsBowled}`} ctx={ctx} />; break;
       case "squads": node = <motion.div key={`squads${payload.teamId || ""}`} initial="hidden" animate="show" exit="exit" variants={holder}><SquadsScene data={data} payload={payload} /></motion.div>; break;
       case "toss": node = <TossScene key="toss" sb={sb} />; break;
-      case "openers": node = <OpenersScene key="openers" sb={sb} inning={inning} scorecard={scorecard} photoOf={photoOf} />; break;
-      case "batters": node = <BattersScene key="batters" sb={sb} inning={inning} />; break;
-      case "bowler": node = <BowlerScene key="bowler" sb={sb} inning={inning} />; break;
-      case "partnership": node = <PartnershipScene key="partnership" sb={sb} inning={inning} />; break;
-      case "last_wicket": node = <LastWicketScene key="last_wicket" inning={inning} photoOf={photoOf} />; break;
-      case "scorecard": node = <ScorecardScene key={`scorecard${payload.innings}`} data={data} scorecard={scorecard} payload={payload} photoOf={photoOf} />; break;
-      case "target": node = <TargetScene key="target" sb={sb} inning={inning} />; break;
-      case "summary": node = <SummaryScene key="summary" sb={sb} scorecard={scorecard} photoOf={photoOf} />; break;
-      case "result": node = <ResultScene key="result" sb={sb} />; break;
-      case "potm": node = <PotmScene key="potm" data={data} scorecard={scorecard} />; break;
+      case "openers": node = <OpenersScene key="openers" ctx={ctx} />; break;
+      case "batters": node = <BattersScene key={`batters${payload.which}`} ctx={ctx} payload={payload} />; break;
+      case "bowler": node = <BowlerScene key="bowler" ctx={ctx} />; break;
+      case "player": node = <PlayerScene key={`player${payload.playerId || payload.role}`} ctx={ctx} payload={payload} />; break;
+      case "partnership": node = <PartnershipScene key="partnership" ctx={ctx} />; break;
+      case "last_wicket": node = <LastWicketScene key="last_wicket" ctx={ctx} />; break;
+      case "scorecard": node = <ScorecardScene key={`scorecard${payload.innings}`} ctx={ctx} payload={payload} />; break;
+      case "target": node = <TargetScene key="target" ctx={ctx} />; break;
+      case "summary": node = <SummaryScene key="summary" ctx={ctx} />; break;
+      case "result": node = <ResultScene key="result" ctx={ctx} />; break;
+      case "potm": node = <PotmScene key="potm" ctx={ctx} />; break;
       case "rankings": node = <RankingsScene key="rankings" rankings={rankings} />; break;
       case "message": node = <MessageScene key={`message${payload.text}`} payload={payload} />; break;
       default: node = null;
@@ -978,8 +994,9 @@ export default function SceneLayer({ state, data, sb, inning, scorecard, ranking
 }
 
 /** Scenes that use the top of the picture, so the corner tag steps aside while they are on air. */
-export const USES_TOP = ["squads", "preview", "scorecard", "summary", "result", "potm", "rankings", "target"];
+export const USES_TOP = ["squads", "preview", "scorecard", "result", "rankings", "target"];
 
 /** Scenes that need the full scorecard / the team ranking loaded. */
-export const NEEDS_SCORECARD = ["openers", "scorecard", "summary", "potm", "over_summary"];
+export const NEEDS_SCORECARD = ["openers", "scorecard", "summary", "potm", "over_summary", "player", "last_wicket"];
 export const NEEDS_RANKINGS = ["rankings"];
+

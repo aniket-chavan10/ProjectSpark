@@ -17,8 +17,9 @@ const SCENES = [
   "squads", // playing XI of one or both teams        { teamId?: id | null for both }
   "toss", // who won the toss and what they chose
   "openers", // opening batters + opening bowler
-  "batters", // the two batters at the crease
+  "batters", // the batters at the crease                { which?: "both" | "striker" | "nonStriker" }
   "bowler", // the bowler and this over
+  "player", // one player's card                        { playerId } or { role: "striker" | "nonStriker" | "bowler" }
   "partnership", // current partnership
   "last_wicket", // fall of the last wicket
   "scorecard", // an innings scorecard                  { innings: 1 | 2 }
@@ -32,10 +33,54 @@ const SCENES = [
 
 const clean = (v, max) => String(v ?? "").trim().replace(/\s+/g, " ").slice(0, max);
 
+/**
+ * What the always-on score bar shows. The operator switches the parts on and off; it stays until changed,
+ * through scene changes and reloads. It is kept inside the stored payload (key "bar") so no table changes.
+ */
+const BATTER_MODES = ["both", "striker", "nonStriker", "none"];
+const EVENT_STYLES = ["bar", "banner"];
+const BAR_DEFAULTS = {
+  visible: true, // the whole bar
+  batters: "both", // both | striker | nonStriker | none
+  bowler: true,
+  thisOver: true, // the balls of the over
+  info: true, // the block on the right: target / need, or run rate and projection
+  photos: true, // player photos in the bar
+  corner: true, // the tournament / LIVE tag in the top-left corner
+  events: true, // the four / six / wicket / fifty animations
+  eventStyle: "bar", // bar: they play inside the score bar itself | banner: a photo banner above it
+};
+
+function cleanBar(input = {}, base = BAR_DEFAULTS) {
+  const out = { ...BAR_DEFAULTS, ...base };
+  for (const key of Object.keys(BAR_DEFAULTS)) {
+    if (input[key] === undefined) continue;
+    if (key === "batters") {
+      if (!BATTER_MODES.includes(input[key])) throw new ScoringError(`Batters: choose ${BATTER_MODES.join(", ")}`);
+      out[key] = input[key];
+    } else if (key === "eventStyle") {
+      if (!EVENT_STYLES.includes(input[key])) throw new ScoringError(`Show four / six / wicket: choose ${EVENT_STYLES.join(" or ")}`);
+      out[key] = input[key];
+    } else {
+      out[key] = !!input[key];
+    }
+  }
+  return out;
+}
+
+const WHICH = ["both", "striker", "nonStriker"];
+const ROLES = ["striker", "nonStriker", "bowler"];
+
 function cleanPayload(scene, payload = {}) {
   const out = {};
   if (scene === "squads") out.teamId = payload.teamId ? Number(payload.teamId) : null;
   if (scene === "scorecard") out.innings = Number(payload.innings) === 2 ? 2 : 1;
+  if (scene === "batters") out.which = WHICH.includes(payload.which) ? payload.which : "both";
+  if (scene === "player") {
+    out.role = ROLES.includes(payload.role) ? payload.role : null;
+    out.playerId = payload.playerId ? Number(payload.playerId) : null;
+    if (!out.role && !out.playerId) throw new ScoringError("Choose the player to show");
+  }
   if (scene === "message") {
     out.text = clean(payload.text, 140);
     out.subtext = clean(payload.subtext, 200);
@@ -44,13 +89,18 @@ function cleanPayload(scene, payload = {}) {
   return out;
 }
 
-const shape = (r) => ({
-  scene: r ? r.scene : "none",
-  payload: r && r.payload ? safeJson(r.payload) : {},
-  autoHide: r && r.auto_hide ? Number(r.auto_hide) : null,
-  shownAt: r && r.shown_at ? new Date(r.shown_at).toISOString() : null,
-  updatedAt: r && r.updated_at ? new Date(r.updated_at).toISOString() : null,
-});
+const shape = (r) => {
+  const stored = r && r.payload ? safeJson(r.payload) : {};
+  const { bar, ...payload } = stored;
+  return {
+    scene: r ? r.scene : "none",
+    payload,
+    bar: cleanBar({}, bar && typeof bar === "object" ? bar : {}),
+    autoHide: r && r.auto_hide ? Number(r.auto_hide) : null,
+    shownAt: r && r.shown_at ? new Date(r.shown_at).toISOString() : null,
+    updatedAt: r && r.updated_at ? new Date(r.updated_at).toISOString() : null,
+  };
+};
 
 function safeJson(text) {
   try {
@@ -87,14 +137,33 @@ exports.setState = async (matchId, input = {}) => {
     if (!Number.isInteger(autoHide) || autoHide < 2 || autoHide > 120) throw new ScoringError("Hide after: choose 2 to 120 seconds");
   }
   if (scene === "none") autoHide = null;
+  // the score-bar settings belong to the match, not to a scene: carry them over
+  const { bar } = await exports.getState(matchId);
   await db.query(
     `INSERT INTO match_overlay (match_id, scene, payload, auto_hide, shown_at) VALUES (?, ?, ?, ?, NOW())
      ON DUPLICATE KEY UPDATE scene = VALUES(scene), payload = VALUES(payload), auto_hide = VALUES(auto_hide), shown_at = NOW()`,
-    [matchId, scene, JSON.stringify(payload), autoHide]
+    [matchId, scene, JSON.stringify({ ...payload, bar }), autoHide]
   );
   const state = await exports.getState(matchId);
   return state;
 };
+
+/** Change what the score bar shows. Only the keys sent change; what is on air besides the bar is left alone. */
+exports.setBar = async (matchId, input = {}) => {
+  await assertMatch(db, matchId);
+  const current = await exports.getState(matchId);
+  const bar = cleanBar(input, current.bar);
+  await db.query(
+    `INSERT INTO match_overlay (match_id, scene, payload, auto_hide, shown_at) VALUES (?, 'none', ?, NULL, NULL)
+     ON DUPLICATE KEY UPDATE payload = VALUES(payload)`,
+    [matchId, JSON.stringify({ ...current.payload, bar })]
+  );
+  return exports.getState(matchId);
+};
+
+exports.BAR_DEFAULTS = BAR_DEFAULTS;
+exports.cleanBar = cleanBar;
+exports.cleanPayload = cleanPayload;
 
 /**
  * Everything a scene may need besides the scoreboard and the scorecard.

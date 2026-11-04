@@ -1,86 +1,75 @@
-import { LuUserRoundX } from "react-icons/lu";
 import { cx, PlayerAvatar } from "../ui/kit";
+import { Section } from "./console";
 
-const Num = ({ label, value, big }) => (
-  <div className="text-center">
-    <div className={cx("tabular font-display font-extrabold leading-none", big ? "text-4xl text-white" : "text-xl text-ink-100")}>{value}</div>
-    <div className="mt-1 text-[10px] font-extrabold uppercase tracking-[0.18em] text-ink-400">{label}</div>
-  </div>
+const Fig = ({ k, v }) => (
+  <span className="text-[11px] font-medium uppercase tracking-wide text-zinc-500">
+    {k} <b className="tabular text-[13px] font-semibold text-zinc-200">{v}</b>
+  </span>
 );
 
-function BatterCard({ b }) {
+function BatterRow({ b }) {
   return (
-    <div className={cx("relative overflow-hidden rounded-2xl p-4 ring-1 ring-inset transition", b.isOnStrike ? "bg-gradient-to-r from-spark-500/20 to-transparent ring-spark-400/50" : "bg-white/[0.03] ring-white/10")}>
-      {b.isOnStrike && <span className="absolute inset-y-0 left-0 w-1 bg-spark-grad" aria-hidden="true" />}
-      <div className="flex items-center gap-3">
-        <PlayerAvatar name={b.name} photo={b.profilePicture} id={b.playerId} size={48} className={b.isOnStrike ? "ring-2 ring-spark-400" : "ring-2 ring-white/20"} />
-        <div className="min-w-0 flex-1">
-          <p className="truncate text-[15px] font-bold text-white">{b.name}</p>
-          {b.isOnStrike ? (
-            <p className="text-[10px] font-extrabold uppercase tracking-[0.2em] text-spark-300">● On strike</p>
-          ) : (
-            <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-ink-400">Non-striker</p>
-          )}
-        </div>
-        <div className="flex items-end gap-1">
-          <span className="tabular font-display text-5xl font-extrabold leading-none text-white">{b.runs}</span>
-          <span className="tabular mb-1 font-display text-lg font-bold text-ink-400">({b.balls})</span>
+    <div className={cx("relative flex items-center gap-3 rounded-md border px-3 py-2.5", b.isOnStrike ? "border-spark-500/60 bg-spark-500/10" : "border-zinc-800 bg-zinc-950/40")}>
+      <PlayerAvatar name={b.name} photo={b.profilePicture} id={b.playerId} size={44} />
+      <div className="min-w-0 flex-1">
+        <p className="truncate text-[15px] font-semibold text-white">{b.name}</p>
+        <p className={cx("text-[10px] font-bold uppercase tracking-[0.16em]", b.isOnStrike ? "text-spark-300" : "text-zinc-500")}>{b.isOnStrike ? "● On strike" : "Non-striker"}</p>
+        <div className="mt-1 flex gap-3">
+          <Fig k="4s" v={b.fours} />
+          <Fig k="6s" v={b.sixes} />
+          <Fig k="SR" v={b.strikeRate} />
         </div>
       </div>
-      <div className="mt-3 grid grid-cols-3 gap-2 rounded-xl bg-ink-950/50 py-2">
-        <Num label="4s" value={b.fours} />
-        <Num label="6s" value={b.sixes} />
-        <Num label="SR" value={b.strikeRate} />
+      <div className="text-right">
+        <span className="tabular font-display text-[38px] font-bold leading-none text-white">{b.runs}</span>
+        <span className="tabular ml-1 font-display text-base font-semibold text-zinc-500">({b.balls})</span>
       </div>
     </div>
   );
 }
 
 /** The two batters and the bowler: what the scorer is watching ball by ball. */
-export default function PlayersPanel({ inning, onRetire, awaitingBowler }) {
+export default function PlayersPanel({ inning, awaitingBowler, className }) {
   const bowler = inning.currentBowler;
-
+  const last = inning.lastWicket;
   return (
-    <section className="space-y-3 rounded-3xl bg-ink-900/70 p-4 ring-1 ring-inset ring-white/10 backdrop-blur" aria-label="Batters and bowler">
-      <div className="flex items-center justify-between px-1">
-        <h2 className="text-[11px] font-extrabold uppercase tracking-[0.22em] text-ink-300">At the crease</h2>
-        {inning.currentBatsmen.length > 0 && onRetire && (
-          <button type="button" onClick={onRetire} className="inline-flex items-center gap-1.5 rounded-lg px-2 py-1 text-xs font-bold text-ink-300 hover:bg-white/10 hover:text-white">
-            <LuUserRoundX className="h-4 w-4" aria-hidden="true" />
-            Batter retires
-          </button>
-        )}
-      </div>
-      {inning.currentBatsmen.length === 0 && <p className="rounded-2xl bg-white/[0.03] px-4 py-6 text-center text-sm text-ink-400">No batter at the crease</p>}
+    <Section title="At the crease" className={className} bodyClass="space-y-2 overflow-y-auto p-3">
+      {inning.currentBatsmen.length === 0 && <p className="rounded-md border border-dashed border-zinc-700 px-4 py-5 text-center text-sm text-zinc-500">No batter at the crease</p>}
       {inning.currentBatsmen.map((b) => (
-        <BatterCard key={b.playerId} b={b} />
+        <BatterRow key={b.playerId} b={b} />
       ))}
 
-      <h2 className="px-1 pt-2 text-[11px] font-extrabold uppercase tracking-[0.22em] text-ink-300">Bowling</h2>
+      <h2 className="px-0.5 pt-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-zinc-500">Bowling</h2>
       {bowler ? (
-        <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-volt-500/15 to-transparent p-4 ring-1 ring-inset ring-volt-400/30">
-          <span className="absolute inset-y-0 left-0 w-1 bg-gradient-to-b from-volt-400 to-indigo-500" aria-hidden="true" />
-          <div className="flex items-center gap-3">
-            <PlayerAvatar name={bowler.name} photo={bowler.profilePicture} id={bowler.playerId} size={48} className="ring-2 ring-volt-400" />
-            <div className="min-w-0 flex-1">
-              <p className="truncate text-[15px] font-bold text-white">{bowler.name}</p>
-              <p className="text-xs text-ink-300">Econ {bowler.economy}</p>
+        <div className="flex items-center gap-3 rounded-md border border-zinc-800 bg-zinc-950/40 px-3 py-2.5">
+          <PlayerAvatar name={bowler.name} photo={bowler.profilePicture} id={bowler.playerId} size={44} />
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-[15px] font-semibold text-white">{bowler.name}</p>
+            <div className="mt-1 flex gap-3">
+              <Fig k="Ov" v={bowler.overs} />
+              <Fig k="M" v={bowler.maidens} />
+              <Fig k="Econ" v={bowler.economy} />
             </div>
-            <span className="tabular font-display text-4xl font-extrabold leading-none text-white">
-              {bowler.wickets}
-              <span className="text-ink-400">-{bowler.runsConceded}</span>
-            </span>
           </div>
-          <div className="mt-3 grid grid-cols-4 gap-2 rounded-xl bg-ink-950/50 py-2">
-            <Num label="Overs" value={bowler.overs} />
-            <Num label="Maidens" value={bowler.maidens} />
-            <Num label="Runs" value={bowler.runsConceded} />
-            <Num label="Wkts" value={bowler.wickets} />
-          </div>
+          <span className="tabular font-display text-[38px] font-bold leading-none text-white">
+            {bowler.wickets}
+            <span className="text-zinc-500">-{bowler.runsConceded}</span>
+          </span>
         </div>
       ) : (
-        <p className={cx("rounded-2xl px-4 py-6 text-center text-sm font-semibold", awaitingBowler ? "animate-pulse bg-spark-500/15 text-spark-200 ring-1 ring-inset ring-spark-400/40" : "bg-white/[0.03] text-ink-400")}>{awaitingBowler ? "Choose the next bowler" : "No bowler yet"}</p>
+        <p className={cx("rounded-md px-4 py-5 text-center text-sm font-semibold", awaitingBowler ? "bg-spark-500/10 text-spark-300 ring-1 ring-inset ring-spark-500/40" : "border border-dashed border-zinc-700 text-zinc-500")}>{awaitingBowler ? "Choose the next bowler" : "No bowler yet"}</p>
       )}
-    </section>
+
+      <dl className="grid grid-cols-2 gap-2 pt-2 text-[12px]">
+        <div className="rounded-md bg-zinc-950/40 px-3 py-2">
+          <dt className="text-[10px] font-semibold uppercase tracking-[0.14em] text-zinc-500">Partnership</dt>
+          <dd className="tabular mt-0.5 text-sm font-semibold text-zinc-100">{inning.partnershipRuns} runs</dd>
+        </div>
+        <div className="min-w-0 rounded-md bg-zinc-950/40 px-3 py-2">
+          <dt className="text-[10px] font-semibold uppercase tracking-[0.14em] text-zinc-500">Last wicket</dt>
+          <dd className="mt-0.5 truncate text-sm font-semibold text-zinc-100">{last ? `${last.playerOutName || "-"}${last.over ? ` · ${last.over}` : ""}` : "-"}</dd>
+        </div>
+      </dl>
+    </Section>
   );
 }

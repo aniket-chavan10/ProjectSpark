@@ -193,21 +193,27 @@ export const detectEvent = (prev, next) => {
   const ball = b.recentBalls && b.recentBalls[0];
   if (!ball) return null;
   const batter = (id) => b.currentBatsmen.find((x) => x.playerId === id);
+  const figuresOf = (p) => (p ? { runs: p.runs, balls: p.balls, fours: p.fours, sixes: p.sixes, strikeRate: p.strikeRate } : null);
+  const teamId = b.teamId;
+  const score = { runs: b.totalRuns, wickets: b.wickets, overs: b.overs };
 
   if (Number(ball.is_wicket) === 1 && ball.ball_outcome !== "retired") {
     const w = b.wicketFalls[b.wicketFalls.length - 1];
-    return w ? { kind: "wicket", title: "WICKET", name: w.playerOutName, detail: dismissalText(w), playerId: w.playerOutId, key: b.lastBallId } : null;
+    if (!w) return null;
+    // the batter's figures as they stood before the ball (they are no longer at the crease now)
+    const out = a.currentBatsmen.find((x) => x.playerId === w.playerOutId);
+    return { kind: "wicket", title: "WICKET", name: w.playerOutName, detail: dismissalText(w), playerId: w.playerOutId, teamId, stats: figuresOf(out), score, fall: `${w.scoreAtFall}-${w.wicketNumber}`, over: w.over, key: b.lastBallId };
   }
   // a batter reaching 50 or 100
   const now = batter(ball.batsman_id);
   const before = a.currentBatsmen.find((x) => x.playerId === ball.batsman_id);
   if (now && before) {
     for (const mark of [100, 50]) {
-      if (before.runs < mark && now.runs >= mark) return { kind: "milestone", title: mark === 100 ? "HUNDRED" : "FIFTY", name: now.name, detail: `${now.runs} off ${now.balls} balls`, playerId: now.playerId, key: b.lastBallId };
+      if (before.runs < mark && now.runs >= mark) return { kind: "milestone", title: mark === 100 ? "HUNDRED" : "FIFTY", name: now.name, detail: `${now.runs} off ${now.balls} balls`, playerId: now.playerId, teamId, stats: figuresOf(now), score, key: b.lastBallId };
     }
   }
   const runs = Number(ball.runs_scored);
-  if (runs === 6) return { kind: "six", title: "SIX", name: now ? now.name : "", detail: now ? `${now.runs} (${now.balls})` : "", playerId: now && now.playerId, key: b.lastBallId };
-  if (runs === 4) return { kind: "four", title: "FOUR", name: now ? now.name : "", detail: now ? `${now.runs} (${now.balls})` : "", playerId: now && now.playerId, key: b.lastBallId };
+  if (runs === 6) return { kind: "six", title: "SIX", name: now ? now.name : "", detail: now ? `${now.runs} (${now.balls})` : "", playerId: now && now.playerId, teamId, stats: figuresOf(now), score, key: b.lastBallId };
+  if (runs === 4) return { kind: "four", title: "FOUR", name: now ? now.name : "", detail: now ? `${now.runs} (${now.balls})` : "", playerId: now && now.playerId, teamId, stats: figuresOf(now), score, key: b.lastBallId };
   return null;
 };

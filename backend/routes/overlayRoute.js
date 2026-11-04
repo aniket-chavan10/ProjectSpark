@@ -10,6 +10,7 @@ router.get("/:matchId", c.getData);
 // The scorer (logged in) makes a link for the overlay operator; the operator uses its key on the two calls below.
 router.post("/:matchId/operator-link", verifyToken, c.createOperatorLink);
 router.put("/:matchId/scene", operatorAuth, c.setScene);
+router.put("/:matchId/bar", operatorAuth, c.setBar);
 router.put("/:matchId/player-of-match", operatorAuth, c.setPlayerOfMatch);
 
 module.exports = router;
