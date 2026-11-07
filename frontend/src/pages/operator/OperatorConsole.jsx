@@ -27,7 +27,7 @@ import scoringApi from "../../api/scoringApi";
 import { watchMatch } from "../../api/matchSocket";
 import { operatorApi } from "../../api/sparkApi";
 import { SparkMark } from "../../components/layout/AppShell";
-import { BAR_PRESETS, withDefaults } from "../../components/Overlay/barConfig";
+import { BAR_PRESETS, THEMES, isPreset, withDefaults } from "../../components/Overlay/barConfig";
 import { cx } from "../../components/ui/kit";
 
 // The graphics desk. The person running the on-air graphics works here, apart from the scorer, on a link the scorer
@@ -319,8 +319,9 @@ export default function OperatorConsole() {
   const suggested = data && data.suggestedPlayerOfMatch;
   const title = data ? data.teams.map((t) => t.name).join(" v ") : "Loading…";
   const fixedPlayer = pick.playerId ? String(pick.playerId) : "";
-  const barIsMinimal = JSON.stringify(bar) === JSON.stringify(BAR_PRESETS.minimal);
-  const barIsFull = JSON.stringify(bar) === JSON.stringify(BAR_PRESETS.full);
+  const barIsMinimal = isPreset(bar, BAR_PRESETS.minimal);
+  const barIsFull = isPreset(bar, BAR_PRESETS.full);
+  const premium = bar.theme === "premium";
 
   return (
     <div className="flex h-screen min-h-[600px] flex-col overflow-hidden bg-zinc-950 text-zinc-100">
@@ -383,6 +384,21 @@ export default function OperatorConsole() {
             className="min-h-0 flex-1"
             aside={
               <div className="flex items-center gap-1">
+                <div role="radiogroup" aria-label="Theme" className="mr-1 flex items-center gap-1 border-r border-zinc-700 pr-2.5">
+                  <span className="mr-0.5 text-[11px] font-semibold uppercase tracking-wider text-zinc-500">Theme</span>
+                  {THEMES.map((t) => (
+                    <button
+                      key={t.value}
+                      type="button"
+                      role="radio"
+                      aria-checked={bar.theme === t.value}
+                      onClick={() => setBar({ theme: t.value })}
+                      className={cx("rounded px-2 py-0.5 text-[11px] font-semibold", bar.theme === t.value ? (t.value === "premium" ? "bg-fuchsia-600 text-white" : "bg-zinc-700 text-white") : "text-zinc-400 hover:text-white")}
+                    >
+                      {t.label}
+                    </button>
+                  ))}
+                </div>
                 <button type="button" onClick={() => setBar(BAR_PRESETS.full)} className={cx("rounded px-2 py-0.5 text-[11px] font-semibold", barIsFull ? "bg-zinc-700 text-white" : "text-zinc-400 hover:text-white")}>
                   Full
                 </button>
@@ -410,12 +426,14 @@ export default function OperatorConsole() {
                   />
                 </div>
                 <div>
-                  <p className="mb-1 px-0.5 text-[11px] font-semibold uppercase tracking-wider text-zinc-500">4 · 6 · Wicket · 50 play</p>
+                  <p className="mb-1 px-0.5 text-[11px] font-semibold uppercase tracking-wider text-zinc-500" title={premium ? "The Premium theme always plays them in the bar and as a stinger" : undefined}>
+                    4 · 6 · Wicket · 50 play
+                  </p>
                   <Segmented
                     label="Where four, six, wicket and fifty play"
                     value={bar.eventStyle}
                     onChange={(v) => setBar({ eventStyle: v })}
-                    disabled={!bar.visible || !bar.events}
+                    disabled={!bar.visible || !bar.events || premium}
                     options={[
                       { value: "bar", label: "In the bar" },
                       { value: "banner", label: "Above" },

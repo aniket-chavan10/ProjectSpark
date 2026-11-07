@@ -31,7 +31,23 @@ describe("the score bar settings", () => {
   test("every part shows until the operator switches it off", async () => {
     const state = await overlay.getState(7);
     expect(state.scene).toBe("none");
-    expect(state.bar).toEqual({ visible: true, batters: "both", bowler: true, thisOver: true, info: true, photos: true, corner: true, events: true, eventStyle: "bar" });
+    expect(state.bar).toEqual({ visible: true, batters: "both", bowler: true, thisOver: true, info: true, photos: true, corner: true, events: true, eventStyle: "bar", theme: "basic" });
+  });
+
+  test("the theme is basic until the operator picks premium, and it survives other changes", async () => {
+    expect((await overlay.getState(7)).bar.theme).toBe("basic");
+    expect((await overlay.setBar(7, { theme: "premium" })).bar.theme).toBe("premium");
+    const other = await overlay.setBar(7, { batters: "striker" });
+    expect(other.bar).toMatchObject({ theme: "premium", batters: "striker" });
+    const scene = await overlay.setState(7, { scene: "squads", payload: {} });
+    expect(scene.bar.theme).toBe("premium");
+    expect((await overlay.setBar(7, { theme: "basic" })).bar.theme).toBe("basic");
+  });
+
+  test("an unknown theme is refused and the stored one stays", async () => {
+    await overlay.setBar(7, { theme: "premium" });
+    await expect(overlay.setBar(7, { theme: "gold" })).rejects.toThrow(/choose basic or premium/);
+    expect((await overlay.getState(7)).bar.theme).toBe("premium");
   });
 
   test("only the keys sent change, and the choice is kept", async () => {

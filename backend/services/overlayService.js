@@ -9,6 +9,7 @@ const db = require("../dbconfigure");
 const { ScoringError } = require("../utils/errors");
 const squadService = require("./squadService");
 const playerStats = require("./playerStatsService");
+const playerRanking = require("./playerRankingService");
 
 const SCENES = [
   "none", // only the score bar
@@ -39,6 +40,7 @@ const clean = (v, max) => String(v ?? "").trim().replace(/\s+/g, " ").slice(0, m
  */
 const BATTER_MODES = ["both", "striker", "nonStriker", "none"];
 const EVENT_STYLES = ["bar", "banner"];
+const THEMES = ["basic", "premium"];
 const BAR_DEFAULTS = {
   visible: true, // the whole bar
   batters: "both", // both | striker | nonStriker | none
@@ -49,6 +51,7 @@ const BAR_DEFAULTS = {
   corner: true, // the tournament / LIVE tag in the top-left corner
   events: true, // the four / six / wicket / fifty animations
   eventStyle: "bar", // bar: they play inside the score bar itself | banner: a photo banner above it
+  theme: "basic", // basic: the standard graphics | premium: the TV-style package (score bug, stingers, player intros, squad)
 };
 
 function cleanBar(input = {}, base = BAR_DEFAULTS) {
@@ -60,6 +63,9 @@ function cleanBar(input = {}, base = BAR_DEFAULTS) {
       out[key] = input[key];
     } else if (key === "eventStyle") {
       if (!EVENT_STYLES.includes(input[key])) throw new ScoringError(`Show four / six / wicket: choose ${EVENT_STYLES.join(" or ")}`);
+      out[key] = input[key];
+    } else if (key === "theme") {
+      if (!THEMES.includes(input[key])) throw new ScoringError(`Theme: choose ${THEMES.join(" or ")}`);
       out[key] = input[key];
     } else {
       out[key] = !!input[key];
@@ -182,6 +188,15 @@ exports.getData = async (matchId) => {
 
   const squads = fixture ? await squadService.getFixtureSquads(db, fixture.id, fixture.tournament_id, teams) : {};
 
+  // career figures of everyone in the squads: the premium theme's player intro cards and squad graphic print them
+  let career = {};
+  try {
+    const ids = Object.values(squads).flatMap((s) => [...(s.playing || []), ...(s.reserves || [])].map((p) => p.player_id));
+    career = await playerRanking.careerCards(ids);
+  } catch (err) {
+    if (process.env.NODE_ENV !== "test") console.error("Could not load the career figures:", err.message);
+  }
+
   let playerOfMatch = null;
   let suggested = null;
   try {
@@ -209,6 +224,7 @@ exports.getData = async (matchId) => {
     venue: fixture ? fixture.venue : null,
     teams,
     squads,
+    career, // { [playerId]: { matches, innings, runs, average, strikeRate, highest, wickets, economy, best, role } }
     playerOfMatch,
     suggestedPlayerOfMatch: suggested,
     state: await exports.getState(matchId),

@@ -83,9 +83,13 @@ const fromRow = (r) =>
     catches: n(r.catches), stumpings: n(r.stumpings), runOuts: n(r.run_outs), keeperMatches: n(r.keeper_matches), keeperDismissals: n(r.keeper_dismissals),
   });
 
-function scopeSql({ season, tournamentId, teamId }) {
+function scopeSql({ season, tournamentId, teamId, playerIds }) {
   const where = [];
   const params = [];
+  if (Array.isArray(playerIds) && playerIds.length) {
+    where.push("s.player_id IN (?)");
+    params.push(playerIds.map(Number));
+  }
   if (Number(season)) {
     where.push("s.season_year = ?");
     params.push(Number(season));
@@ -114,6 +118,31 @@ exports.aggregate = async (scope = {}) => {
   const { sql, params } = scopeSql(scope);
   const [rows] = await db.query(`${AGG_SQL}${sql} GROUP BY s.player_id`, params);
   return rows.map(fromRow);
+};
+
+/**
+ * Career figures of a few players, small enough to ride along with the broadcast overlay's data and shaped for
+ * its player intro cards (matches, runs, average, strike rate | wickets, economy, best figures).
+ * @returns { [playerId]: { matches, innings, runs, average, strikeRate, highest, wickets, economy, best, role } } - players with no match yet are left out
+ */
+exports.careerCards = async (playerIds) => {
+  const ids = [...new Set((playerIds || []).map(Number).filter((id) => id > 0))];
+  if (!ids.length) return {};
+  const players = await exports.aggregate({ playerIds: ids });
+  // best bowling in a match: most wickets, then fewest runs
+  const [bowl] = await db.query(
+    `SELECT player_id, wickets, runs_conceded FROM player_match_stats WHERE in_xi = 1 AND wickets > 0 AND player_id IN (?) ORDER BY wickets DESC, runs_conceded ASC`,
+    [ids]
+  );
+  const best = {};
+  bowl.forEach((r) => {
+    if (!best[r.player_id]) best[r.player_id] = `${r.wickets}/${r.runs_conceded}`;
+  });
+  const out = {};
+  players.forEach((p) => {
+    out[p.playerId] = { matches: p.matches, innings: p.innings, runs: p.runs, average: p.average, strikeRate: p.strikeRate, highest: p.highest, wickets: p.wickets, economy: p.economy, best: best[p.playerId] || null, role: p.role };
+  });
+  return out;
 };
 
 /** A player's career (or one season's) figures plus match by match. */

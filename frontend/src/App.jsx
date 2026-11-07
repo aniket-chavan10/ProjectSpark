@@ -9,6 +9,7 @@ import ProtectedRoute from "./components/ProtectedRoute";
 import SignInMasterAdmin from "./pages/SignInMasterAdmin";
 import MatchRoom from "./pages/match/MatchRoom";
 import OverlayPage from "./pages/overlay/OverlayPage";
+import OverlayLab from "./pages/overlay/OverlayLab";
 import OperatorConsole from "./pages/operator/OperatorConsole";
 import ResultsPage from "./pages/public/ResultsPage";
 import MatchPage from "./pages/public/MatchPage";
@@ -48,6 +49,9 @@ function App() {
 
           {/* Broadcast score bar for the streaming software: public, no login */}
           <Route path="/overlay/:matchId" element={<OverlayPage />} />
+
+          {/* A test bench for the broadcast themes: a made-up match, no server needed */}
+          <Route path="/overlay-lab" element={<OverlayLab />} />
 
           {/* The graphics operator's own console. The key in the scorer's link is the login, for this match only */}
           <Route path="/operator/:matchId" element={<OperatorConsole />} />

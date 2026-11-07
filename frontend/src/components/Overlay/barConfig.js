@@ -10,13 +10,27 @@ export const BAR_DEFAULTS = {
   corner: true, // the tournament / LIVE tag in the top-left corner
   events: true, // the four / six / wicket / fifty animations
   eventStyle: "bar", // bar: inside the score bar itself | banner: a photo banner above it
+  theme: "basic", // basic: the standard graphics | premium: the TV-style package
 };
+
+export const THEMES = [
+  { value: "basic", label: "Basic" },
+  { value: "premium", label: "Premium" },
+];
 
 /** A bar with only what the operator sent filled in over the defaults. */
 export const withDefaults = (bar) => ({ ...BAR_DEFAULTS, ...(bar || {}) });
 
-/** The two presets on the operator's desk. */
+/** The theme in force: ?theme=premium in the page address wins (handy in OBS), else what the operator chose. */
+export const pickTheme = (urlTheme, bar) => (urlTheme === "premium" || urlTheme === "basic" ? urlTheme : (bar && bar.theme) || "basic");
+
+// The two presets on the operator's desk. They set which parts of the bar show, never the theme: choosing "Score only"
+// must not switch the look of the whole broadcast.
+const { theme: _theme, ...PART_DEFAULTS } = BAR_DEFAULTS; // eslint-disable-line no-unused-vars
 export const BAR_PRESETS = {
-  full: { ...BAR_DEFAULTS },
-  minimal: { ...BAR_DEFAULTS, batters: "none", bowler: false, thisOver: false, info: false, photos: false },
+  full: { ...PART_DEFAULTS },
+  minimal: { ...PART_DEFAULTS, batters: "none", bowler: false, thisOver: false, info: false, photos: false },
 };
+
+/** Is the bar showing exactly this preset (the theme does not count)? */
+export const isPreset = (bar, preset) => Object.keys(preset).every((k) => bar[k] === preset[k]);
